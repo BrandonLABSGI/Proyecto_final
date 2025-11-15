@@ -4,7 +4,7 @@ from modulos.venta import mostrar_venta
 from modulos.promotora import interfaz_promotora
 
 # ------------------------------------------------------------
-# Función para verificar usuario y mostrar interfaz según rol
+# Función para verificar usuario y rol
 # ------------------------------------------------------------
 def verificar_usuario(usuario, contra):
     con = obtener_conexion()
@@ -25,41 +25,40 @@ def verificar_usuario(usuario, contra):
         con.close()
 
 # ------------------------------------------------------------
-# Interfaz de inicio de sesión
+# Pantalla de inicio de sesión
 # ------------------------------------------------------------
 def login():
-    st.title("🔐 Inicio de Sesión")
+    st.title("🔐 Inicio de sesión")
 
     usuario = st.text_input("Usuario")
     contra = st.text_input("Contraseña", type="password")
-    iniciar = st.button("Iniciar sesión")
 
-    if iniciar:
+    if st.button("Iniciar sesión"):
         datos = verificar_usuario(usuario, contra)
 
         if datos:
             st.session_state["sesion_iniciada"] = True
             st.session_state["usuario"] = datos["Usuario"]
             st.session_state["rol"] = datos["Rol"]
-            st.success(f"Bienvenido, {datos['Usuario']} ({datos['Rol']})")
+            st.success(f"✅ Bienvenido, {datos['Usuario']} ({datos['Rol']})")
             st.rerun()
         else:
             st.error("❌ Usuario o contraseña incorrectos.")
 
 # ------------------------------------------------------------
-# Redirección según el rol
+# Mostrar interfaz según el rol
 # ------------------------------------------------------------
-def mostrar_interfaz():
-    if "sesion_iniciada" in st.session_state and st.session_state["sesion_iniciada"]:
-        rol = st.session_state.get("rol")
+def mostrar_interfaz_unica():
+    rol = st.session_state.get("rol", "").lower()
 
-        if rol == "promotora":
-            interfaz_promotora()
-        elif rol == "director":
-            st.info("👔 Interfaz del Director (en construcción)")
-        elif rol == "admin":
-            mostrar_venta()  # Por ahora el admin usa el módulo de ventas
-        else:
-            st.warning("Rol desconocido.")
+    if rol == "promotora":
+        interfaz_promotora()
+
+    elif rol == "admin":
+        mostrar_venta()
+
+    elif rol == "director":
+        st.info("👔 Interfaz del Director (en desarrollo)")
+
     else:
-        login()
+        st.warning("⚠️ Rol no reconocido, contacta al administrador.")
