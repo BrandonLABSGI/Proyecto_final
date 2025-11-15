@@ -1,31 +1,22 @@
 import streamlit as st
 from modulos.config.conexion import obtener_conexion
-from empleados import mostrar_venta
-
+from modulos.venta import mostrar_venta
 
 # ---------------------------------------------------------
-# Función para verificar credenciales del usuario
+# Función para verificar usuario (sin separar por rol aún)
 # ---------------------------------------------------------
-def verificar_usuario(Usuario, Contra):
+def verificar_usuario(usuario, contra):
     con = obtener_conexion()
     if not con:
         st.error("⚠️ No se pudo conectar a la base de datos.")
         return None
-    else:
-        st.session_state["conexion_exitosa"] = True
 
     try:
         cursor = con.cursor()
-        # 🔹 Verificamos credenciales en la tabla correcta
-        query = "SELECT Usuario, Contra FROM Empleado WHERE Usuario = %s AND Contra = %s"
-
-        cursor.execute(query, (Usuario, Contra))
+        query = "SELECT Usuario, Rol FROM Empleado WHERE Usuario = %s AND Contra = %s"
+        cursor.execute(query, (usuario, contra))
         result = cursor.fetchone()
-
-        if result:
-            return result[0]
-        else:
-            return None
+        return result  # Devuelve (Usuario, Rol) o None
     finally:
         con.close()
 
@@ -37,22 +28,24 @@ def login():
         st.session_state["sesion_iniciada"] = False
 
     st.title("🔐 Inicio de Sesión - SGI")
-
-    if st.session_state.get("conexion_exitosa"):
-        st.success("✅ Conexión a la base de datos establecida correctamente.")
-
-    Usuario = st.text_input("Usuario", key="Usuario_input")
-    Contra = st.text_input("Contraseña", type="password", key="Contra_input")
+    usuario = st.text_input("Usuario")
+    contra = st.text_input("Contraseña", type="password")
 
     if st.button("Iniciar sesión"):
-        tipo = verificar_usuario(Usuario, Contra)
-        if tipo:
-            st.session_state["usuario"] = Usuario
-            st.session_state["tipo_usuario"] = tipo
+        resultado = verificar_usuario(usuario, contra)
+        if resultado:
+            st.session_state["usuario"] = resultado[0]
+            st.session_state["rol"] = resultado[1]
             st.session_state["sesion_iniciada"] = True
-            st.success(f"Bienvenido, {Usuario} 👋")
+            st.success(f"✅ Bienvenido {resultado[0]} ({resultado[1]})")
             st.rerun()
         else:
-            st.error("❌ Credenciales incorrectas.")
+            st.error("❌ Usuario o contraseña incorrectos.")
 
+# ---------------------------------------------------------
+# Mostrar módulo de ventas (para todos los roles por ahora)
+# ---------------------------------------------------------
+def mostrar_interfaz_unica():
+    st.sidebar.success(f"👤 Usuario: {st.session_state['usuario']} ({st.session_state['rol']})")
+    mostrar_venta()
 
