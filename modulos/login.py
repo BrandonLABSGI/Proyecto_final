@@ -1,6 +1,7 @@
 import streamlit as st
 from modulos.config.conexion import obtener_conexion
-from modulos.empleados import mostrar_venta  # ✅ actualizado al nuevo módulo
+from empleados import mostrar_venta
+
 
 # ---------------------------------------------------------
 # Función para verificar credenciales del usuario
