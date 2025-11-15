@@ -17,7 +17,8 @@ def verificar_usuario(Usuario, Contra):
     try:
         cursor = con.cursor()
         # 🔹 Verificamos credenciales en la tabla correcta
-        query = "SELECT Usuario, Contra FROM Empleados WHERE Usuario = %s AND Contra = %s"
+        query = "SELECT Usuario, Contra FROM Empleado WHERE Usuario = %s AND Contra = %s"
+
         cursor.execute(query, (Usuario, Contra))
         result = cursor.fetchone()
 
