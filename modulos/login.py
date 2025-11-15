@@ -1,5 +1,6 @@
 import streamlit as st
 from modulos.config.conexion import obtener_conexion
+from modulos.promotora import interfaz_promotora
 from modulos.venta import mostrar_venta
 
 # ---------------------------------------------------------
@@ -12,12 +13,11 @@ def verificar_usuario(usuario, contra):
         return None
 
     try:
-        # ✅ Cursor con buffer para evitar errores de lectura
-        cursor = con.cursor(buffered=True)
+        cursor = con.cursor()
         query = "SELECT Usuario, Rol FROM Empleado WHERE Usuario = %s AND Contra = %s"
         cursor.execute(query, (usuario, contra))
         result = cursor.fetchone()
-        return result  # Devuelve (Usuario, Rol) o None si no existe
+        return result  # Devuelve (Usuario, Rol) o None
     except Exception as e:
         st.error(f"❌ Error al verificar usuario: {e}")
         return None
@@ -47,8 +47,16 @@ def login():
             st.error("❌ Usuario o contraseña incorrectos.")
 
 # ---------------------------------------------------------
-# Módulo principal (por ahora, todos los roles ven ventas)
+# Cargar interfaz según el rol
 # ---------------------------------------------------------
 def mostrar_interfaz_unica():
-    st.sidebar.success(f"👤 Usuario: {st.session_state['usuario']} ({st.session_state['rol']})")
-    mostrar_venta()
+    rol = st.session_state["rol"]
+
+    if rol == "promotora":
+        interfaz_promotora()
+    elif rol == "director":
+        st.write("👨‍💼 Panel del Director (en desarrollo)")
+    elif rol == "administrador":
+        st.write("🧑‍💻 Panel del Administrador (en desarrollo)")
+    else:
+        st.error("⚠️ Rol no autorizado.")
