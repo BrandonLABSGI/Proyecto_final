@@ -1,12 +1,19 @@
 import streamlit as st
 from modulos.login import login, mostrar_interfaz_unica
 
+# --------------------------
+# CERRAR SESIÓN
+# --------------------------
 def cerrar_sesion():
     st.session_state["sesion_iniciada"] = False
     st.session_state["usuario"] = ""
     st.session_state["rol"] = ""
+    st.session_state["id_empleado"] = None
     st.rerun()
 
+# --------------------------
+# APLICACIÓN PRINCIPAL
+# --------------------------
 def main():
     st.sidebar.title("📋 Menú principal")
 
