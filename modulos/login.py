@@ -1,64 +1,48 @@
 import streamlit as st
-from modulos.config.conexion import obtener_conexion
 from modulos.venta import mostrar_venta
-from modulos.promotora import interfaz_promotora
+from modulos.promotora import panel_promotora
+from modulos.config.conexion import obtener_conexion
 
-# ------------------------------------------------------------
-# Función para verificar usuario y rol
-# ------------------------------------------------------------
-def verificar_usuario(usuario, contra):
-    con = obtener_conexion()
-    if not con:
-        st.error("⚠️ No se pudo conectar a la base de datos.")
-        return None
-
-    try:
-        cursor = con.cursor(dictionary=True)
-        consulta = "SELECT Usuario, Rol FROM Empleado WHERE Usuario = %s AND Contra = %s"
-        cursor.execute(consulta, (usuario, contra))
-        return cursor.fetchone()
-    except Exception as e:
-        st.error(f"❌ Error en la verificación: {e}")
-        return None
-    finally:
-        cursor.close()
-        con.close()
-
-# ------------------------------------------------------------
-# Pantalla de inicio de sesión
-# ------------------------------------------------------------
+# --------------------------
+# FUNCIÓN DE LOGIN
+# --------------------------
 def login():
-    st.title("🔐 Inicio de sesión")
+    st.title("🔐 Inicio de Sesión")
 
     usuario = st.text_input("Usuario")
-    contra = st.text_input("Contraseña", type="password")
+    contrasena = st.text_input("Contraseña", type="password")
+    btn = st.button("Iniciar sesión")
 
-    if st.button("Iniciar sesión"):
-        datos = verificar_usuario(usuario, contra)
+    if btn:
+        con = obtener_conexion()
+        cur = con.cursor(dictionary=True)
+        cur.execute("SELECT * FROM Empleado WHERE Usuario = %s AND Contra = %s", (usuario, contrasena))
+        datos = cur.fetchone()
+        cur.close()
+        con.close()
 
         if datos:
             st.session_state["sesion_iniciada"] = True
             st.session_state["usuario"] = datos["Usuario"]
             st.session_state["rol"] = datos["Rol"]
-            st.success(f"✅ Bienvenido, {datos['Usuario']} ({datos['Rol']})")
+            st.session_state["id_empleado"] = datos["Id_Empleado"]
             st.rerun()
         else:
             st.error("❌ Usuario o contraseña incorrectos.")
 
-# ------------------------------------------------------------
-# Mostrar interfaz según el rol
-# ------------------------------------------------------------
+
+# --------------------------
+# FUNCIÓN PRINCIPAL SEGÚN ROL
+# --------------------------
 def mostrar_interfaz_unica():
     rol = st.session_state.get("rol", "").lower()
 
-    if rol == "promotora":
-        interfaz_promotora()
-
-    elif rol == "admin":
+    if rol == "admin":
+        st.success("✅ Bienvenido Administrador")
         mostrar_venta()
 
-    elif rol == "director":
-        st.info("👔 Interfaz del Director (en desarrollo)")
+    elif rol == "promotora":
+        panel_promotora(id_promotora=st.session_state["id_empleado"])
 
     else:
         st.warning("⚠️ Rol no reconocido, contacta al administrador.")
