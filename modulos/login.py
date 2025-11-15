@@ -1,40 +1,45 @@
 import streamlit as st
+from modulos.config.conexion import obtener_conexion
+from modulos. venta import mostrar_venta
 
-# --- Configuración de credenciales (puedes conectarlo a una BD) ---
-usuarios = {
-    "admin": "1234",
-    "brandon": "5678"
-}
+def verificar_usuario(Usuario, Contra):
+    con = obtener_conexion()
+    if not con:
+        st.error("⚠️ No se pudo conectar a la base de datos.")
+        return None
+    else:
+        # ✅ Guardar en el estado que la conexión fue exitosa
+        st.session_state["conexion_exitosa"] = True
 
-# --- Función de autenticación ---
-def login(usuario, contrasena):
-    if usuario in usuarios and usuarios[usuario] == contrasena:
-        return True
-    return False
+    try:
+        cursor = con.cursor()
+        query = "SELECT Usuario, Contra FROM Empleados WHERE Usuario = %s AND Contra = %s"
+        cursor.execute(query, (Usuario, Contra))
+        result = cursor.fetchone()
+        return result[0] if result else None
+    finally:
+        con.close()
 
-# --- Interfaz de Streamlit ---
-st.title("🔐 Sistema de Login con Streamlit")
 
-if "autenticado" not in st.session_state:
-    st.session_state.autenticado = False
+def login():
+    st.title("Inicio de sesión")
 
-if not st.session_state.autenticado:
-    st.subheader("Iniciar sesión")
+    # 🟢 Mostrar mensaje persistente si ya hubo conexión exitosa
+    if st.session_state.get("conexion_exitosa"):
+        st.success("✅ Conexión a la base de datos establecida correctamente.")
 
-    usuario = st.text_input("Usuario")
-    contrasena = st.text_input("Contraseña", type="password")
+    Usuario = st.text_input("Usuario", key="Usuario_input")
+    Contra = st.text_input("Contraseña", type="password", key="Contra_input")
 
-    if st.button("Ingresar"):
-        if login(usuario, contrasena):
-            st.session_state.autenticado = True
-            st.success("✅ ¡Acceso concedido!")
+    if st.button("Iniciar sesión"):
+        tipo = verificar_usuario(Usuario, Contra)
+        if tipo:
+            st.session_state["usuario"] = Usuario
+            st.session_state["tipo_usuario"] = tipo
+            st.success(f"Bienvenido ({Usuario}) 👋")
+            st.session_state["sesion_iniciada"] = True
             st.rerun()
         else:
-            st.error("❌ Usuario o contraseña incorrectos")
-else:
-    st.success(f"Bienvenido ✅")
-    st.write("Contenido secreto o menú principal aquí...")
+            st.error("❌ Credenciales incorrectas.")
     
-    if st.button("Cerrar sesión"):
-        st.session_state.autenticado = False
-        st.rerun()
+    
