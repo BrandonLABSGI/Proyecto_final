@@ -1,10 +1,11 @@
 import streamlit as st
 from modulos.config.conexion import obtener_conexion
 from modulos.venta import mostrar_venta
+from modulos.promotora import interfaz_promotora
 
-# ---------------------------------------------------------
-# Función para verificar usuario con manejo de errores
-# ---------------------------------------------------------
+# ------------------------------------------------------------
+# Función para verificar usuario y mostrar interfaz según rol
+# ------------------------------------------------------------
 def verificar_usuario(usuario, contra):
     con = obtener_conexion()
     if not con:
@@ -12,58 +13,53 @@ def verificar_usuario(usuario, contra):
         return None
 
     try:
-        cursor = con.cursor()
-        query = "SELECT Usuario, Rol FROM Empleado WHERE Usuario = %s AND Contra = %s"
-        cursor.execute(query, (usuario, contra))
-        result = cursor.fetchone()
-        return result  # (Usuario, Rol)
+        cursor = con.cursor(dictionary=True)
+        consulta = "SELECT Usuario, Rol FROM Empleado WHERE Usuario = %s AND Contra = %s"
+        cursor.execute(consulta, (usuario, contra))
+        return cursor.fetchone()
     except Exception as e:
-        st.error(f"Error al verificar usuario: {e}")
+        st.error(f"❌ Error en la verificación: {e}")
         return None
     finally:
+        cursor.close()
         con.close()
 
-# ---------------------------------------------------------
+# ------------------------------------------------------------
 # Interfaz de inicio de sesión
-# ---------------------------------------------------------
+# ------------------------------------------------------------
 def login():
-    if "sesion_iniciada" not in st.session_state:
-        st.session_state["sesion_iniciada"] = False
+    st.title("🔐 Inicio de Sesión")
 
-    st.title("🔐 Inicio de Sesión - SGI")
     usuario = st.text_input("Usuario")
     contra = st.text_input("Contraseña", type="password")
+    iniciar = st.button("Iniciar sesión")
 
-    if st.button("Iniciar sesión"):
-        resultado = verificar_usuario(usuario, contra)
-        if resultado:
-            st.session_state["usuario"] = resultado[0]
-            st.session_state["rol"] = resultado[1]
+    if iniciar:
+        datos = verificar_usuario(usuario, contra)
+
+        if datos:
             st.session_state["sesion_iniciada"] = True
-            st.success(f"✅ Bienvenido {resultado[0]} ({resultado[1]})")
+            st.session_state["usuario"] = datos["Usuario"]
+            st.session_state["rol"] = datos["Rol"]
+            st.success(f"Bienvenido, {datos['Usuario']} ({datos['Rol']})")
             st.rerun()
         else:
             st.error("❌ Usuario o contraseña incorrectos.")
 
-# ---------------------------------------------------------
-# Mostrar módulo según el rol
-# ---------------------------------------------------------
-def mostrar_interfaz_unica():
-    rol = st.session_state.get("rol", "").lower()
+# ------------------------------------------------------------
+# Redirección según el rol
+# ------------------------------------------------------------
+def mostrar_interfaz():
+    if "sesion_iniciada" in st.session_state and st.session_state["sesion_iniciada"]:
+        rol = st.session_state.get("rol")
 
-    if rol == "promotora":
-        from modulos.promotora import interfaz_promotora
-        interfaz_promotora()
-
-    elif rol == "administrador":
-        st.title("👨‍💼 Panel de Administrador")
-        st.info("Aquí irá la interfaz del Administrador.")
-
-    elif rol == "director":
-        st.title("👔 Panel de Director")
-        st.info("Aquí irá la interfaz del Director.")
-
+        if rol == "promotora":
+            interfaz_promotora()
+        elif rol == "director":
+            st.info("👔 Interfaz del Director (en construcción)")
+        elif rol == "admin":
+            mostrar_venta()  # Por ahora el admin usa el módulo de ventas
+        else:
+            st.warning("Rol desconocido.")
     else:
-        mostrar_venta()
-
-
+        login()
