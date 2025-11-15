@@ -1,18 +1,22 @@
 import streamlit as st
 from modulos.config.conexion import obtener_conexion
-from modulos.venta import mostrar_venta  # ✅ sin espacio
+from modulos.venta import mostrar_venta  # ✅ sin espacio ni errores
 
+# ---------------------------------------------------------
+# Función para verificar credenciales del usuario
+# ---------------------------------------------------------
 def verificar_usuario(Usuario, Contra):
     con = obtener_conexion()
     if not con:
         st.error("⚠️ No se pudo conectar a la base de datos.")
         return None
     else:
+        # Guardar en el estado que la conexión fue exitosa
         st.session_state["conexion_exitosa"] = True
 
     try:
         cursor = con.cursor()
-        query = "SELECT Usuario, Contra FROM Empleados WHERE Usuario = %s AND Contra = %s"
+        query = "SELECT Usuario, Contra FROM Empleado WHERE Usuario = %s AND Contra = %s"
         cursor.execute(query, (Usuario, Contra))
         result = cursor.fetchone()
 
@@ -23,13 +27,16 @@ def verificar_usuario(Usuario, Contra):
     finally:
         con.close()
 
-
+# ---------------------------------------------------------
+# Interfaz de inicio de sesión
+# ---------------------------------------------------------
 def login():
     if "sesion_iniciada" not in st.session_state:
         st.session_state["sesion_iniciada"] = False
 
     st.title("🔐 Inicio de Sesión - SGI")
 
+    # Mostrar mensaje si la conexión fue correcta
     if st.session_state.get("conexion_exitosa"):
         st.success("✅ Conexión a la base de datos establecida correctamente.")
 
@@ -46,3 +53,4 @@ def login():
             st.rerun()
         else:
             st.error("❌ Credenciales incorrectas.")
+
