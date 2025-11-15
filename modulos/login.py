@@ -3,7 +3,7 @@ from modulos.config.conexion import obtener_conexion
 from modulos.venta import mostrar_venta
 
 # ---------------------------------------------------------
-# Función para verificar usuario (sin separar por rol aún)
+# Función para verificar usuario con manejo de errores
 # ---------------------------------------------------------
 def verificar_usuario(usuario, contra):
     con = obtener_conexion()
@@ -12,11 +12,15 @@ def verificar_usuario(usuario, contra):
         return None
 
     try:
-        cursor = con.cursor()
+        # ✅ Cursor con buffer para evitar errores de lectura
+        cursor = con.cursor(buffered=True)
         query = "SELECT Usuario, Rol FROM Empleado WHERE Usuario = %s AND Contra = %s"
         cursor.execute(query, (usuario, contra))
         result = cursor.fetchone()
-        return result  # Devuelve (Usuario, Rol) o None
+        return result  # Devuelve (Usuario, Rol) o None si no existe
+    except Exception as e:
+        st.error(f"❌ Error al verificar usuario: {e}")
+        return None
     finally:
         con.close()
 
@@ -43,9 +47,8 @@ def login():
             st.error("❌ Usuario o contraseña incorrectos.")
 
 # ---------------------------------------------------------
-# Mostrar módulo de ventas (para todos los roles por ahora)
+# Módulo principal (por ahora, todos los roles ven ventas)
 # ---------------------------------------------------------
 def mostrar_interfaz_unica():
     st.sidebar.success(f"👤 Usuario: {st.session_state['usuario']} ({st.session_state['rol']})")
     mostrar_venta()
-
