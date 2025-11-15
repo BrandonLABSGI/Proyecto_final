@@ -1,25 +1,37 @@
 import streamlit as st
 from modulos.login import login, mostrar_interfaz_unica
-from modulos.venta import mostrar_venta  # 🛒 Importamos el módulo de ventas
 
-# -------------------------------------------------------------
-# 🎯 APLICACIÓN PRINCIPAL
-# -------------------------------------------------------------
-if "sesion_iniciada" in st.session_state and st.session_state["sesion_iniciada"]:
+# ---------------------------------------------------------
+# Función para cerrar sesión
+# ---------------------------------------------------------
+def cerrar_sesion():
+    st.session_state["sesion_iniciada"] = False
+    st.session_state["usuario"] = ""
+    st.session_state["rol"] = ""
+    st.rerun()
+
+# ---------------------------------------------------------
+# Aplicación principal
+# ---------------------------------------------------------
+def main():
     st.sidebar.title("📋 Menú principal")
-    st.sidebar.button("Cerrar sesión", on_click=lambda: st.session_state.clear())
 
-    # Opciones del menú lateral
-    opciones = ["Registro de Ventas", "Otra opción"]
-    seleccion = st.sidebar.selectbox("Selecciona una opción", opciones)
+    # Inicializar variables de sesión si no existen
+    if "sesion_iniciada" not in st.session_state:
+        st.session_state["sesion_iniciada"] = False
+        st.session_state["usuario"] = ""
+        st.session_state["rol"] = ""
 
-    # Mostrar la opción elegida
-    if seleccion == "Registro de Ventas":
-        mostrar_venta()
-    elif seleccion == "Otra opción":
-        st.write("🚧 Esta sección estará disponible próximamente.")
-else:
-    login()
+    # Si la sesión está activa → mostrar interfaz según rol
+    if st.session_state["sesion_iniciada"]:
+        st.sidebar.success(f"Sesión iniciada como: {st.session_state['usuario']} ({st.session_state['rol']})")
+        st.sidebar.button("Cerrar sesión", on_click=cerrar_sesion)
+        mostrar_interfaz_unica()
+    else:
+        login()
 
-
-
+# ---------------------------------------------------------
+# Ejecución del programa
+# ---------------------------------------------------------
+if __name__ == "__main__":
+    main()
