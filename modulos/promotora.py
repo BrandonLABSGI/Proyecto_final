@@ -1,132 +1,143 @@
 import streamlit as st
-from modulos.config.conexion import obtener_conexion
 from datetime import date
-import pandas as pd
+from modulos.config.conexion import obtener_conexion
 
-# --------------------------
-# PANEL PRINCIPAL DE PROMOTORA
-# --------------------------
-def panel_promotora(id_promotora):
+# ============================================================
+# 👩‍💼 PANEL DE PROMOTORA
+# ============================================================
+
+def interfaz_promotora():
     st.title("👩‍💼 Panel de Promotora")
-    st.markdown("Supervisa tus grupos, registra nuevos y valida información financiera.")
+    st.write("Supervisa tus grupos, registra nuevos y valida información financiera.")
 
-    opcion = st.sidebar.radio("Selecciona una opción:", 
-                              ["📁 Consultar grupos", 
-                               "📝 Registrar nuevo grupo",
-                               "💵 Validar información financiera", 
-                               "📊 Reportes consolidados"])
+    opcion = st.sidebar.radio(
+        "Selecciona una opción:",
+        [
+            "📋 Consultar grupos",
+            "🆕 Registrar nuevo grupo",
+            "💵 Validar información financiera",
+            "📊 Reportes consolidados"
+        ]
+    )
 
-    if opcion == "📁 Consultar grupos":
-        mostrar_grupos(id_promotora)
-    elif opcion == "📝 Registrar nuevo grupo":
-        registrar_grupo(id_promotora)
+    if opcion == "📋 Consultar grupos":
+        consultar_grupos()
+    elif opcion == "🆕 Registrar nuevo grupo":
+        registrar_grupo()
     elif opcion == "💵 Validar información financiera":
-        validar_finanzas(id_promotora)
+        validar_finanzas()
     elif opcion == "📊 Reportes consolidados":
-        generar_reportes(id_promotora)
+        reportes()
 
+# ============================================================
+# 📋 CONSULTAR GRUPOS
+# ============================================================
 
-# --------------------------
-# SECCIÓN 1: CONSULTAR GRUPOS
-# --------------------------
-def mostrar_grupos(id_promotora):
-    con = obtener_conexion()
-    cur = con.cursor(dictionary=True)
-    cur.execute("SELECT * FROM Grupo WHERE Id_Promotora = %s", (id_promotora,))
-    grupos = cur.fetchall()
-    cur.close()
-    con.close()
-
+def consultar_grupos():
     st.subheader("📋 Grupos Asignados")
-    if grupos:
+    con = obtener_conexion()
+    cur = con.cursor()
+    usuario = st.session_state["usuario"]
+
+    try:
+        cur.execute("""
+            SELECT g.Nombre_grupo
+            FROM Grupo g
+            INNER JOIN Empleado e ON g.Id_Promotora = e.Id_Empleado
+            WHERE e.Usuario = %s
+        """, (usuario,))
+        grupos = cur.fetchall()
+
+        if not grupos:
+            st.info("No tienes grupos asignados actualmente.")
+            return
+
         for g in grupos:
-            with st.expander(f"📌 {g['Nombre_grupo']}"):
-                st.write(f"**Tasa de interés:** {g['Tasa_de_interes']}%")
-                st.write(f"**Periodicidad:** {g['Periodicidad_de_reuniones']}")
-                st.write(f"**Tipo de multa:** {g['Tipo_de_multa']}")
-                st.write(f"**Reglas del préstamo:** {g['Reglas_de_prestamo']}")
-                st.write(f"**Fecha de inicio:** {g['fecha_inicio']}")
-                st.write(f"**Distrito:** {g['Id_Distrito']}")
-    else:
-        st.info("No tienes grupos registrados todavía.")
+            with st.expander(f"📌 {g[0]}"):
+                st.write("**Información general del grupo:**")
+                st.write("- Fecha de inicio: *(desde la base de datos)*")
+                st.write("- Tasa de interés: *(desde la base de datos)*")
+                st.write("- Periodicidad: *(desde la base de datos)*")
+    except Exception as e:
+        st.error(f"❌ Error al consultar los grupos: {e}")
+    finally:
+        cur.close()
+        con.close()
 
+# ============================================================
+# 🆕 REGISTRAR NUEVO GRUPO
+# ============================================================
 
-# --------------------------
-# SECCIÓN 2: REGISTRAR NUEVO GRUPO
-# --------------------------
-def registrar_grupo(id_promotora):
-    st.subheader("📝 Registrar nuevo grupo")
+def registrar_grupo():
+    st.subheader("🆕 Registrar un nuevo grupo")
+    con = obtener_conexion()
+    cur = con.cursor()
 
-    with st.form("form_grupo"):
-        nombre = st.text_input("Nombre del grupo")
-        fecha_inicio = st.date_input("Fecha de inicio", value=date.today())
-        tasa_interes = st.number_input("Tasa de interés (%)", min_value=0.0, step=0.1)
-        periodicidad = st.selectbox("Periodicidad de reuniones", ["Semanal", "Quincenal", "Mensual"])
-        tipo_multa = st.text_input("Tipo de multa (ejemplo: 'Retraso de pago')")
-        reglas = st.text_area("Reglas del préstamo")
-        id_distrito = st.number_input("ID del distrito", min_value=1, step=1)
+    nombre = st.text_input("Nombre del grupo")
+    fecha_inicio = st.date_input("Fecha de inicio", value=date.today())
+    tasa = st.number_input("Tasa de interés (%)", min_value=0.0, step=0.1)
+    periodicidad = st.text_input("Periodicidad de reuniones (por ejemplo: semanal, quincenal)")
+    tipo_multa = st.text_input("Tipo de multa (por ejemplo: Retraso, Inasistencia)")
+    reglas = st.text_area("Reglas de préstamo o funcionamiento del grupo")
+    id_promotora = obtener_id_promotora()
+    id_distrito = st.number_input("ID del distrito", min_value=1, step=1)
 
-        enviar = st.form_submit_button("✅ Registrar grupo")
+    if st.button("💾 Guardar grupo"):
+        if not nombre.strip():
+            st.warning("⚠️ El nombre del grupo es obligatorio.")
+            return
+        try:
+            cur.execute("""
+                INSERT INTO Grupo (Nombre_grupo, fecha_inicio, Tasa_de_interes,
+                Periodicidad_de_reuniones, Tipo_de_multa, Reglas_de_prestamo, Id_Promotora, Id_Distrito)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (nombre, fecha_inicio, tasa, periodicidad, tipo_multa, reglas, id_promotora, id_distrito))
+            con.commit()
+            st.success(f"✅ Grupo '{nombre}' registrado correctamente.")
+        except Exception as e:
+            st.error(f"❌ Error al registrar grupo: {e}")
+        finally:
+            cur.close()
+            con.close()
 
-        if enviar:
-            if nombre.strip() == "" or reglas.strip() == "":
-                st.warning("⚠️ Todos los campos son obligatorios.")
-            else:
-                try:
-                    con = obtener_conexion()
-                    cur = con.cursor()
-                    cur.execute("""
-                        INSERT INTO Grupo (Nombre_grupo, fecha_inicio, Tasa_de_interes, 
-                                           Periodicidad_de_reuniones, Tipo_de_multa, 
-                                           Reglas_de_prestamo, Id_Promotora, Id_Distrito)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (nombre, fecha_inicio, tasa_interes, periodicidad, tipo_multa, reglas, id_promotora, id_distrito))
-                    con.commit()
-                    cur.close()
-                    con.close()
-                    st.success(f"✅ Grupo '{nombre}' registrado correctamente.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Error al registrar el grupo: {e}")
+# ============================================================
+# 💵 VALIDAR INFORMACIÓN FINANCIERA
+# ============================================================
 
-
-# --------------------------
-# SECCIÓN 3: VALIDAR FINANZAS
-# --------------------------
-def validar_finanzas(id_promotora):
+def validar_finanzas():
     st.subheader("💵 Validar información financiera")
     st.info("Aquí podrás revisar préstamos, pagos y movimientos de los grupos.")
-
     st.warning("⚠️ Módulo en desarrollo. Pronto podrás aprobar pagos y revisar saldos.")
 
+# ============================================================
+# 📊 REPORTES CONSOLIDADOS
+# ============================================================
 
-# --------------------------
-# SECCIÓN 4: REPORTES CONSOLIDADOS
-# --------------------------
-def generar_reportes(id_promotora):
-    st.subheader("📊 Reporte Consolidado")
-    st.write("Descarga los datos de todos los grupos registrados por ti.")
+def reportes():
+    st.subheader("📊 Reportes consolidados")
+    st.info("Visualiza reportes de grupos, préstamos y reuniones.")
+    st.warning("⚠️ Esta sección se habilitará para exportar a PDF o Excel.")
 
+# ============================================================
+# 🔍 FUNCIÓN AUXILIAR: OBTENER ID DE LA PROMOTORA ACTUAL
+# ============================================================
+
+def obtener_id_promotora():
     con = obtener_conexion()
-    cur = con.cursor(dictionary=True)
-    cur.execute("""
-        SELECT Nombre_grupo, fecha_inicio, Tasa_de_interes, Periodicidad_de_reuniones, 
-               Tipo_de_multa, Reglas_de_prestamo, Id_Distrito
-        FROM Grupo WHERE Id_Promotora = %s
-    """, (id_promotora,))
-    grupos = cur.fetchall()
-    cur.close()
-    con.close()
+    cur = con.cursor()
+    usuario = st.session_state["usuario"]
 
-    if grupos:
-        df = pd.DataFrame(grupos)
-        st.dataframe(df, use_container_width=True)
-
-        st.download_button(
-            "📥 Descargar reporte en Excel",
-            data=df.to_csv(index=False).encode('utf-8'),
-            file_name=f"reporte_grupos_promotora_{id_promotora}.csv",
-            mime="text/csv"
-        )
-    else:
-        st.info("No hay grupos registrados para mostrar.")
+    try:
+        cur.execute("SELECT Id_Empleado FROM Empleado WHERE Usuario = %s", (usuario,))
+        resultado = cur.fetchone()
+        if resultado:
+            return resultado[0]
+        else:
+            st.error("⚠️ No se encontró el ID de la promotora en la base de datos.")
+            return None
+    except Exception as e:
+        st.error(f"❌ Error al obtener ID de promotora: {e}")
+        return None
+    finally:
+        cur.close()
+        con.close()
