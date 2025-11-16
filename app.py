@@ -1,7 +1,8 @@
 import streamlit as st
 from modulos.login import login
-from modulos.promotora import interfaz_promotora
 from modulos.directiva import interfaz_directiva
+from modulos.promotora import interfaz_promotora
+
 
 # Inicializar variables de sesión
 if "sesion_iniciada" not in st.session_state:
