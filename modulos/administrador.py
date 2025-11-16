@@ -3,7 +3,7 @@ from modulos.conexion import obtener_conexion
 
 def interfaz_administrador():
     st.header("🛡️ Panel del Administrador")
-    st.write("Gestiona la plataforma, supervisa distritos, empleados y el estado general del sistema.")
+    st.write("Gestiona distritos, empleados y el estado general del sistema.")
 
     menu = st.sidebar.radio(
         "Menú del Administrador:",
@@ -27,12 +27,26 @@ def interfaz_administrador():
     # ------------------------------------------------------
     if menu == "🏙️ Ver distritos":
         st.subheader("🏙️ Distritos Registrados")
-        cursor.execute("SELECT Id_Distrito, Nombre FROM Distrito")
+
+        cursor.execute("""
+            SELECT Id_Distrito,
+                   `Nombre del distrito`,
+                   Representantes,
+                   `Cantidad de grupos`,
+                   `Estado del distrito`
+            FROM Distrito
+        """)
         filas = cursor.fetchall()
 
         if filas:
             for d in filas:
-                st.write(f"🔹 **ID:** {d[0]} — **Distrito:** {d[1]}")
+                st.write(f"""
+                🏙️ **Distrito ID:** {d[0]}  
+                • **Nombre:** {d[1]}  
+                • **Representantes:** {d[2]}  
+                • **Grupos:** {d[3]}  
+                • **Estado:** {d[4]}
+                """)
         else:
             st.warning("No existen distritos registrados.")
 
@@ -41,9 +55,12 @@ def interfaz_administrador():
     # ------------------------------------------------------
     elif menu == "👥 Ver grupos":
         st.subheader("👥 Grupos registrados")
+
         cursor.execute("""
-            SELECT Grupo.Id_Grupo, Grupo.Nombre, Distrito.Nombre 
-            FROM Grupo 
+            SELECT Grupo.Id_Grupo,
+                   Grupo.Nombre,
+                   Distrito.`Nombre del distrito`
+            FROM Grupo
             INNER JOIN Distrito ON Grupo.Id_Distrito = Distrito.Id_Distrito
         """)
         filas = cursor.fetchall()
@@ -59,6 +76,7 @@ def interfaz_administrador():
     # ------------------------------------------------------
     elif menu == "🧑‍💼 Ver empleados":
         st.subheader("🧑‍💼 Empleados del sistema")
+
         cursor.execute("SELECT Id_Empleado, Usuario, Rol FROM Empleado")
         filas = cursor.fetchall()
 
@@ -75,7 +93,6 @@ def interfaz_administrador():
     elif menu == "📊 Resumen general del sistema":
         st.subheader("📊 Indicadores Generales del Sistema")
 
-        # Totales
         cursor.execute("SELECT COUNT(*) FROM Distrito")
         total_distritos = cursor.fetchone()[0]
 
@@ -91,6 +108,6 @@ def interfaz_administrador():
         st.info(f"🏙️ **Distritos:** {total_distritos}")
         st.info(f"👥 **Grupos:** {total_grupos}")
         st.info(f"🧑‍💼 **Empleados:** {total_empleados}")
-        st.info(f"💰 **Movimientos financieros registrados:** {total_prestamos}")
+        st.info(f"💰 **Préstamos registrados:** {total_prestamos}")
 
-        st.success("📌 Vista estratégica general del sistema actualizada.")
+        st.success("📌 Vista estratégica del sistema actualizada.")
