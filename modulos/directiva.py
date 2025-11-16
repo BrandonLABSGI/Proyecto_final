@@ -1,68 +1,100 @@
 import streamlit as st
 from datetime import date
-from modulos.configuracion.conexion import obtener_conexion
+import sys
+import importlib.util
+import pathlib
+import mysql.connector
 
+# ======================================================
+# ✅ Cargar manualmente la conexión desde “Configuración/conexion.py”
+# (Esto evita el error por la tilde en el nombre de la carpeta)
+# ======================================================
+ruta = pathlib.Path(__file__).resolve().parent / "Configuración" / "conexion.py"
+spec = importlib.util.spec_from_file_location("conexion_configuracion", ruta)
+conexion_mod = importlib.util.module_from_spec(spec)
+sys.modules["conexion_configuracion"] = conexion_mod
+spec.loader.exec_module(conexion_mod)
 
+# Importar la función de conexión
+obtener_conexion = conexion_mod.obtener_conexion
+
+# ======================================================
+# 🎯 Interfaz de la Directiva
+# ======================================================
 def interfaz_directiva():
     st.title("👩‍💼 Panel de Directiva del Grupo")
     st.write("Registra reuniones, préstamos, multas y reportes del grupo.")
 
-    opcion = st.sidebar.radio("Selecciona una opción:", [
-        "Registrar reunión y asistencia",
-        "Registrar préstamos o pagos",
-        "Aplicar multas",
-        "Ver multas registradas",
-        "Generar actas y reportes"
-    ])
+    # Menú lateral
+    opcion = st.sidebar.radio(
+        "Selecciona una opción:",
+        [
+            "📅 Registrar reunión y asistencia",
+            "💰 Registrar préstamos o pagos",
+            "⚠️ Aplicar multas",
+            "🧾 Generar actas y reportes"
+        ]
+    )
 
-    # -------------------------------------------------------------------------
-    # ⚠️ OPCIÓN: APLICAR MULTAS
-    # -------------------------------------------------------------------------
-    if opcion == "Aplicar multas":
+    # ======================================================
+    # 🧾 OPCIÓN 1: Registrar reunión y asistencia
+    # ======================================================
+    if "reunión" in opcion:
+        st.subheader("📅 Registro de reuniones y asistencias")
+        st.info("Aquí podrás registrar las asistencias de los miembros del grupo.")
+        st.text_input("Tema de la reunión")
+        st.date_input("Fecha", value=date.today())
+        st.text_area("Observaciones")
+        st.button("Registrar asistencia")
+
+    # ======================================================
+    # 💰 OPCIÓN 2: Registrar préstamos o pagos
+    # ======================================================
+    elif "préstamos" in opcion:
+        st.subheader("💰 Registro de préstamos o pagos")
+        st.text_input("Nombre del miembro")
+        st.number_input("Monto ($)", min_value=0.0, step=0.5)
+        st.selectbox("Tipo de movimiento", ["Préstamo", "Pago"])
+        st.text_area("Observaciones")
+        st.button("Registrar movimiento")
+
+    # ======================================================
+    # ⚠️ OPCIÓN 3: Aplicar multas
+    # ======================================================
+    elif "multas" in opcion:
         st.subheader("⚠️ Aplicación de multas")
 
-        id_usuario = st.number_input("ID del miembro sancionado (Id_Usuario)", min_value=1, step=1)
-        id_tipo = st.number_input("ID del tipo de multa (Id_Tipo_multa)", min_value=1, step=1)
+        nombre = st.text_input("Nombre del miembro sancionado")
+        motivo = st.text_area("Motivo de la multa")
         monto = st.number_input("Monto de la multa ($)", min_value=0.0, step=0.5)
-        estado = st.selectbox("Estado de la multa", ["Pendiente", "Pagada", "Condonada"])
-        fecha = date.today()
 
         if st.button("Registrar multa"):
             try:
                 con = obtener_conexion()
                 cursor = con.cursor()
 
-                cursor.execute("""
-                    INSERT INTO Multa (Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Usuario)
-                    VALUES (%s, %s, %s, %s, %s)
-                """, (monto, fecha, estado, id_tipo, id_usuario))
-
+                # Insertar en la tabla Multa
+                query = """
+                    INSERT INTO Multa (Fecha_aplicacion, Estado, Monto, Id_Usuario)
+                    VALUES (%s, %s, %s, %s)
+                """
+                valores = (date.today(), motivo, monto, 1)  # ID de usuario genérico (ajústalo si es necesario)
+                cursor.execute(query, valores)
                 con.commit()
-                st.success(f"✅ Multa registrada correctamente para el usuario ID {id_usuario}.")
-            except Exception as e:
-                st.error(f"❌ Error al registrar la multa: {e}")
-            finally:
+
+                st.success("✅ Multa registrada correctamente en la base de datos.")
+                cursor.close()
                 con.close()
+            except mysql.connector.Error as err:
+                st.error(f"❌ Error al registrar multa: {err}")
 
-    # -------------------------------------------------------------------------
-    # 📊 OPCIÓN: VER MULTAS REGISTRADAS
-    # -------------------------------------------------------------------------
-    elif opcion == "Ver multas registradas":
-        st.subheader("📋 Multas registradas")
-
-        try:
-            con = obtener_conexion()
-            cursor = con.cursor()
-            cursor.execute("SELECT Id_Multa, Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Usuario FROM Multa")
-            resultados = cursor.fetchall()
-
-            if resultados:
-                import pandas as pd
-                df = pd.DataFrame(resultados, columns=["ID", "Monto", "Fecha", "Estado", "Tipo", "Usuario"])
-                st.dataframe(df, use_container_width=True)
-            else:
-                st.info("No hay multas registradas actualmente.")
-        except Exception as e:
-            st.error(f"❌ Error al consultar las multas: {e}")
-        finally:
-            con.close()
+    # ======================================================
+    # 🧾 OPCIÓN 4: Generar actas y reportes
+    # ======================================================
+    elif "reportes" in opcion:
+        st.subheader("🧾 Generar actas y reportes")
+        st.info("Aquí podrás generar actas y visualizar reportes de actividades.")
+        st.selectbox("Selecciona el tipo de reporte", ["Actas", "Pagos", "Multas", "Asistencia"])
+        st.date_input("Desde", value=date(2025, 1, 1))
+        st.date_input("Hasta", value=date.today())
+        st.button("Generar reporte")
