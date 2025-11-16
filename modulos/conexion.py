@@ -1,13 +1,19 @@
 import mysql.connector
+import streamlit as st
 
 def obtener_conexion():
-    return mysql.connector.connect(
-        host="bftcfbzptdyxq4f8afmu-mysql.services.clever-cloud.com",  # Host de Clever Cloud
-        user="uXXXXXX",        # Tu usuario real de Clever Cloud
-        password="pXXXXXX",    # Tu contraseña real
-        database="btfcfbzptdyxq4f8afmu",  # Nombre exacto de la base
-        port=3306
-    )
+    try:
+        conexion = mysql.connector.connect(
+            host="btcfcbzptdyxq4f8afmu-mysql.services.clever-cloud.com",
+            user="unruixx62rfqfqi5",
+            password="tHsn5wIjxSzedGOsZmtL",
+            database="btcfcbzptdyxq4f8afmu",
+            port=3306
+        )
+        return conexion
+    except mysql.connector.Error as e:
+        st.error(f"❌ Error al conectar con la base de datos: {e}")
+        return None
 
 
 
