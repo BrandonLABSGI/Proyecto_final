@@ -3,10 +3,11 @@ import mysql.connector
 
 def obtener_conexion():
     return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="",
-        database="btfcfbzptdyxq4f8afmu"
+        host="bftcfbzptdyxq4f8afmu-mysql.services.clever-cloud.com",  # host de Clever Cloud
+        user="uXXXXXX",        # tu usuario real de Clever Cloud
+        password="pXXXXXX",    # tu contraseña real de Clever Cloud
+        database="btfcfbzptdyxq4f8afmu",  # nombre exacto de tu base
+        port=3306
     )
 
 def login():
