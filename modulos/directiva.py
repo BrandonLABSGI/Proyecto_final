@@ -1,5 +1,9 @@
 import streamlit as st
+from modulos.conexion import obtener_conexion   # ← IMPORT CORRECTO
 
+# ============================================================
+# PANEL PRINCIPAL DE DIRECTIVA
+# ============================================================
 def interfaz_directiva():
     st.title("👨‍💼 Panel de Directiva del Grupo")
     st.write("Registra reuniones, préstamos, multas y reportes del grupo.")
@@ -26,8 +30,9 @@ def interfaz_directiva():
         pagina_reportes()
 
 
-# ======== PÁGINAS ========
-
+# ============================================================
+# 1️⃣ REGISTRO DE REUNIÓN (ACTUALMENTE SOLO VISUAL)
+# ============================================================
 def pagina_reunion():
     st.header("📅 Registro de reunión")
     fecha = st.date_input("Fecha de la reunión")
@@ -37,6 +42,9 @@ def pagina_reunion():
         st.success("Reunión registrada correctamente.")
 
 
+# ============================================================
+# 2️⃣ REGISTRO DE PRÉSTAMOS O PAGOS (ACTUALMENTE SOLO VISUAL)
+# ============================================================
 def pagina_prestamos():
     st.header("💰 Registro de préstamos o pagos")
     tipo = st.selectbox("Tipo de registro", ["Préstamo", "Pago"])
@@ -45,6 +53,9 @@ def pagina_prestamos():
         st.success("Movimiento registrado correctamente.")
 
 
+# ============================================================
+# 3️⃣ APLICACIÓN DE MULTAS — ADAPTADO A TU TABLA REAL
+# ============================================================
 def pagina_multas():
 
     st.header("⚠️ Aplicación de multas")
@@ -56,9 +67,9 @@ def pagina_multas():
 
     cursor = con.cursor()
 
-    # ------------------------------------
-    # Cargar empleados (usuarios del sistema)
-    # ------------------------------------
+    # ----------------------------
+    # Cargar empleados (usuarios)
+    # ----------------------------
     cursor.execute("SELECT Id_Empleado, Usuario FROM Empleado")
     empleados = cursor.fetchall()
 
@@ -67,13 +78,12 @@ def pagina_multas():
         return
 
     dic_empleados = {nombre: eid for eid, nombre in empleados}
-
     empleado_sel = st.selectbox("Empleado sancionado:", list(dic_empleados.keys()))
     id_empleado = dic_empleados[empleado_sel]
 
-    # ------------------------------------
+    # ----------------------------
     # Cargar tipos de multa
-    # ------------------------------------
+    # ----------------------------
     cursor.execute("SELECT Id_Tipo_multa, Nombre_tipo FROM Tipo_de_multa")
     tipos = cursor.fetchall()
 
@@ -82,31 +92,34 @@ def pagina_multas():
         return
 
     dic_tipos = {nombre: tid for tid, nombre in tipos}
-
     tipo_sel = st.selectbox("Tipo de multa:", list(dic_tipos.keys()))
     id_tipo = dic_tipos[tipo_sel]
 
+    # ----------------------------
+    # Datos de la multa
+    # ----------------------------
     monto = st.number_input("Monto ($)", min_value=0.00)
     fecha = st.date_input("Fecha de aplicación")
     estado = st.selectbox("Estado:", ["Pendiente", "Pagada"])
 
-    # Opcionales
     id_asistencia = st.number_input("ID Asistencia (opcional)", min_value=0, step=1)
     id_prestamo = st.number_input("ID Préstamo (opcional)", min_value=0, step=1)
 
+    # ----------------------------
+    # Registrar multa en MySQL
+    # ----------------------------
     if st.button("💾 Registrar multa"):
         try:
             cursor.execute("""
                 INSERT INTO Multa 
                 (Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Usuario, Id_Asistencia, Id_Préstamo)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """,
-            (
+            """, (
                 monto,
                 fecha,
                 estado,
                 id_tipo,
-                id_empleado,  # CORREGIDO
+                id_empleado,
                 id_asistencia if id_asistencia != 0 else None,
                 id_prestamo if id_prestamo != 0 else None
             ))
@@ -121,8 +134,9 @@ def pagina_multas():
     con.close()
 
 
-
+# ============================================================
+# 4️⃣ REPORTES
+# ============================================================
 def pagina_reportes():
     st.header("📊 Generar actas y reportes")
     st.info("Aquí podrás generar reportes del grupo.")
-
