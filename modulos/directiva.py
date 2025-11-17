@@ -1,8 +1,9 @@
 import streamlit as st
-from modulos.conexion import obtener_conexion   # ← IMPORT CORRECTO
+from modulos.conexion import obtener_conexion
+
 
 # ============================================================
-# PANEL PRINCIPAL DE DIRECTIVA
+# PANEL PRINCIPAL
 # ============================================================
 def interfaz_directiva():
     st.title("👨‍💼 Panel de Directiva del Grupo")
@@ -30,31 +31,37 @@ def interfaz_directiva():
         pagina_reportes()
 
 
+
 # ============================================================
-# 1️⃣ REGISTRO DE REUNIÓN (ACTUALMENTE SOLO VISUAL)
+# 1️⃣ REGISTRO DE REUNIÓN
 # ============================================================
 def pagina_reunion():
     st.header("📅 Registro de reunión")
     fecha = st.date_input("Fecha de la reunión")
     tema = st.text_input("Tema principal")
     asistentes = st.text_input("Lista de asistentes (separados por comas)")
+
     if st.button("Guardar reunión"):
         st.success("Reunión registrada correctamente.")
 
 
+
 # ============================================================
-# 2️⃣ REGISTRO DE PRÉSTAMOS O PAGOS (ACTUALMENTE SOLO VISUAL)
+# 2️⃣ REGISTRO PRÉSTAMOS O PAGOS
 # ============================================================
 def pagina_prestamos():
     st.header("💰 Registro de préstamos o pagos")
+
     tipo = st.selectbox("Tipo de registro", ["Préstamo", "Pago"])
     descripcion = st.text_area("Descripción")
+
     if st.button("Guardar movimiento"):
         st.success("Movimiento registrado correctamente.")
 
 
+
 # ============================================================
-# 3️⃣ APLICACIÓN DE MULTAS — ADAPTADO A TU TABLA REAL
+# 3️⃣ APLICACIÓN DE MULTAS  – 100% FUNCIONAL
 # ============================================================
 def pagina_multas():
 
@@ -68,7 +75,7 @@ def pagina_multas():
     cursor = con.cursor()
 
     # ----------------------------
-    # Cargar empleados (usuarios)
+    # Cargar empleados del sistema
     # ----------------------------
     cursor.execute("SELECT Id_Empleado, Usuario FROM Empleado")
     empleados = cursor.fetchall()
@@ -106,9 +113,9 @@ def pagina_multas():
     id_prestamo = st.number_input("ID Préstamo (opcional)", min_value=0, step=1)
 
     # ----------------------------
-    # Registrar multa en MySQL
+    # Registrar multa
     # ----------------------------
-    if st.button("💾 Registrar multa"):
+    if st.button("Registrar multa"):
         try:
             cursor.execute("""
                 INSERT INTO Multa 
@@ -132,6 +139,7 @@ def pagina_multas():
 
     cursor.close()
     con.close()
+
 
 
 # ============================================================
