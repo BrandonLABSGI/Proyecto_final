@@ -3,7 +3,6 @@ import pandas as pd
 from datetime import date
 from modulos.conexion import obtener_conexion
 
-
 # ---------------------------------------------------------
 # 🟦 PANEL PRINCIPAL
 # ---------------------------------------------------------
@@ -38,7 +37,7 @@ def pagina_asistencia():
 
     con = obtener_conexion()
     if not con:
-        st.error("No se pudo conectar a la BD.")
+        st.error("❌ No se pudo conectar a la BD.")
         return
     cursor = con.cursor()
 
@@ -64,7 +63,7 @@ def pagina_asistencia():
     cursor.execute("SELECT Id_Socia, Nombre, Sexo FROM Socia")
     registros = cursor.fetchall()
 
-    # Crear diccionario SEGURO ({ nombre: {"id":X,"sexo":Y} })
+    # Crear diccionario SEGURO
     socias = {
         fila[1]: {"id": fila[0], "sexo": fila[2]}
         for fila in registros
@@ -126,17 +125,25 @@ def pagina_multas():
     # Obtener tipos de multa
     cursor.execute("SELECT `Id_Tipo_multa`, `Tipo de multa` FROM `Tipo de multa`")
     tipos = cursor.fetchall()
+
     lista_tipos = {nombre: id_tipo for id_tipo, nombre in tipos}
 
     tipo_sel = st.selectbox("📌 Tipo de multa:", lista_tipos.keys())
     id_tipo_multa = lista_tipos[tipo_sel]
 
-    monto = st.number_input("💵 Monto de la multa:", min_value=1, step=1)
+    # --- MONTO EN DECIMALES ($) ---
+    monto = st.number_input(
+        "💵 Monto de la multa ($):",
+        min_value=0.01,
+        step=0.01,
+        format="%.2f"
+    )
 
-    fecha = st.date_input("📅 Fecha de aplicación")
+    fecha = st.date_input("📅 Fecha de aplicación", value=date.today())
 
-    estado = "A pagar"     # Estado fijo según tu BD
+    estado = "A pagar"
 
+    # --- REGISTRAR MULTA ---
     if st.button("💾 Registrar multa"):
         try:
             cursor.execute("""
