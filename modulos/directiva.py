@@ -5,48 +5,41 @@ from modulos.conexion import obtener_conexion
 
 
 # ---------------------------------------------------------
-# 🟦 PANEL PRINCIPAL (CON CONTROL DE ROLES)
+# 🟦 PANEL PRINCIPAL (SOLO DIRECTOR)
 # ---------------------------------------------------------
 def interfaz_directiva():
 
-    rol = st.session_state.get("rol", "").lower()
+    # 🚫 Bloqueo para quien NO sea director 
+    rol = st.session_state.get("rol", "")
 
-    # 🔐 CONTROL DE ACCESO DENTRO DEL MÓDULO
-    if rol == "director":
-        st.title("👩‍💼 Panel de la Directiva del Grupo")
-        st.write("Administre reuniones, asistencia y multas.")
+    if rol != "Director":
+        st.title("Acceso al sistema")
+        st.warning("⚠️ Acceso restringido. Esta sección es exclusiva para el Director.")
+        return
 
-        # Botón cerrar sesión
-        if st.sidebar.button("🔒 Cerrar sesión"):
-            st.session_state.clear()
-            st.rerun()
+    # ------------------------------------------------------
+    # SI ES DIRECTOR, ENTRA NORMAL
+    # ------------------------------------------------------
+    st.title("👩‍💼 Panel de la Directiva del Grupo")
+    st.write("Administre reuniones, asistencia y multas.")
 
-        menu = st.sidebar.radio(
-            "Seleccione una sección:",
-            ["Registro de asistencia", "Aplicar multas"]
-        )
+    if st.sidebar.button("🔒 Cerrar sesión"):
+        st.session_state.clear()
+        st.rerun()
 
-        if menu == "Registro de asistencia":
-            pagina_asistencia()
-        else:
-            pagina_multas()
+    menu = st.sidebar.radio(
+        "Seleccione una sección:",
+        ["Registro de asistencia", "Aplicar multas"]
+    )
 
+    if menu == "Registro de asistencia":
+        pagina_asistencia()
     else:
-        # 🔵 PANEL PARA ADMIN Y PROMOTORA
-        st.title("📋 Acceso al sistema")
-        st.info("⚠ Acceso limitado. Solo el Director puede administrar asistencia y multas.")
-        st.success("Puedes seguir usando tus demás funciones del sistema.")
-
-        if st.sidebar.button("🔒 Cerrar sesión"):
-            st.session_state.clear()
-            st.rerun()
-
-        return  # ⛔ DESACTIVA TODO LO DEMÁS
-
+        pagina_multas()
 
 
 # ---------------------------------------------------------
-# 🟩 REGISTRO DE ASISTENCIA 
+# 🟩 REGISTRO DE ASISTENCIA
 # ---------------------------------------------------------
 def pagina_asistencia():
 
@@ -59,9 +52,11 @@ def pagina_asistencia():
 
     cursor = con.cursor()
 
+    # Fecha formateada correctamente
     fecha_raw = st.date_input("📅 Fecha de reunión", value=date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
+    # Verificar si existe reunión
     cursor.execute("""
         SELECT Id_Reunion 
         FROM Reunion 
@@ -81,14 +76,14 @@ def pagina_asistencia():
             id_reunion = cursor.lastrowid
             st.info(f"Reunión creada (ID {id_reunion}).")
         except:
-            st.error("⚠ ERROR: No se pudo crear la reunión. Revise que Id_Grupo exista.")
+            st.error("⚠ ERROR: No se pudo crear la reunión. Verifique Id_Grupo.")
             return
 
+    # Obtener socias
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
 
     st.subheader("Lista de asistencia")
-
     asistencia_registro = {}
 
     col1, col2, col3 = st.columns([1, 3, 3])
@@ -110,6 +105,7 @@ def pagina_asistencia():
 
         asistencia_registro[id_socia] = asistencia
 
+    # Guardar asistencia
     if st.button("💾 Guardar asistencia general"):
 
         try:
@@ -117,12 +113,12 @@ def pagina_asistencia():
 
                 estado = "Presente" if asistencia == "SI" else "Ausente"
 
+                # Verificar registro previo
                 cursor.execute("""
                     SELECT Id_Asistencia 
                     FROM Asistencia 
                     WHERE Id_Reunion = %s AND Id_Socia = %s
                 """, (id_reunion, id_socia))
-
                 ya_existe = cursor.fetchone()
 
                 if ya_existe:
@@ -131,6 +127,7 @@ def pagina_asistencia():
                         SET Estado_asistencia = %s, Fecha = %s
                         WHERE Id_Reunion = %s AND Id_Socia = %s
                     """, (estado, fecha, id_reunion, id_socia))
+
                 else:
                     cursor.execute("""
                         INSERT INTO Asistencia (Id_Reunion, Id_Socia, Estado_asistencia, Fecha)
@@ -143,6 +140,7 @@ def pagina_asistencia():
         except Exception as e:
             st.error(f"Error al guardar asistencia: {e}")
 
+    # Mostrar resumen
     cursor.execute("""
         SELECT S.Nombre, A.Estado_asistencia
         FROM Asistencia A
@@ -161,7 +159,6 @@ def pagina_asistencia():
         st.success(f"👥 Total presentes: {total_presentes}")
     else:
         st.info("Aún no hay asistencia registrada.")
-
 
 
 # ---------------------------------------------------------
@@ -202,7 +199,6 @@ def pagina_multas():
             con.commit()
             st.success("Multa registrada correctamente.")
             st.rerun()
-
         except Exception as e:
             st.error(f"⚠ Error al guardar multa: {e}")
 
@@ -245,8 +241,7 @@ def pagina_multas():
     st.subheader("📋 Multas registradas")
 
     if multas:
-
-        cols = st.columns([1,3,3,2,2,2,2])
+        cols = st.columns([1, 3, 3, 2, 2, 2, 2])
         cols[0].write("**ID**")
         cols[1].write("**Socia**")
         cols[2].write("**Tipo multa**")
