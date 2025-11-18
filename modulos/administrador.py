@@ -4,12 +4,9 @@ from modulos.conexion import obtener_conexion
 def interfaz_administrador():
     st.header("🛡️ Panel del Administrador")
     st.write("""
-    El administrador debe ver el panorama completo de los diferentes distritos, 
-    así como la estrategia general asociada a su operación.
+    El administrador puede consultar la información general de todos 
+    los distritos y su estado.
     """)
-
-    # No hay menú: solo la vista de distritos
-    st.subheader("🏙️ Distritos Registrados")
 
     con = obtener_conexion()
     if not con:
@@ -18,7 +15,6 @@ def interfaz_administrador():
 
     cursor = con.cursor()
 
-    # CONSULTA CORRECTA SEGÚN TU BASE
     cursor.execute("""
         SELECT Id_Distrito,
                `Nombre del distrito`,
@@ -27,6 +23,7 @@ def interfaz_administrador():
                `Estado del distrito`
         FROM Distrito
     """)
+
     filas = cursor.fetchall()
 
     if filas:
@@ -40,4 +37,4 @@ def interfaz_administrador():
             **Estado:** `{d[4]}`
             """)
     else:
-        st.warning("No existen distritos registrados.")
+        st.warning("⚠ No existen distritos registrados.")
