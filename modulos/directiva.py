@@ -5,35 +5,45 @@ from modulos.conexion import obtener_conexion
 
 
 # ---------------------------------------------------------
-# 🟦 PANEL PRINCIPAL (PROTEGIDO POR ROL)
+# 🟦 PANEL PRINCIPAL (CON CONTROL DE ACCESO POR ROL)
 # ---------------------------------------------------------
 def interfaz_directiva():
-
-    # 🔒 PROTECCIÓN DE ACCESO: SOLO EL DIRECTOR PUEDE ENTRAR
-    if "rol" not in st.session_state or st.session_state["rol"] != "Director":
-        st.error("⛔ Acceso denegado. Esta sección es solo para el Director.")
-        return
 
     st.title("👩‍💼 Panel de la Directiva del Grupo")
     st.write("Administre reuniones, asistencia y multas.")
 
+    # Botón cerrar sesión
     if st.sidebar.button("🔒 Cerrar sesión"):
         st.session_state.clear()
         st.rerun()
 
-    menu = st.sidebar.radio(
-        "Seleccione una sección:",
-        ["Registro de asistencia", "Aplicar multas"]
-    )
+    # Rol del usuario logueado
+    rol = st.session_state.get("rol", "")
 
-    if menu == "Registro de asistencia":
-        pagina_asistencia()
+    # ---------------------------------------------------------
+    #  MENÚ CONTROLADO POR ROL
+    # ---------------------------------------------------------
+    if rol == "Director":
+
+        menu = st.sidebar.radio(
+            "Seleccione una sección:",
+            ["Registro de asistencia", "Aplicar multas"]
+        )
+
+        if menu == "Registro de asistencia":
+            pagina_asistencia()
+        else:
+            pagina_multas()
+
     else:
-        pagina_multas()
+        # Acceso restringido para Admin y Promotora
+        st.warning("⚠ Acceso limitado. Solo el Director puede administrar asistencia y multas.")
+        st.info("Puedes usar otras funciones del sistema, pero esta sección no está disponible para tu rol.")
+
 
 
 # ---------------------------------------------------------
-# 🟩 REGISTRO DE ASISTENCIA (TAL CUAL LO TENÍAS, SOLO FORMATO)
+# 🟩 REGISTRO DE ASISTENCIA
 # ---------------------------------------------------------
 def pagina_asistencia():
 
@@ -46,9 +56,13 @@ def pagina_asistencia():
 
     cursor = con.cursor()
 
+    # Selección de fecha
     fecha_raw = st.date_input("📅 Fecha de reunión", value=date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
+    # ---------------------------------------------------------
+    # Buscar reunión existente
+    # ---------------------------------------------------------
     cursor.execute("""
         SELECT Id_Reunion 
         FROM Reunion 
@@ -59,6 +73,7 @@ def pagina_asistencia():
     if row:
         id_reunion = row[0]
     else:
+        # Crear reunión automáticamente si no existe
         try:
             cursor.execute("""
                 INSERT INTO Reunion (Fecha_reunion, observaciones, acuerdos, Tema_central, Id_Grupo)
@@ -66,11 +81,14 @@ def pagina_asistencia():
             """, (fecha,))
             con.commit()
             id_reunion = cursor.lastrowid
-            st.info(f"Reunión creada (ID {id_reunion}).")
-        except:
+            st.info(f"Reunión creada automáticamente (ID {id_reunion}).")
+        except Exception:
             st.error("⚠ ERROR: No se pudo crear la reunión. Revise que Id_Grupo exista.")
             return
 
+    # ---------------------------------------------------------
+    # Obtener todas las socias
+    # ---------------------------------------------------------
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
 
@@ -78,14 +96,15 @@ def pagina_asistencia():
 
     asistencia_registro = {}
 
+    # Encabezados
     col1, col2, col3 = st.columns([1, 3, 3])
     col1.write("**#**")
     col2.write("**Socia**")
     col3.write("**Asistencia (SI / NO)**")
 
+    # Filas de socias
     for idx, (id_socia, nombre) in enumerate(socias, start=1):
         c1, c2, c3 = st.columns([1, 3, 3])
-
         c1.write(idx)
         c2.write(nombre)
 
@@ -97,6 +116,9 @@ def pagina_asistencia():
 
         asistencia_registro[id_socia] = asistencia
 
+    # ---------------------------------------------------------
+    # GUARDAR ASISTENCIA
+    # ---------------------------------------------------------
     if st.button("💾 Guardar asistencia general"):
 
         try:
@@ -104,21 +126,21 @@ def pagina_asistencia():
 
                 estado = "Presente" if asistencia == "SI" else "Ausente"
 
+                # Verificar si ya existe registro
                 cursor.execute("""
                     SELECT Id_Asistencia 
                     FROM Asistencia 
                     WHERE Id_Reunion = %s AND Id_Socia = %s
                 """, (id_reunion, id_socia))
 
-                ya_existe = cursor.fetchone()
+                existe = cursor.fetchone()
 
-                if ya_existe:
+                if existe:
                     cursor.execute("""
                         UPDATE Asistencia
                         SET Estado_asistencia = %s, Fecha = %s
                         WHERE Id_Reunion = %s AND Id_Socia = %s
                     """, (estado, fecha, id_reunion, id_socia))
-
                 else:
                     cursor.execute("""
                         INSERT INTO Asistencia (Id_Reunion, Id_Socia, Estado_asistencia, Fecha)
@@ -131,6 +153,9 @@ def pagina_asistencia():
         except Exception as e:
             st.error(f"❌ Error al guardar asistencia: {e}")
 
+    # ---------------------------------------------------------
+    # Mostrar resumen
+    # ---------------------------------------------------------
     cursor.execute("""
         SELECT S.Nombre, A.Estado_asistencia
         FROM Asistencia A
@@ -152,8 +177,9 @@ def pagina_asistencia():
         st.info("Aún no hay asistencia registrada.")
 
 
+
 # ---------------------------------------------------------
-# 🟥 MULTAS (TAL CUAL LO TENÍAS, SIN CAMBIOS)
+# 🟥 APLICACIÓN DE MULTAS
 # ---------------------------------------------------------
 def pagina_multas():
 
@@ -162,6 +188,7 @@ def pagina_multas():
     con = obtener_conexion()
     cursor = con.cursor()
 
+    # Lista de socias
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia")
     socias = cursor.fetchall()
     lista_socias = {nombre: id_socia for id_socia, nombre in socias}
@@ -174,30 +201,35 @@ def pagina_multas():
     lista_tipos = {nombre: id_tipo for id_tipo, nombre in tipos}
 
     tipo_sel = st.selectbox("📌 Tipo de multa:", lista_tipos.keys())
-    id_tipo_multa = lista_tipos[tipo_sel]
+    id_tipo = lista_tipos[tipo_sel]
 
-    monto = st.number_input("💵 Monto de la multa:", min_value=0.01, step=0.50, format="%.2f")
+    monto = st.number_input("💵 Monto:", min_value=0.01, step=0.50, format="%.2f")
     fecha_raw = st.date_input("📅 Fecha de aplicación")
     fecha = fecha_raw.strftime("%Y-%m-%d")
-    estado = st.selectbox("📍 Estado del pago:", ["A pagar", "Pagada"])
+    estado = st.selectbox("📍 Estado:", ["A pagar", "Pagada"])
 
     if st.button("💾 Registrar multa"):
         try:
             cursor.execute("""
                 INSERT INTO Multa (Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
                 VALUES (%s, %s, %s, %s, %s)
-            """, (monto, fecha, estado, id_tipo_multa, id_socia))
+            """, (monto, fecha, estado, id_tipo, id_socia))
             con.commit()
             st.success("Multa registrada correctamente.")
             st.rerun()
-
         except Exception as e:
-            st.error(f"⚠ Error al guardar multa: {e}")
+            st.error(f"❌ Error al guardar multa: {e}")
 
     st.markdown("---")
 
+    # ---------------------------------------------------------
+    # MOSTRAR MULTAS REGISTRADAS
+    # ---------------------------------------------------------
+    st.subheader("📋 Multas registradas")
+
     filtro_socia = st.selectbox("Filtrar por socia:", ["Todas"] + list(lista_socias.keys()))
     filtro_estado = st.selectbox("Filtrar por estado:", ["Todos", "A pagar", "Pagada"])
+
     filtro_fecha_raw = st.date_input("Filtrar por fecha:", value=None)
     filtro_fecha = filtro_fecha_raw.strftime("%Y-%m-%d") if filtro_fecha_raw else None
 
@@ -227,8 +259,6 @@ def pagina_multas():
     cursor.execute(query, params)
 
     multas = cursor.fetchall()
-
-    st.subheader("📋 Multas registradas")
 
     if multas:
 
@@ -272,4 +302,3 @@ def pagina_multas():
 
     else:
         st.info("No hay multas registradas con esos filtros.")
-
