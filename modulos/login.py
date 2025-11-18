@@ -1,52 +1,35 @@
 import streamlit as st
 from modulos.conexion import obtener_conexion
 
+
 def login():
-    st.title("🔐 Inicio de Sesión")
-    st.write("Ingrese sus credenciales para acceder al Sistema de Gestión de Grupos.")
 
-    usuario = st.text_input("Usuario")
-    contra = st.text_input("Contraseña", type="password")
+    st.title("🔐 Inicio de sesión")
 
-    if st.button("Iniciar sesión"):
-        if usuario.strip() == "" or contra.strip() == "":
-            st.warning("⚠️ Debe ingresar usuario y contraseña.")
-            return
+    usuario = st.text_input("Usuario:")
+    password = st.text_input("Contraseña:", type="password")
+
+    if st.button("Ingresar"):
 
         con = obtener_conexion()
-        if not con:
-            st.error("❌ Error: No se pudo conectar a la base de datos.")
-            return
+        cursor = con.cursor()
 
-        try:
-            cursor = con.cursor()
-            cursor.execute(
-                "SELECT Usuario, Contra, Rol FROM Empleado WHERE Usuario = %s",
-                (usuario,)
-            )
-            datos = cursor.fetchone()
+        cursor.execute("""
+            SELECT Id_Empleado, Usuario, Rol
+            FROM Empleado
+            WHERE Usuario = %s AND Contra = %s
+        """, (usuario, password))
 
-            if datos:
-                usuario_db, contra_db, rol_db = datos
+        fila = cursor.fetchone()
 
-                if contra == contra_db:
-                    # LOGIN ÉXITOSO
-                    st.success(f"✨ Bienvenido, **{usuario_db}**")
+        if fila:
+            id_empleado, user, rol = fila
 
-                    st.session_state["session_iniciada"] = True
-                    st.session_state["usuario"] = usuario_db
-                    st.session_state["rol"] = rol_db
+            st.session_state["sesion_iniciada"] = True
+            st.session_state["usuario"] = user
+            st.session_state["rol"] = rol
 
-                    st.rerun()
+            st.rerun()
 
-                else:
-                    st.error("❌ Contraseña incorrecta.")
-
-            else:
-                st.error("❌ Usuario no encontrado.")
-
-        except Exception as e:
-            st.error("⚠️ Error al procesar la solicitud de inicio de sesión.")
-            print(e)
-
-
+        else:
+            st.error("❌ Usuario o contraseña incorrectos.")
