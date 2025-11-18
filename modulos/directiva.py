@@ -1,17 +1,14 @@
 import streamlit as st
-
-# Importaciones corregidas y válidas
+from modulos.login import login
 from modulos.conexion import obtener_conexion
-from modulos.asistencia import interfaz_asistencia
-from modulos.administrador import interfaz_administrador
 
 
 # ============================================================
-# PANEL PRINCIPAL DE LA DIRECTIVA
+#                 INTERFAZ PRINCIPAL DE DIRECTIVA
 # ============================================================
-
 def interfaz_directiva():
-    st.title("👩‍💼 Panel de Directiva del Grupo")
+
+    st.header("👥 Panel de Directiva del Grupo")
     st.write("Aquí puede registrar reuniones, préstamos, multas y generar reportes.")
 
     opciones = [
@@ -21,127 +18,120 @@ def interfaz_directiva():
         "Generar actas y reportes"
     ]
 
-    seleccion = st.sidebar.radio("Seleccione una opción:", opciones)
+    opcion = st.sidebar.radio("Seleccione una opción:", opciones)
 
-    # ===================================
-    # REUNIONES / ASISTENCIA
-    # ===================================
-    if seleccion == "Registrar reunión y asistencia":
-        interfaz_asistencia()
+    if opcion == "Registrar reunión y asistencia":
+        pagina_asistencia()
 
-    # ===================================
-    # PRÉSTAMOS (AÚN SIMPLE)
-    # ===================================
-    elif seleccion == "Registrar préstamos o pagos":
+    elif opcion == "Registrar préstamos o pagos":
         pagina_prestamos()
 
-    # ===================================
-    # MULTAS
-    # ===================================
-    elif seleccion == "Aplicar multas":
+    elif opcion == "Aplicar multas":
         pagina_multas()
 
-    # ===================================
-    # REPORTES
-    # ===================================
-    elif seleccion == "Generar actas y reportes":
-        pagina_reportes()
+    elif opcion == "Generar actas y reportes":
+        st.info("📄 Módulo de reportes en desarrollo.")
 
 
 
 # ============================================================
-#       MÓDULO DE MULTAS
+#                     PÁGINA: ASISTENCIA
 # ============================================================
+def pagina_asistencia():
+    st.subheader("📝 Registro de asistencia del grupo")
 
+    st.info("Este módulo registrará la asistencia más adelante. Ahora es solo una vista previa.")
+
+    fecha = st.date_input("Fecha de la reunión")
+    modalidad = st.selectbox("Modalidad (M/H):", ["M", "H"])
+
+    st.subheader("Lista de asistencia")
+    st.warning("Pronto aparecerá aquí la lista de socias para marcar presente/ausente.")
+
+
+
+# ============================================================
+#                 PÁGINA: PRÉSTAMOS Y PAGOS
+# ============================================================
+def pagina_prestamos():
+    st.subheader("💰 Registro de préstamos o pagos")
+
+    st.info("Este módulo se desarrollará después. Aquí se conectará con la BD para registrar préstamos.")
+
+
+
+# ============================================================
+#                      PÁGINA: MULTAS
+# ============================================================
 def pagina_multas():
 
-    st.header("⚠️ Aplicación de Multas")
+    st.subheader("⚠️ Aplicación de multas")
 
     con = obtener_conexion()
     if not con:
-        st.error("❌ Error al conectar con MySQL.")
+        st.error("❌ Error: No se pudo conectar a la base de datos.")
         return
 
     cursor = con.cursor()
 
-    # =============================
-    # CARGAR SOCIAS
-    # =============================
-    cursor.execute("SELECT Id_Socia, Nombre FROM Socia")
-    socias = cursor.fetchall()
+    # ---------------------------------------------------------------------
+    # 1. CARGAR SOCIAS
+    # ---------------------------------------------------------------------
+    try:
+        cursor.execute("SELECT Id_Socia, Nombre FROM Socia")
+        socias = cursor.fetchall()
+    except Exception as e:
+        st.error(f"Error cargando socias: {e}")
+        return
 
     if not socias:
-        st.warning("⚠ No hay socias registradas.")
+        st.warning("No existen socias registradas.")
         return
 
-    socias_dict = {nombre: sid for sid, nombre in socias}
+    map_socias = {s[1]: s[0] for s in socias}
+    socia_seleccionada = st.selectbox("Seleccione la socia:", list(map_socias.keys()))
+    id_socia = map_socias[socia_seleccionada]
 
-    nombre_socia = st.selectbox("Seleccione la socia:", list(socias_dict.keys()))
-    id_socia = socias_dict[nombre_socia]
-
-    # =============================
-    # CARGAR TIPOS DE MULTA
-    # =============================
-    cursor.execute("SELECT Id_Tipo_multa, Tipo_de_multa FROM Tipo_de_multa")
-    tipos = cursor.fetchall()
+    # ---------------------------------------------------------------------
+    # 2. CARGAR TIPOS DE MULTA (TABLA CON ESPACIOS)
+    # ---------------------------------------------------------------------
+    try:
+        cursor.execute("SELECT Id_Tipo_multa, `Tipo de multa` FROM `Tipo de multa`")
+        tipos = cursor.fetchall()
+    except Exception as e:
+        st.error(f"Error cargando tipos de multa: {e}")
+        return
 
     if not tipos:
-        st.warning("⚠ No hay tipos de multa configurados.")
+        st.warning("No existen tipos de multa registrados.")
         return
 
-    tipos_dict = {tipo: tid for tid, tipo in tipos}
+    map_tipos = {t[1]: t[0] for t in tipos}
+    tipo_sel = st.selectbox("Tipo de multa:", list(map_tipos.keys()))
+    id_tipo_multa = map_tipos[tipo_sel]
 
-    tipo_sel = st.selectbox("Tipo de multa:", list(tipos_dict.keys()))
-    id_tipo = tipos_dict[tipo_sel]
-
-    # =============================
-    # DATOS DE LA MULTA
-    # =============================
-
-    monto = st.number_input("Monto ($)", min_value=0.00, step=0.50, format="%.2f")
+    # ---------------------------------------------------------------------
+    # 3. DATOS DE LA MULTA
+    # ---------------------------------------------------------------------
+    monto = st.number_input("Monto de la multa ($)", min_value=0.00, step=0.50, format="%.2f")
     fecha = st.date_input("Fecha de aplicación")
     estado = st.selectbox("Estado:", ["A pagar", "Pagado"])
 
-    # =============================
-    # GUARDAR MULTA
-    # =============================
+    # ---------------------------------------------------------------------
+    # 4. BOTÓN PARA GUARDAR MULTA
+    # ---------------------------------------------------------------------
     if st.button("💾 Registrar multa"):
+
         try:
             cursor.execute("""
                 INSERT INTO Multa (Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
                 VALUES (%s, %s, %s, %s, %s)
-            """, (monto, fecha, estado, id_tipo, id_socia))
+            """, (monto, fecha, estado, id_tipo_multa, id_socia))
 
             con.commit()
             st.success("✔ Multa registrada correctamente.")
 
         except Exception as e:
-            st.error(f"Error al registrar la multa: {e}")
+            st.error(f"❌ Error registrando la multa: {e}")
 
-    cursor.close()
     con.close()
-
-
-
-# ============================================================
-#       MÓDULO DE PRÉSTAMOS
-# ============================================================
-
-def pagina_prestamos():
-    st.header("💰 Registro de préstamos o pagos")
-
-    tipo = st.selectbox("Tipo de registro", ["Préstamo", "Pago"])
-    descripcion = st.text_area("Descripción")
-
-    if st.button("Guardar"):
-        st.success("Movimiento registrado (módulo no conectado aún).")
-
-
-
-# ============================================================
-#       MÓDULO DE REPORTES
-# ============================================================
-
-def pagina_reportes():
-    st.header("📊 Actas y reportes")
-    st.info("Aquí se generarán reportes del grupo próximamente.")
