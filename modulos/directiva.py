@@ -28,7 +28,7 @@ def interfaz_directiva():
 
 
 # ---------------------------------------------------------
-# 🟩 REGISTRO DE ASISTENCIA  (SIN CAMBIOS)
+# 🟩 REGISTRO DE ASISTENCIA  (NO SE MODIFICÓ)
 # ---------------------------------------------------------
 def pagina_asistencia():
 
@@ -113,7 +113,7 @@ def pagina_asistencia():
 
 
 # ---------------------------------------------------------
-# 🟥 APLICACIÓN Y CONTROL DE MULTAS (TABLA ORIGINAL + FILTROS + UPDATE)
+# 🟥 APLICACIÓN Y CONTROL DE MULTAS (CON UPDATE POR FILA)
 # ---------------------------------------------------------
 def pagina_multas():
 
@@ -122,9 +122,9 @@ def pagina_multas():
     con = obtener_conexion()
     cursor = con.cursor()
 
-    # ============================
+    # ===========================================================
     # REGISTRO DE MULTA
-    # ============================
+    # ===========================================================
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia")
     socias = cursor.fetchall()
     lista_socias = {nombre: id_socia for id_socia, nombre in socias}
@@ -158,9 +158,9 @@ def pagina_multas():
 
     st.markdown("---")
 
-    # ============================
+    # ===========================================================
     # FILTROS
-    # ============================
+    # ===========================================================
     st.subheader("🔎 Filtrar multas registradas")
 
     filtro_socia = st.selectbox("Filtrar por socia:", ["Todas"] + list(lista_socias.keys()))
@@ -190,53 +190,63 @@ def pagina_multas():
         params.append(filtro_fecha)
 
     query += " ORDER BY M.Id_Multa DESC"
-
     cursor.execute(query, params)
+
     multas = cursor.fetchall()
 
-    # ============================
-    # TABLA EXACTA + CAMBIO DE ESTADO
-    # ============================
+    # ===========================================================
+    # TABLA CON UPDATE DIRECTO POR FILA
+    # ===========================================================
     st.subheader("📋 Multas registradas")
 
     if multas:
-        df = pd.DataFrame(
-            multas,
-            columns=["ID", "Socia", "Tipo multa", "Monto ($)", "Estado", "Fecha"]
-        )
 
-        # Copia editable
-        df_editable = df.copy()
+        # Títulos de la tabla
+        cols = st.columns([1, 3, 3, 2, 2, 2, 2])
+        cols[0].write("**ID**")
+        cols[1].write("**Socia**")
+        cols[2].write("**Tipo multa**")
+        cols[3].write("**Monto ($)**")
+        cols[4].write("**Estado**")
+        cols[5].write("**Fecha**")
+        cols[6].write("**Acción**")
 
-        # Crear inputs de edición para estado
-        for i in range(len(df)):
-            df_editable.at[i, "Estado"] = st.selectbox(
-                f"Estado para ID {df.at[i,'ID']}:",
+        for row in multas:
+            id_multa = row[0]
+            socia = row[1]
+            tipo = row[2]
+            monto = row[3]
+            estado_actual = row[4]
+            fecha = row[5]
+
+            # Fila con controles
+            col1, col2, col3, col4, col5, col6, col7 = st.columns([1,3,3,2,2,2,2])
+
+            col1.write(id_multa)
+            col2.write(socia)
+            col3.write(tipo)
+            col4.write(f"${monto}")
+
+            # Estado editable
+            nuevo_estado = col5.selectbox(
+                "",
                 ["A pagar", "Pagada"],
-                index=0 if df.at[i, "Estado"] == "A pagar" else 1,
-                key=f"estado_{df.at[i,'ID']}"
+                index=0 if estado_actual == "A pagar" else 1,
+                key=f"estado_{id_multa}"
             )
 
-        # Mostrar tabla EXACTA sin cambios visuales
-        st.dataframe(df)
+            col6.write(str(fecha))
 
-        # Guardar cambios
-        if st.button("💾 Guardar cambios en estados"):
-            for i in range(len(df)):
-                nuevo_estado = df_editable.at[i, "Estado"]
-                id_multa = df.at[i, "ID"]
-
-                if nuevo_estado != df.at[i, "Estado"]:
-                    cursor.execute("""
-                        UPDATE Multa
-                        SET Estado = %s
-                        WHERE Id_Multa = %s
-                    """, (nuevo_estado, id_multa))
-
-            con.commit()
-            st.success("Estados actualizados correctamente.")
-            st.rerun()
+            # Botón actualizar
+            if col7.button("Actualizar", key=f"btn_{id_multa}"):
+                cursor.execute("""
+                    UPDATE Multa
+                    SET Estado = %s
+                    WHERE Id_Multa = %s
+                """, (nuevo_estado, id_multa))
+                con.commit()
+                st.success(f"Estado actualizado para la multa ID {id_multa}")
+                st.rerun()
 
     else:
         st.info("No hay multas registradas con esos filtros.")
-
