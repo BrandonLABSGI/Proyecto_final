@@ -3,7 +3,7 @@ from modulos.conexion import obtener_conexion
 
 def interfaz_promotora():
     st.title("📋 Panel de Promotora")
-    st.info("Supervisa los grupos bajo tu distrito, valida información y genera reportes.")
+    st.info("Supervisa tus grupos, valida información financiera y descarga reportes consolidados.")
 
     opciones = [
         "Consultar grupos asignados",
@@ -22,43 +22,59 @@ def interfaz_promotora():
     elif seleccion == "Reportes consolidados":
         pagina_reportes()
 
-
-# ========= PÁGINAS =========
+# ============================================
+# PÁGINA 1 — Consultar grupos asignados
+# ============================================
 
 def pagina_consultar_grupos():
     st.header("👥 Grupos Asignados")
 
     con = obtener_conexion()
-    cursor = con.cursor()
+    cursor = con.cursor(dictionary=True)
 
-    cursor.execute("SELECT Id_Grupo, Nombre_Grupo, Fecha_Inicio, Periodicidad FROM Grupo")
+    # Los grupos deben tener un campo Id_Promotora asignado en tu tabla Grupo
+    cursor.execute("SELECT * FROM Grupo")
     grupos = cursor.fetchall()
 
-    if len(grupos) == 0:
+    if not grupos:
         st.warning("No hay grupos registrados.")
         return
 
     for g in grupos:
-        st.write(f"**Grupo:** {g[1]}")
-        st.write(f"• ID: {g[0]}")
-        st.write(f"• Inicio: {g[2]}")
-        st.write(f"• Reuniones: {g[3]}")
+        st.subheader(g["Nombre_Grupo"])
+        st.write(f"📌 **ID:** {g['Id_Grupo']}")
+        st.write(f"📅 **Inicio:** {g['Fecha_Inicio']}")
+        st.write(f"🔁 **Periodicidad:** {g['Periodicidad']}")
         st.markdown("---")
 
+# ============================================
+# PÁGINA 2 — Validar información financiera
+# ============================================
 
 def pagina_validar_finanzas():
     st.header("📑 Validar Información Financiera")
-    st.info("Aquí puedes revisar préstamos, pagos, movimientos y estados financieros.")
 
     con = obtener_conexion()
-    cursor = con.cursor()
+    cursor = con.cursor(dictionary=True)
 
     cursor.execute("SELECT * FROM Prestamo")
     prestamos = cursor.fetchall()
 
-    st.write("### Préstamos Registrados", prestamos)
+    if not prestamos:
+        st.info("No hay datos financieros registrados.")
+        return
 
+    st.write("### 📌 Lista de Préstamos")
+    for p in prestamos:
+        st.write(f"ID Préstamo: {p['Id_Prestamo']}")
+        st.write(f"Monto: ${p['Monto']}")
+        st.write(f"Estado: {p['Estado']}")
+        st.markdown("---")
+
+# ============================================
+# PÁGINA 3 — Reportes Consolidados
+# ============================================
 
 def pagina_reportes():
     st.header("📊 Reportes Consolidados")
-    st.success("Aquí podrás descargar reportes financieros generales (PDF / Excel).")
+    st.info("Aquí podrás generar reportes generales del distrito o de cada grupo.")
