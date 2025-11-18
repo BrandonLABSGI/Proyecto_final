@@ -1,23 +1,20 @@
 import streamlit as st
+from modulos.conexion import obtener_conexion
 
 def interfaz_promotora():
-    st.title("👩‍💼 Panel de Promotora")
-    st.write("Supervisa tus grupos, registra nuevos y valida información financiera.")
+    st.title("📋 Panel de Promotora")
+    st.info("Supervisa los grupos bajo tu distrito, valida información y genera reportes.")
 
     opciones = [
-        "Consultar grupos",
-        "Registrar nuevo grupo",
+        "Consultar grupos asignados",
         "Validar información financiera",
         "Reportes consolidados"
     ]
 
-    seleccion = st.sidebar.radio("Selecciona una opción:", opciones)
+    seleccion = st.sidebar.selectbox("Selecciona una opción", opciones)
 
-    if seleccion == "Consultar grupos":
+    if seleccion == "Consultar grupos asignados":
         pagina_consultar_grupos()
-
-    elif seleccion == "Registrar nuevo grupo":
-        pagina_registrar_grupo()
 
     elif seleccion == "Validar información financiera":
         pagina_validar_finanzas()
@@ -26,29 +23,42 @@ def interfaz_promotora():
         pagina_reportes()
 
 
-# ======== PÁGINAS ========
+# ========= PÁGINAS =========
 
 def pagina_consultar_grupos():
-    st.header("📋 Grupos Asignados")
-    st.info("Grupo Mujeres Unidas")
-    st.info("Grupo Esperanza")
+    st.header("👥 Grupos Asignados")
 
+    con = obtener_conexion()
+    cursor = con.cursor()
 
-def pagina_registrar_grupo():
-    st.header("📝 Registrar nuevo grupo")
-    nombre = st.text_input("Nombre del grupo")
-    inicio = st.date_input("Fecha de inicio")
-    tasa = st.number_input("Tasa de interés (%)", min_value=0.0, step=0.1)
-    periodicidad = st.selectbox("Periodicidad de reuniones", ["Semanal", "Quincenal", "Mensual"])
-    if st.button("Registrar grupo"):
-        st.success("Grupo registrado correctamente.")
+    cursor.execute("SELECT Id_Grupo, Nombre_Grupo, Fecha_Inicio, Periodicidad FROM Grupo")
+    grupos = cursor.fetchall()
+
+    if len(grupos) == 0:
+        st.warning("No hay grupos registrados.")
+        return
+
+    for g in grupos:
+        st.write(f"**Grupo:** {g[1]}")
+        st.write(f"• ID: {g[0]}")
+        st.write(f"• Inicio: {g[2]}")
+        st.write(f"• Reuniones: {g[3]}")
+        st.markdown("---")
 
 
 def pagina_validar_finanzas():
-    st.header("💵 Validar información financiera")
-    st.success("Aquí podrás revisar préstamos, pagos y movimientos.")
+    st.header("📑 Validar Información Financiera")
+    st.info("Aquí puedes revisar préstamos, pagos, movimientos y estados financieros.")
+
+    con = obtener_conexion()
+    cursor = con.cursor()
+
+    cursor.execute("SELECT * FROM Prestamo")
+    prestamos = cursor.fetchall()
+
+    st.write("### Préstamos Registrados", prestamos)
 
 
 def pagina_reportes():
-    st.header("📊 Reportes consolidados")
-    st.info("Generación de reportes financieros generales.")
+    st.header("📊 Reportes Consolidados")
+    st.success("Aquí podrás descargar reportes financieros generales (PDF / Excel).")
