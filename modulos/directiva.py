@@ -1,142 +1,109 @@
 import streamlit as st
-from modulos.conexion import obtener_conexion
+from modulos.login import login
+from modulos.venta import mostrar_venta
+from modulos.administrador import interfaz_admin
+from modulos.promotora import interfaz_promotora
+from modulos.asistencia import interfaz_asistencia
+from modulos.config.conexion import obtener_conexion
 
 
-# ======================================================
-# PANEL PRINCIPAL DE DIRECTIVA
-# ======================================================
-
+# ================================
+#   FUNCIÓN PRINCIPAL DIRECTIVA
+# ================================
 def interfaz_directiva():
+
     st.title("👩‍💼 Panel de Directiva del Grupo")
-    st.write("Registrar reuniones, préstamos, multas y generar reportes.")
+    st.write("Registrar reuniones, préstamos, asistencia, multas y generar reportes.")
+
+    # Barra lateral
+    st.sidebar.header("Menú principal")
 
     opciones = [
         "Registrar reunión y asistencia",
         "Registrar préstamos o pagos",
         "Aplicar multas",
+        "Registrar asistencia",
         "Generar actas y reportes"
     ]
 
-    seleccion = st.sidebar.radio("Seleccione una opción:", opciones)
+    opcion = st.sidebar.radio("Seleccione una opción:", opciones)
 
-    if seleccion == "Aplicar multas":
+    # ============================
+    # OPCIÓN: REUNIONES/ASISTENCIA
+    # ============================
+    if opcion == "Registrar reunión y asistencia":
+        st.write("Módulo en construcción.")
+
+    # ============================
+    # OPCIÓN: PRÉSTAMOS
+    # ============================
+    elif opcion == "Registrar préstamos o pagos":
+        st.write("Módulo en construcción.")
+
+    # ============================
+    # OPCIÓN: MULTAS
+    # ============================
+    elif opcion == "Aplicar multas":
         pagina_multas()
 
-    elif seleccion == "Registrar reunión y asistencia":
-        pagina_reunion()
+    # ============================
+    # OPCIÓN: FORMULARIO DE ASISTENCIA
+    # ============================
+    elif opcion == "Registrar asistencia":
+        interfaz_asistencia()
 
-    elif seleccion == "Registrar préstamos o pagos":
-        pagina_prestamos()
+    # ============================
+    # OPCIÓN: REPORTES
+    # ============================
+    elif opcion == "Generar actas y reportes":
+        st.write("Módulo en construcción.")
 
-    elif seleccion == "Generar actas y reportes":
-        pagina_reportes()
 
 
-
-# ======================================================
-#  REGISTRO DE MULTAS (FUNCIONANDO 100%)
-# ======================================================
-
+# ================================
+#   PÁGINA DE MULTAS (YA FUNCIONAL)
+# ================================
 def pagina_multas():
 
-    st.header("⚠️ Aplicación de Multas")
-
     con = obtener_conexion()
-    if not con:
-        st.error("❌ Error al conectar con la base de datos.")
-        return
-
     cursor = con.cursor()
 
-    # ---------------------------------------------
-    # 1️⃣ Cargar SOCIAS desde tabla Socia
-    # ---------------------------------------------
-    try:
-        cursor.execute("SELECT Id_Socia, Nombre FROM Socia")
-        socias = cursor.fetchall()
-    except Exception as e:
-        st.error(f"❌ Error cargando socias: {e}")
-        return
+    st.header("⚠️ Aplicación de multas")
 
-    if not socias:
-        st.warning("⚠ No hay socias registradas.")
-        return
+    # Socias -------------------------------
+    cursor.execute("SELECT Id_Socia, Nombre FROM Socia")
+    socias = cursor.fetchall()
+    lista_socias = {nombre: id_ for id_, nombre in socias}
 
-    dic_socias = {nombre: sid for sid, nombre in socias}
+    nombre_socia = st.selectbox("Seleccione la socia:", list(lista_socias.keys()))
+    id_socia = lista_socias[nombre_socia]
 
-    socia_sel = st.selectbox("Seleccione la socia:", list(dic_socias.keys()))
-    id_socia = dic_socias[socia_sel]
+    # Tipos de multa -----------------------
+    cursor.execute("SELECT Id_Tipo_multa, Tipo_de_multa FROM Tipo_de_multa")
+    tipos = cursor.fetchall()
+    lista_multas = {tipo: id_ for id_, tipo in tipos}
 
-    # ---------------------------------------------
-    # 2️⃣ Cargar tipos de multa (tabla con espacio)
-    # ---------------------------------------------
-    try:
-        cursor.execute("SELECT Id_Tipo_multa, `Tipo de multa` FROM `Tipo de multa`")
-        tipos = cursor.fetchall()
-    except Exception as e:
-        st.error(f"❌ Error cargando tipos de multa: {e}")
-        return
+    tipo_multa = st.selectbox("Tipo de multa:", list(lista_multas.keys()))
+    id_tipo = lista_multas[tipo_multa]
 
-    if not tipos:
-        st.warning("⚠ No hay tipos de multa registrados.")
-        return
-
-    dic_tipos = {nombre: tid for tid, nombre in tipos}
-
-    tipo_sel = st.selectbox("Tipo de multa:", list(dic_tipos.keys()))
-    id_tipo = dic_tipos[tipo_sel]
-
-    # ---------------------------------------------
-    # 3️⃣ Datos de la multa
-    # ---------------------------------------------
-    monto = st.number_input(
-        "Monto de la multa ($)",
-        min_value=0.0,
-        step=0.5,
-        format="%.2f"
-    )
-
+    # Datos
+    monto = st.number_input("Monto de la multa ($)", min_value=0.0, step=1.0)
     fecha = st.date_input("Fecha de aplicación")
-    estado = st.selectbox("Estado:", ["A pagar", "Pagada"])
 
-    # ---------------------------------------------
-    # 4️⃣ Guardar multa en la BD
-    # ---------------------------------------------
+    estado = st.selectbox("Estado:", ["A pagar", "Pagado"])
+
     if st.button("💾 Registrar multa"):
 
         try:
             cursor.execute("""
-                INSERT INTO Multa 
-                (Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
+                INSERT INTO Multa (Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
                 VALUES (%s, %s, %s, %s, %s)
-            """,
-            (monto, fecha, estado, id_tipo, id_socia))
+            """, (monto, fecha, estado, id_tipo, id_socia))
 
             con.commit()
             st.success("✔ Multa registrada correctamente.")
 
         except Exception as e:
-            st.error(f"❌ Error guardando la multa: {e}")
+            st.error(f"❌ Error registrando la multa: {e}")
 
-    cursor.close()
     con.close()
-
-
-
-# ======================================================
-#  SECCIONES ADICIONALES (AÚN VACÍAS PERO FUNCIONAN)
-# ======================================================
-
-def pagina_reunion():
-    st.header("📅 Registro de Reunión")
-    st.info("Aquí podrás registrar reuniones (por integrar).")
-
-
-def pagina_prestamos():
-    st.header("💰 Préstamos o Pagos")
-    st.info("Aquí podrás registrar préstamos o pagos (por integrar).")
-
-
-def pagina_reportes():
-    st.header("📊 Actas y Reportes")
-    st.info("Aquí podrás generar reportes del grupo (por integrar).")
