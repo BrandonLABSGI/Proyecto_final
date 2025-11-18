@@ -1,20 +1,18 @@
 import streamlit as st
 
-# Importar módulos reales del proyecto
-from modulos.login import login
-from modulos.venta import mostrar_venta
-from modulos.administrador import interfaz_admin
-from modulos.promotora import interfaz_promotora
+# Importaciones corregidas y válidas
+from modulos.conexion import obtener_conexion
 from modulos.asistencia import interfaz_asistencia
-from modulos.conexion import obtener_conexion   # ← CORRECCIÓN
+from modulos.administrador import interfaz_administrador
+
 
 # ============================================================
 # PANEL PRINCIPAL DE LA DIRECTIVA
 # ============================================================
 
 def interfaz_directiva():
-    st.title("👨‍💼 Panel de Directiva del Grupo")
-    st.write("Registrar reuniones, préstamos, multas y generar reportes.")
+    st.title("👩‍💼 Panel de Directiva del Grupo")
+    st.write("Aquí puede registrar reuniones, préstamos, multas y generar reportes.")
 
     opciones = [
         "Registrar reunión y asistencia",
@@ -25,25 +23,39 @@ def interfaz_directiva():
 
     seleccion = st.sidebar.radio("Seleccione una opción:", opciones)
 
+    # ===================================
+    # REUNIONES / ASISTENCIA
+    # ===================================
     if seleccion == "Registrar reunión y asistencia":
         interfaz_asistencia()
 
+    # ===================================
+    # PRÉSTAMOS (AÚN SIMPLE)
+    # ===================================
     elif seleccion == "Registrar préstamos o pagos":
         pagina_prestamos()
 
+    # ===================================
+    # MULTAS
+    # ===================================
     elif seleccion == "Aplicar multas":
         pagina_multas()
 
+    # ===================================
+    # REPORTES
+    # ===================================
     elif seleccion == "Generar actas y reportes":
         pagina_reportes()
 
 
+
 # ============================================================
-# PÁGINA: MULTAS
+#       MÓDULO DE MULTAS
 # ============================================================
 
 def pagina_multas():
-    st.header("⚠️ Aplicación de multas")
+
+    st.header("⚠️ Aplicación de Multas")
 
     con = obtener_conexion()
     if not con:
@@ -53,54 +65,45 @@ def pagina_multas():
     cursor = con.cursor()
 
     # =============================
-    # Cargar SOCIAS desde la BD
+    # CARGAR SOCIAS
     # =============================
-    try:
-        cursor.execute("SELECT Id_Socia, Nombre FROM Socia")
-        socias = cursor.fetchall()
+    cursor.execute("SELECT Id_Socia, Nombre FROM Socia")
+    socias = cursor.fetchall()
 
-        if not socias:
-            st.warning("⚠ No hay socias registradas.")
-            return
-
-        dic_socias = {nombre: sid for sid, nombre in socias}
-
-        socia_sel = st.selectbox("Seleccione la socia:", list(dic_socias.keys()))
-        id_socia = dic_socias[socia_sel]
-
-    except Exception as e:
-        st.error(f"Error cargando socias: {e}")
+    if not socias:
+        st.warning("⚠ No hay socias registradas.")
         return
 
+    socias_dict = {nombre: sid for sid, nombre in socias}
+
+    nombre_socia = st.selectbox("Seleccione la socia:", list(socias_dict.keys()))
+    id_socia = socias_dict[nombre_socia]
+
     # =============================
-    # Cargar TIPOS DE MULTA
+    # CARGAR TIPOS DE MULTA
     # =============================
-    try:
-        cursor.execute("SELECT Id_Tipo_multa, Tipo_de_multa FROM Tipo_de_multa")
-        tipos = cursor.fetchall()
+    cursor.execute("SELECT Id_Tipo_multa, Tipo_de_multa FROM Tipo_de_multa")
+    tipos = cursor.fetchall()
 
-        if not tipos:
-            st.warning("⚠ No hay tipos de multa configurados.")
-            return
-
-        dic_tipos = {nombre: tid for tid, nombre in tipos}
-
-        tipo_sel = st.selectbox("Tipo de multa:", list(dic_tipos.keys()))
-        id_tipo = dic_tipos[tipo_sel]
-
-    except Exception as e:
-        st.error(f"Error cargando tipos de multa: {e}")
+    if not tipos:
+        st.warning("⚠ No hay tipos de multa configurados.")
         return
 
+    tipos_dict = {tipo: tid for tid, tipo in tipos}
+
+    tipo_sel = st.selectbox("Tipo de multa:", list(tipos_dict.keys()))
+    id_tipo = tipos_dict[tipo_sel]
+
     # =============================
-    # Datos adicionales
+    # DATOS DE LA MULTA
     # =============================
-    monto = st.number_input("Monto de la multa ($)", min_value=0.00, step=0.50, format="%.2f")
+
+    monto = st.number_input("Monto ($)", min_value=0.00, step=0.50, format="%.2f")
     fecha = st.date_input("Fecha de aplicación")
-    estado = st.selectbox("Estado:", ["A pagar", "Pagada"])
+    estado = st.selectbox("Estado:", ["A pagar", "Pagado"])
 
     # =============================
-    # Guardar multa
+    # GUARDAR MULTA
     # =============================
     if st.button("💾 Registrar multa"):
         try:
@@ -113,29 +116,32 @@ def pagina_multas():
             st.success("✔ Multa registrada correctamente.")
 
         except Exception as e:
-            st.error(f"❌ Error registrando la multa: {e}")
+            st.error(f"Error al registrar la multa: {e}")
 
     cursor.close()
     con.close()
 
 
+
 # ============================================================
-# PÁGINA: PRÉSTAMOS (BÁSICO)
+#       MÓDULO DE PRÉSTAMOS
 # ============================================================
 
 def pagina_prestamos():
     st.header("💰 Registro de préstamos o pagos")
+
     tipo = st.selectbox("Tipo de registro", ["Préstamo", "Pago"])
     descripcion = st.text_area("Descripción")
 
-    if st.button("Guardar movimiento"):
-        st.success("Movimiento registrado correctamente (aún no conectado a BD).")
+    if st.button("Guardar"):
+        st.success("Movimiento registrado (módulo no conectado aún).")
+
 
 
 # ============================================================
-# PÁGINA: REPORTES
+#       MÓDULO DE REPORTES
 # ============================================================
 
 def pagina_reportes():
-    st.header("📊 Generar actas y reportes")
-    st.info("Aquí podrás generar reportes del grupo.")
+    st.header("📊 Actas y reportes")
+    st.info("Aquí se generarán reportes del grupo próximamente.")
