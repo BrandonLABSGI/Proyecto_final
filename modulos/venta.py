@@ -1,5 +1,6 @@
 import streamlit as st
-from modulos.config.conexion import obtener_conexion
+from modulos.conexion import obtener_conexion
+
 
 # -------------------------------------------------------------
 # 🛒 Módulo de Registro de Ventas
