@@ -5,30 +5,50 @@ from modulos.conexion import obtener_conexion
 
 
 # ---------------------------------------------------------
-# 🟦 PANEL PRINCIPAL
+# 🟦 PANEL PRINCIPAL (MEJORADO PARA ROLES)
 # ---------------------------------------------------------
 def interfaz_directiva():
 
-    st.title("👩‍💼 Panel de la Directiva del Grupo")
-    st.write("Administre reuniones, asistencia y multas.")
+    rol = st.session_state.get("rol", "invitado")
 
+    # TÍTULO SEGÚN EL ROL
+    if rol == "director":
+        st.title("👩‍💼 Panel de la Directiva del Grupo")
+        st.write("Administre reuniones, asistencia y multas.")
+    elif rol == "admin":
+        st.title("🧑‍💼 Panel del Administrador")
+        st.info("Puedes usar el sistema, pero no tienes acceso a asistencia ni multas.")
+    elif rol == "promotora":
+        st.title("👩‍🔧 Panel de la Promotora")
+        st.info("Puedes usar el sistema, pero no tienes acceso a asistencia ni multas.")
+    else:
+        st.title("Acceso al sistema")
+
+    # BOTÓN DE CERRAR SESIÓN
     if st.sidebar.button("🔒 Cerrar sesión"):
         st.session_state.clear()
         st.rerun()
 
-    menu = st.sidebar.radio(
-        "Seleccione una sección:",
-        ["Registro de asistencia", "Aplicar multas"]
-    )
+    # DIRECTOR → acceso total
+    if rol == "director":
+        menu = st.sidebar.radio(
+            "Seleccione una sección:",
+            ["Registro de asistencia", "Aplicar multas"]
+        )
+        if menu == "Registro de asistencia":
+            pagina_asistencia()
+        else:
+            pagina_multas()
 
-    if menu == "Registro de asistencia":
-        pagina_asistencia()
+    # ADMIN / PROMOTORA → acceso limitado
     else:
-        pagina_multas()
+        st.warning("⚠ Acceso restringido. Esta sección es exclusiva para el Director.")
+        return
+
 
 
 # ---------------------------------------------------------
-# 🟩 REGISTRO DE ASISTENCIA (CORREGIDO + NUEVO FORMATO)
+# 🟩 REGISTRO DE ASISTENCIA (TU CÓDIGO TAL COMO ESTABA)
 # ---------------------------------------------------------
 def pagina_asistencia():
 
@@ -41,19 +61,13 @@ def pagina_asistencia():
 
     cursor = con.cursor()
 
-    # ---------------------------------------------------------
-    # FIX IMPORTANTE: Convertir fecha a formato STRING
-    # ---------------------------------------------------------
+    # Fecha
     fecha_raw = st.date_input("📅 Fecha de reunión", value=date.today())
-    fecha = fecha_raw.strftime("%Y-%m-%d")  # ← CRÍTICO PARA EVITAR IntegrityError
+    fecha = fecha_raw.strftime("%Y-%m-%d")
 
-    # ---------------------------------------------------------
-    # Verificar si existe reunión
-    # ---------------------------------------------------------
+    # Buscar o crear reunión
     cursor.execute("""
-        SELECT Id_Reunion 
-        FROM Reunion 
-        WHERE Fecha_reunion = %s
+        SELECT Id_Reunion FROM Reunion WHERE Fecha_reunion = %s
     """, (fecha,))
     row = cursor.fetchone()
 
@@ -68,13 +82,11 @@ def pagina_asistencia():
             con.commit()
             id_reunion = cursor.lastrowid
             st.info(f"Reunión creada (ID {id_reunion}).")
-        except Exception as e:
-            st.error("⚠ ERROR: No se pudo crear la reunión. Revise que Id_Grupo exista.")
+        except Exception:
+            st.error("⚠ ERROR: No se pudo crear la reunión.")
             return
 
-    # ---------------------------------------------------------
-    # Obtener todas las socias
-    # ---------------------------------------------------------
+    # Socias
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
 
@@ -82,16 +94,13 @@ def pagina_asistencia():
 
     asistencia_registro = {}
 
-    # Encabezados estilo tabla
     col1, col2, col3 = st.columns([1, 3, 3])
     col1.write("**#**")
     col2.write("**Socia**")
     col3.write("**Asistencia (SI / NO)**")
 
-    # Filas dinámicas
     for idx, (id_socia, nombre) in enumerate(socias, start=1):
         c1, c2, c3 = st.columns([1, 3, 3])
-
         c1.write(idx)
         c2.write(nombre)
 
@@ -103,17 +112,13 @@ def pagina_asistencia():
 
         asistencia_registro[id_socia] = asistencia
 
-    # ---------------------------------------------------------
-    # GUARDAR ASISTENCIA GENERAL
-    # ---------------------------------------------------------
+    # Guardar
     if st.button("💾 Guardar asistencia general"):
-
         try:
             for id_socia, asistencia in asistencia_registro.items():
 
                 estado = "Presente" if asistencia == "SI" else "Ausente"
 
-                # Verificar si existe registro previo
                 cursor.execute("""
                     SELECT Id_Asistencia 
                     FROM Asistencia 
@@ -141,9 +146,7 @@ def pagina_asistencia():
         except Exception as e:
             st.error(f"Error al guardar asistencia: {e}")
 
-    # ---------------------------------------------------------
-    # MOSTRAR RESULTADOS + TOTAL PRESENTES
-    # ---------------------------------------------------------
+    # Mostrar tabla
     cursor.execute("""
         SELECT S.Nombre, A.Estado_asistencia
         FROM Asistencia A
@@ -160,13 +163,13 @@ def pagina_asistencia():
 
         total_presentes = df[df["Asistencia"] == "Presente"].shape[0]
         st.success(f"👥 Total presentes: {total_presentes}")
-
     else:
         st.info("Aún no hay asistencia registrada.")
 
 
+
 # ---------------------------------------------------------
-# 🟥 APLICACIÓN DE MULTAS  (SIN CAMBIOS)
+# 🟥 MULTAS (TU CÓDIGO SIN CAMBIOS)
 # ---------------------------------------------------------
 def pagina_multas():
 
@@ -203,7 +206,6 @@ def pagina_multas():
             con.commit()
             st.success("Multa registrada correctamente.")
             st.rerun()
-
         except Exception as e:
             st.error(f"⚠ Error al guardar multa: {e}")
 
