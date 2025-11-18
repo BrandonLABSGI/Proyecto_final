@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import date
 from modulos.conexion import obtener_conexion
 
+
 # ---------------------------------------------------------
 # 🟦 PANEL PRINCIPAL
 # ---------------------------------------------------------
@@ -37,7 +38,7 @@ def pagina_asistencia():
 
     con = obtener_conexion()
     if not con:
-        st.error("❌ No se pudo conectar a la BD.")
+        st.error("No se pudo conectar a la BD.")
         return
     cursor = con.cursor()
 
@@ -63,11 +64,7 @@ def pagina_asistencia():
     cursor.execute("SELECT Id_Socia, Nombre, Sexo FROM Socia")
     registros = cursor.fetchall()
 
-    # Crear diccionario SEGURO
-    socias = {
-        fila[1]: {"id": fila[0], "sexo": fila[2]}
-        for fila in registros
-    }
+    socias = {fila[1]: {"id": fila[0], "sexo": fila[2]} for fila in registros}
 
     nombre = st.selectbox("👩 Socia:", list(socias.keys()))
     id_socia = socias[nombre]["id"]
@@ -125,25 +122,19 @@ def pagina_multas():
     # Obtener tipos de multa
     cursor.execute("SELECT `Id_Tipo_multa`, `Tipo de multa` FROM `Tipo de multa`")
     tipos = cursor.fetchall()
-
     lista_tipos = {nombre: id_tipo for id_tipo, nombre in tipos}
 
     tipo_sel = st.selectbox("📌 Tipo de multa:", lista_tipos.keys())
     id_tipo_multa = lista_tipos[tipo_sel]
 
-    # --- MONTO EN DECIMALES ($) ---
-    monto = st.number_input(
-        "💵 Monto de la multa ($):",
-        min_value=0.01,
-        step=0.01,
-        format="%.2f"
-    )
+    # MONTO en decimal tipo dinero
+    monto = st.number_input("💵 Monto de la multa ($):", min_value=0.00, step=0.25, format="%.2f")
 
-    fecha = st.date_input("📅 Fecha de aplicación", value=date.today())
+    fecha = st.date_input("📅 Fecha de aplicación")
 
-    estado = "A pagar"
+    # 🔥 NUEVO: Seleccionar estado de la multa
+    estado = st.selectbox("📍 Estado de la multa:", ["A pagar", "Pagada"])
 
-    # --- REGISTRAR MULTA ---
     if st.button("💾 Registrar multa"):
         try:
             cursor.execute("""
@@ -163,7 +154,8 @@ def pagina_multas():
     st.subheader("📋 Multas registradas")
 
     cursor.execute("""
-        SELECT M.Id_Multa, S.Nombre, T.`Tipo de multa`, M.Monto, M.Estado, M.Fecha_aplicacion
+        SELECT M.Id_Multa, S.Nombre, T.`Tipo de multa`, 
+               M.Monto, M.Estado, M.Fecha_aplicacion
         FROM Multa M
         JOIN Socia S ON S.Id_Socia = M.Id_Socia
         JOIN `Tipo de multa` T ON T.Id_Tipo_multa = M.Id_Tipo_multa
@@ -172,8 +164,9 @@ def pagina_multas():
 
     registros = cursor.fetchall()
     if registros:
-        df = pd.DataFrame(registros, 
-            columns=["ID", "Socia", "Tipo multa", "Monto", "Estado", "Fecha"]
+        df = pd.DataFrame(
+            registros, 
+            columns=["ID", "Socia", "Tipo multa", "Monto ($)", "Estado", "Fecha"]
         )
         st.dataframe(df)
     else:
