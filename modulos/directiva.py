@@ -5,30 +5,48 @@ from modulos.conexion import obtener_conexion
 
 
 # ---------------------------------------------------------
-# 🟦 PANEL PRINCIPAL
+# 🟦 PANEL PRINCIPAL (CON CONTROL DE ROLES)
 # ---------------------------------------------------------
 def interfaz_directiva():
 
-    st.title("👩‍💼 Panel de la Directiva del Grupo")
-    st.write("Administre reuniones, asistencia y multas.")
+    rol = st.session_state.get("rol", "").lower()
 
-    if st.sidebar.button("🔒 Cerrar sesión"):
-        st.session_state.clear()
-        st.rerun()
+    # 🔐 CONTROL DE ACCESO DENTRO DEL MÓDULO
+    if rol == "director":
+        st.title("👩‍💼 Panel de la Directiva del Grupo")
+        st.write("Administre reuniones, asistencia y multas.")
 
-    menu = st.sidebar.radio(
-        "Seleccione una sección:",
-        ["Registro de asistencia", "Aplicar multas"]
-    )
+        # Botón cerrar sesión
+        if st.sidebar.button("🔒 Cerrar sesión"):
+            st.session_state.clear()
+            st.rerun()
 
-    if menu == "Registro de asistencia":
-        pagina_asistencia()
+        menu = st.sidebar.radio(
+            "Seleccione una sección:",
+            ["Registro de asistencia", "Aplicar multas"]
+        )
+
+        if menu == "Registro de asistencia":
+            pagina_asistencia()
+        else:
+            pagina_multas()
+
     else:
-        pagina_multas()
+        # 🔵 PANEL PARA ADMIN Y PROMOTORA
+        st.title("📋 Acceso al sistema")
+        st.info("⚠ Acceso limitado. Solo el Director puede administrar asistencia y multas.")
+        st.success("Puedes seguir usando tus demás funciones del sistema.")
+
+        if st.sidebar.button("🔒 Cerrar sesión"):
+            st.session_state.clear()
+            st.rerun()
+
+        return  # ⛔ DESACTIVA TODO LO DEMÁS
+
 
 
 # ---------------------------------------------------------
-# 🟩 REGISTRO DE ASISTENCIA (CORREGIDO + NUEVO FORMATO)
+# 🟩 REGISTRO DE ASISTENCIA 
 # ---------------------------------------------------------
 def pagina_asistencia():
 
@@ -41,15 +59,9 @@ def pagina_asistencia():
 
     cursor = con.cursor()
 
-    # ---------------------------------------------------------
-    # FIX IMPORTANTE: Convertir fecha a formato STRING
-    # ---------------------------------------------------------
     fecha_raw = st.date_input("📅 Fecha de reunión", value=date.today())
-    fecha = fecha_raw.strftime("%Y-%m-%d")  # ← CRÍTICO PARA EVITAR IntegrityError
+    fecha = fecha_raw.strftime("%Y-%m-%d")
 
-    # ---------------------------------------------------------
-    # Verificar si existe reunión
-    # ---------------------------------------------------------
     cursor.execute("""
         SELECT Id_Reunion 
         FROM Reunion 
@@ -68,13 +80,10 @@ def pagina_asistencia():
             con.commit()
             id_reunion = cursor.lastrowid
             st.info(f"Reunión creada (ID {id_reunion}).")
-        except Exception as e:
+        except:
             st.error("⚠ ERROR: No se pudo crear la reunión. Revise que Id_Grupo exista.")
             return
 
-    # ---------------------------------------------------------
-    # Obtener todas las socias
-    # ---------------------------------------------------------
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
 
@@ -82,13 +91,11 @@ def pagina_asistencia():
 
     asistencia_registro = {}
 
-    # Encabezados estilo tabla
     col1, col2, col3 = st.columns([1, 3, 3])
     col1.write("**#**")
     col2.write("**Socia**")
     col3.write("**Asistencia (SI / NO)**")
 
-    # Filas dinámicas
     for idx, (id_socia, nombre) in enumerate(socias, start=1):
         c1, c2, c3 = st.columns([1, 3, 3])
 
@@ -103,9 +110,6 @@ def pagina_asistencia():
 
         asistencia_registro[id_socia] = asistencia
 
-    # ---------------------------------------------------------
-    # GUARDAR ASISTENCIA GENERAL
-    # ---------------------------------------------------------
     if st.button("💾 Guardar asistencia general"):
 
         try:
@@ -113,7 +117,6 @@ def pagina_asistencia():
 
                 estado = "Presente" if asistencia == "SI" else "Ausente"
 
-                # Verificar si existe registro previo
                 cursor.execute("""
                     SELECT Id_Asistencia 
                     FROM Asistencia 
@@ -128,7 +131,6 @@ def pagina_asistencia():
                         SET Estado_asistencia = %s, Fecha = %s
                         WHERE Id_Reunion = %s AND Id_Socia = %s
                     """, (estado, fecha, id_reunion, id_socia))
-
                 else:
                     cursor.execute("""
                         INSERT INTO Asistencia (Id_Reunion, Id_Socia, Estado_asistencia, Fecha)
@@ -141,9 +143,6 @@ def pagina_asistencia():
         except Exception as e:
             st.error(f"Error al guardar asistencia: {e}")
 
-    # ---------------------------------------------------------
-    # MOSTRAR RESULTADOS + TOTAL PRESENTES
-    # ---------------------------------------------------------
     cursor.execute("""
         SELECT S.Nombre, A.Estado_asistencia
         FROM Asistencia A
@@ -160,13 +159,13 @@ def pagina_asistencia():
 
         total_presentes = df[df["Asistencia"] == "Presente"].shape[0]
         st.success(f"👥 Total presentes: {total_presentes}")
-
     else:
         st.info("Aún no hay asistencia registrada.")
 
 
+
 # ---------------------------------------------------------
-# 🟥 APLICACIÓN DE MULTAS  (SIN CAMBIOS)
+# 🟥 APLICACIÓN DE MULTAS
 # ---------------------------------------------------------
 def pagina_multas():
 
@@ -209,7 +208,6 @@ def pagina_multas():
 
     st.markdown("---")
 
-    # Filtros
     st.subheader("🔎 Filtrar multas registradas")
 
     filtro_socia = st.selectbox("Filtrar por socia:", ["Todas"] + list(lista_socias.keys()))
@@ -248,7 +246,7 @@ def pagina_multas():
 
     if multas:
 
-        cols = st.columns([1, 3, 3, 2, 2, 2, 2])
+        cols = st.columns([1,3,3,2,2,2,2])
         cols[0].write("**ID**")
         cols[1].write("**Socia**")
         cols[2].write("**Tipo multa**")
@@ -288,4 +286,3 @@ def pagina_multas():
 
     else:
         st.info("No hay multas registradas con esos filtros.")
-
