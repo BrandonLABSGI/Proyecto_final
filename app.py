@@ -2,20 +2,33 @@ import streamlit as st
 from modulos.login import login
 from modulos.directiva import interfaz_directiva
 
-# ---------------------------------------------------
-# ESTADO DE SESIÓN PARA CONTROLAR LOGIN / LOGOUT
-# ---------------------------------------------------
 
 if "sesion_iniciada" not in st.session_state:
     st.session_state["sesion_iniciada"] = False
 
-# ---------------------------------------------------
-# MOSTRAR PANTALLA SEGÚN SESIÓN
-# ---------------------------------------------------
 
 if st.session_state["sesion_iniciada"]:
-    # Si la sesión está activa -> cargar menú de directiva
-    interfaz_directiva()
+
+    rol = st.session_state["rol"]
+
+    # 🔵 DIRECTOR
+    if rol == "Director":
+        interfaz_directiva()
+
+    # 🔴 ADMIN
+    elif rol == "Administrador":
+        st.title("🛠 Panel del Administrador")
+        st.info("Acceso limitado. El administrador no puede gestionar asistencia ni multas.")
+
+    # 🟣 PROMOTORA
+    elif rol == "Promotora":
+        st.title("👩‍💼 Panel de la Promotora")
+        st.info("Acceso limitado. La promotora no puede gestionar asistencia ni multas.")
+
+    # Botón para cerrar sesión
+    if st.sidebar.button("Cerrar sesión"):
+        st.session_state.clear()
+        st.rerun()
+
 else:
-    # Si no ha iniciado sesión -> mostrar login
     login()
