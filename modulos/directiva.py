@@ -1,3 +1,7 @@
+import streamlit as st
+import pandas as pd
+from modulos.conexion import obtener_conexion
+
 def pagina_asistencia():
 
     st.subheader("📝 Registro de asistencia del grupo")
@@ -21,7 +25,8 @@ def pagina_asistencia():
     else:
         # Crear nueva reunión automáticamente
         cursor.execute(
-            "INSERT INTO Reunion (Fecha_reunion, observaciones, acuerdos, Tema_central, Id_Grupo) VALUES (%s,'','','','1')",
+            "INSERT INTO Reunion (Fecha_reunion, observaciones, acuerdos, Tema_central, Id_Grupo) 
+             VALUES (%s,'','','','1')",
             (fecha,)
         )
         con.commit()
@@ -32,17 +37,17 @@ def pagina_asistencia():
     cursor.execute("SELECT Id_Socia, Nombre, Sexo FROM Socia")
     socias = cursor.fetchall()
 
-    lista_socias = {f"{s[1]}": (s[0], s[2]) for s in socias}
+    lista_socias = {s[1]: (s[0], s[2]) for s in socias}
 
     seleccion_socia = st.selectbox("👩 Seleccione la socia:", lista_socias.keys())
 
     id_socia = lista_socias[seleccion_socia][0]
-    genero_socia = lista_socias[seleccion_socia][2]  # M/F
+    genero_socia = lista_socias[seleccion_socia][2]
 
     # 4️⃣ Autocompletar género
     st.text_input("Género:", genero_socia, disabled=True)
 
-    # 5️⃣ Estado de asistencia
+    # 5️⃣ Estado asistencia
     estado = st.selectbox("📍 Estado asistencia:", ["Presente", "Ausente"])
 
     # 6️⃣ Guardar asistencia
@@ -69,7 +74,7 @@ def pagina_asistencia():
         JOIN Socia S ON S.Id_Socia = A.Id_Socia
         WHERE A.Id_Reunion = %s
     """, (id_reunion,))
-
+    
     registros = cursor.fetchall()
 
     if registros:
@@ -77,4 +82,3 @@ def pagina_asistencia():
         st.dataframe(df)
     else:
         st.info("No hay asistencias registradas aún.")
-
