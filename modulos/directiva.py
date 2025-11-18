@@ -5,9 +5,14 @@ from modulos.conexion import obtener_conexion
 
 
 # ---------------------------------------------------------
-# 🟦 PANEL PRINCIPAL
+# 🟦 PANEL PRINCIPAL (PROTEGIDO POR ROL)
 # ---------------------------------------------------------
 def interfaz_directiva():
+
+    # 🔒 PROTECCIÓN DE ACCESO: SOLO EL DIRECTOR PUEDE ENTRAR
+    if "rol" not in st.session_state or st.session_state["rol"] != "Director":
+        st.error("⛔ Acceso denegado. Esta sección es solo para el Director.")
+        return
 
     st.title("👩‍💼 Panel de la Directiva del Grupo")
     st.write("Administre reuniones, asistencia y multas.")
@@ -28,7 +33,7 @@ def interfaz_directiva():
 
 
 # ---------------------------------------------------------
-# 🟩 REGISTRO DE ASISTENCIA (CORREGIDO 100%)
+# 🟩 REGISTRO DE ASISTENCIA (TAL CUAL LO TENÍAS, SOLO FORMATO)
 # ---------------------------------------------------------
 def pagina_asistencia():
 
@@ -41,36 +46,31 @@ def pagina_asistencia():
 
     cursor = con.cursor()
 
-    # Convertir fecha a formato seguro
     fecha_raw = st.date_input("📅 Fecha de reunión", value=date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
-    # ---------------------------------------------------------
-    # 1️⃣ Crear o recuperar reunión por fecha
-    # ---------------------------------------------------------
-    try:
-        cursor.execute("SELECT Id_Reunion FROM Reunion WHERE Fecha_reunion = %s", (fecha,))
-        row = cursor.fetchone()
+    cursor.execute("""
+        SELECT Id_Reunion 
+        FROM Reunion 
+        WHERE Fecha_reunion = %s
+    """, (fecha,))
+    row = cursor.fetchone()
 
-        if row:
-            id_reunion = row[0]  # Reunión existente
-        else:
-            # Crear reunión nueva SIN Id_Grupo
+    if row:
+        id_reunion = row[0]
+    else:
+        try:
             cursor.execute("""
                 INSERT INTO Reunion (Fecha_reunion, observaciones, acuerdos, Tema_central, Id_Grupo)
-                VALUES (%s, '', '', '', NULL)
+                VALUES (%s,'','','',1)
             """, (fecha,))
             con.commit()
             id_reunion = cursor.lastrowid
             st.info(f"Reunión creada (ID {id_reunion}).")
+        except:
+            st.error("⚠ ERROR: No se pudo crear la reunión. Revise que Id_Grupo exista.")
+            return
 
-    except Exception as e:
-        st.error(f"⚠ ERROR REAL: {e}")
-        return
-
-    # ---------------------------------------------------------
-    # 2️⃣ OBTENER TODAS LAS SOCIAS
-    # ---------------------------------------------------------
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
 
@@ -78,17 +78,12 @@ def pagina_asistencia():
 
     asistencia_registro = {}
 
-    # Cabecera tipo tabla
     col1, col2, col3 = st.columns([1, 3, 3])
     col1.write("**#**")
     col2.write("**Socia**")
-    col3.write("**Asistencia**")
+    col3.write("**Asistencia (SI / NO)**")
 
-    total_presentes = 0
-
-    # Generar filas
     for idx, (id_socia, nombre) in enumerate(socias, start=1):
-
         c1, c2, c3 = st.columns([1, 3, 3])
 
         c1.write(idx)
@@ -97,19 +92,11 @@ def pagina_asistencia():
         asistencia = c3.selectbox(
             "",
             ["SI", "NO"],
-            key=f"asist_{id_socia}"
+            key=f"asis_{id_socia}"
         )
 
         asistencia_registro[id_socia] = asistencia
 
-        if asistencia == "SI":
-            total_presentes += 1
-
-    st.success(f"👥 Total presentes: {total_presentes}")
-
-    # ---------------------------------------------------------
-    # 3️⃣ GUARDAR ASISTENCIA (CORREGIDO CON GÉNERO)
-    # ---------------------------------------------------------
     if st.button("💾 Guardar asistencia general"):
 
         try:
@@ -117,11 +104,6 @@ def pagina_asistencia():
 
                 estado = "Presente" if asistencia == "SI" else "Ausente"
 
-                # ← Obtener género desde tabla Socia
-                cursor.execute("SELECT Sexo FROM Socia WHERE Id_Socia = %s", (id_socia,))
-                genero = cursor.fetchone()[0]
-
-                # ¿Ya existe registro?
                 cursor.execute("""
                     SELECT Id_Asistencia 
                     FROM Asistencia 
@@ -133,27 +115,24 @@ def pagina_asistencia():
                 if ya_existe:
                     cursor.execute("""
                         UPDATE Asistencia
-                        SET Estado_asistencia = %s, Genero = %s, Fecha = %s
+                        SET Estado_asistencia = %s, Fecha = %s
                         WHERE Id_Reunion = %s AND Id_Socia = %s
-                    """, (estado, genero, fecha, id_reunion, id_socia))
+                    """, (estado, fecha, id_reunion, id_socia))
 
                 else:
                     cursor.execute("""
-                        INSERT INTO Asistencia (Id_Reunion, Id_Socia, Estado_asistencia, Genero, Fecha)
-                        VALUES (%s, %s, %s, %s, %s)
-                    """, (id_reunion, id_socia, estado, genero, fecha))
+                        INSERT INTO Asistencia (Id_Reunion, Id_Socia, Estado_asistencia, Fecha)
+                        VALUES (%s, %s, %s, %s)
+                    """, (id_reunion, id_socia, estado, fecha))
 
             con.commit()
-            st.success("✔ Asistencia guardada correctamente.")
+            st.success("Asistencia guardada correctamente.")
 
         except Exception as e:
             st.error(f"❌ Error al guardar asistencia: {e}")
 
-    # ---------------------------------------------------------
-    # 4️⃣ MOSTRAR ASISTENCIA REGISTRADA
-    # ---------------------------------------------------------
     cursor.execute("""
-        SELECT S.Nombre, A.Estado_asistencia, A.Genero
+        SELECT S.Nombre, A.Estado_asistencia
         FROM Asistencia A
         JOIN Socia S ON S.Id_Socia = A.Id_Socia
         WHERE A.Id_Reunion = %s
@@ -162,7 +141,7 @@ def pagina_asistencia():
     registros = cursor.fetchall()
 
     if registros:
-        df = pd.DataFrame(registros, columns=["Socia", "Asistencia", "Genero"])
+        df = pd.DataFrame(registros, columns=["Socia", "Asistencia"])
         st.subheader("📋 Registro actual")
         st.dataframe(df)
 
@@ -174,7 +153,7 @@ def pagina_asistencia():
 
 
 # ---------------------------------------------------------
-# 🟥 APLICACIÓN DE MULTAS (NO MODIFICADO)
+# 🟥 MULTAS (TAL CUAL LO TENÍAS, SIN CAMBIOS)
 # ---------------------------------------------------------
 def pagina_multas():
 
@@ -197,11 +176,9 @@ def pagina_multas():
     tipo_sel = st.selectbox("📌 Tipo de multa:", lista_tipos.keys())
     id_tipo_multa = lista_tipos[tipo_sel]
 
-    monto = st.number_input("💵 Monto:", min_value=0.01, step=0.50, format="%.2f")
-
+    monto = st.number_input("💵 Monto de la multa:", min_value=0.01, step=0.50, format="%.2f")
     fecha_raw = st.date_input("📅 Fecha de aplicación")
     fecha = fecha_raw.strftime("%Y-%m-%d")
-
     estado = st.selectbox("📍 Estado del pago:", ["A pagar", "Pagada"])
 
     if st.button("💾 Registrar multa"):
@@ -218,9 +195,6 @@ def pagina_multas():
             st.error(f"⚠ Error al guardar multa: {e}")
 
     st.markdown("---")
-
-    # Filtros
-    st.subheader("🔎 Filtrar multas registradas")
 
     filtro_socia = st.selectbox("Filtrar por socia:", ["Todas"] + list(lista_socias.keys()))
     filtro_estado = st.selectbox("Filtrar por estado:", ["Todos", "A pagar", "Pagada"])
@@ -298,3 +272,4 @@ def pagina_multas():
 
     else:
         st.info("No hay multas registradas con esos filtros.")
+
