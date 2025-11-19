@@ -40,9 +40,8 @@ def interfaz_directiva():
         pagina_registro_socias()
 
 
-
 # ---------------------------------------------------------
-# 🟩 REGISTRO DE ASISTENCIA  (CON INGRESOS EXTRA)
+# 🟩 REGISTRO DE ASISTENCIA
 # ---------------------------------------------------------
 def pagina_asistencia():
 
@@ -102,7 +101,7 @@ def pagina_asistencia():
             return
 
     # ---------------------------------------------------------
-    # LISTA DE SOCIAS PARA ASISTENCIA
+    # ASISTENCIA
     # ---------------------------------------------------------
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
@@ -125,11 +124,9 @@ def pagina_asistencia():
             ["SI", "NO"],
             key=f"asis_{id_socia}"
         )
+
         asistencia_registro[id_socia] = asistencia
 
-    # ---------------------------------------------------------
-    # GUARDAR ASISTENCIA
-    # ---------------------------------------------------------
     if st.button("💾 Guardar asistencia general"):
 
         try:
@@ -150,6 +147,7 @@ def pagina_asistencia():
                         SET Estado_asistencia = %s, Fecha = %s
                         WHERE Id_Reunion = %s AND Id_Socia = %s
                     """, (estado, fecha, id_reunion, id_socia))
+
                 else:
                     cursor.execute("""
                         INSERT INTO Asistencia (Id_Reunion, Id_Socia, Estado_asistencia, Fecha)
@@ -162,9 +160,6 @@ def pagina_asistencia():
         except Exception as e:
             st.error(f"Error al guardar asistencia: {e}")
 
-    # ---------------------------------------------------------
-    # MOSTRAR RESUMEN
-    # ---------------------------------------------------------
     cursor.execute("""
         SELECT S.Nombre, A.Estado_asistencia
         FROM Asistencia A
@@ -185,10 +180,18 @@ def pagina_asistencia():
 
     st.markdown("---")
 
-    # =========================================================
-    # 🟩 SECCIÓN NUEVA: INGRESOS EXTRAORDINARIOS
-    # =========================================================
+    # ============================================================
+    # 🔵 NUEVA SECCIÓN — INGRESOS EXTRAORDINARIOS (MEJORADA)
+    # ============================================================
     st.header("💰 Ingresos extraordinarios de la reunión")
+
+    # Lista de socias para seleccionar quién aportó
+    cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Nombre ASC")
+    lista_socias = cursor.fetchall()
+    dict_socias = {nombre: id_socia for id_socia, nombre in lista_socias}
+
+    socia_sel = st.selectbox("👩 Socia que aporta:", dict_socias.keys())
+    id_socia_aporta = dict_socias[socia_sel]
 
     tipo = st.selectbox("Tipo de ingreso:", ["Rifa", "Donación", "Actividad", "Otro"])
     descripcion = st.text_input("Descripción del ingreso (opcional)")
@@ -197,9 +200,9 @@ def pagina_asistencia():
     if st.button("➕ Registrar ingreso extraordinario"):
         try:
             cursor.execute("""
-                INSERT INTO IngresosExtra (Id_Reunion, Tipo, Descripcion, Monto)
-                VALUES (%s, %s, %s, %s)
-            """, (id_reunion, tipo, descripcion, monto))
+                INSERT INTO IngresosExtra (Id_Reunion, Id_Socia, Tipo, Descripcion, Monto)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (id_reunion, id_socia_aporta, tipo, descripcion, monto))
 
             con.commit()
             st.success("Ingreso extraordinario registrado con éxito.")
@@ -208,21 +211,24 @@ def pagina_asistencia():
         except Exception as e:
             st.error(f"❌ Error al registrar ingreso: {e}")
 
-    # Mostrar ingresos ya registrados
+    # Mostrar ingresos del día
     cursor.execute("""
-        SELECT Tipo, Descripcion, Monto
-        FROM IngresosExtra
-        WHERE Id_Reunion = %s
+        SELECT S.Nombre, I.Tipo, I.Descripcion, I.Monto
+        FROM IngresosExtra I
+        JOIN Socia S ON S.Id_Socia = I.Id_Socia
+        WHERE I.Id_Reunion = %s
     """, (id_reunion,))
     ingresos = cursor.fetchall()
 
     if ingresos:
-        df_ing = pd.DataFrame(ingresos, columns=["Tipo", "Descripción", "Monto"])
-        st.subheader("📌 Ingresos registrados")
+        df_ing = pd.DataFrame(ingresos, columns=["Socia", "Tipo", "Descripción", "Monto"])
+        st.subheader("📌 Ingresos registrados hoy")
         st.dataframe(df_ing)
-    else:
-        st.info("No hay ingresos extraordinarios registrados.")
 
+        total_dia = df_ing["Monto"].sum()
+        st.success(f"💵 Total del día: ${total_dia:.2f}")
+    else:
+        st.info("No hay ingresos extraordinarios registrados hoy.")
 
 
 # ---------------------------------------------------------
@@ -345,7 +351,6 @@ def pagina_multas():
 
     else:
         st.info("No hay multas registradas con esos filtros.")
-
 
 
 # ---------------------------------------------------------
