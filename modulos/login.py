@@ -3,81 +3,113 @@ from modulos.conexion import obtener_conexion
 
 def login():
 
-    # ======== ESTILOS ========
+    # ============================
+    # FUENTE PERSONALIZADA
+    # ============================
+    st.markdown("""
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    """, unsafe_allow_html=True)
+
+    # ============================
+    # ESTILOS
+    # ============================
     st.markdown("""
     <style>
 
-    /* Fondo gris MUY claro */
-    body, .stApp {
-        background-color: #F4F6F8 !important;
+    * {
+        font-family: 'Poppins', sans-serif !important;
     }
 
-    /* Caja principal */
+    .stApp {
+        background: linear-gradient(180deg, #F8FAFC 0%, #EEF2F7 100%) !important;
+    }
+
     .login-card {
         background-color: white;
-        padding: 50px 40px;
-        border-radius: 18px;
+        padding: 45px 45px 55px 45px;
+        border-radius: 22px;
         width: 420px;
         margin-left: auto;
         margin-right: auto;
-        margin-top: 70px;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+        margin-top: 100px;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.10);
+        transition: all 0.3s ease-in-out;
     }
 
-    /* Titulos */
+    .login-card:hover {
+        box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+    }
+
+    .logo-container {
+        text-align: center;
+        margin-bottom: 15px;
+    }
+
     .titulo {
         text-align: center;
-        font-size: 30px;
-        font-weight: 700;
+        font-size: 28px;
+        font-weight: 600;
         color: #0A3B70;
-        margin-top: 10px;
         margin-bottom: 25px;
     }
 
-    /* Inputs */
-    .stTextInput>div>div>input {
-        background-color: white;
-        padding: 10px;
-        border-radius: 8px;
-        border: 1px solid #CCD1D5;
-        font-size: 16px;
+    label {
+        font-size: 15px !important;
+        font-weight: 500 !important;
+        color: #2F3B4C !important;
     }
 
-    /* Botón */
+    .stTextInput>div>div>input {
+        background-color: #FAFBFF !important;
+        border-radius: 10px !important;
+        border: 1px solid #CBD5E1 !important;
+        padding: 12px !important;
+        font-size: 16px !important;
+    }
+
+    .stTextInput>div>div>input:focus {
+        border: 1px solid #3BAA36 !important;
+        box-shadow: 0 0 0 2px rgba(59,170,54,0.2) !important;
+    }
+
     .stButton>button {
         width: 100%;
         background-color: #3BAA36 !important;
         color: white !important;
         border-radius: 10px !important;
-        height: 45px;
-        font-size: 18px;
-        font-weight: bold;
+        height: 48px !important;
+        font-size: 18px !important;
+        font-weight: 600 !important;
+        margin-top: 12px;
         border: none;
     }
 
     .stButton>button:hover {
-        background-color: #2E8A2B !important;
+        background-color: #2F8F2B !important;
     }
 
     </style>
     """, unsafe_allow_html=True)
 
-    # ======== TARJETA ========
+    # ============================
+    # TARJETA DE LOGIN
+    # ============================
     st.markdown("<div class='login-card'>", unsafe_allow_html=True)
 
-    # LOGO (centrado)
-    st.image("modulos/imagenes/logo.png", width=200)
+    # LOGO
+    st.markdown("<div class='logo-container'>", unsafe_allow_html=True)
+    st.image("modulos/imagenes/logo.png", width=220)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    # Título
+    # TÍTULO
     st.markdown("<div class='titulo'>Inicio de Sesión</div>", unsafe_allow_html=True)
 
-    # Campos de entrada
+    # CAMPOS
     usuario = st.text_input("Usuario")
     password = st.text_input("Contraseña", type="password")
 
-    # Botón
+    # BOTÓN
     if st.button("Iniciar sesión"):
-
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
 
@@ -99,3 +131,4 @@ def login():
             st.error("❌ Usuario o contraseña incorrectos.")
 
     st.markdown("</div>", unsafe_allow_html=True)
+
