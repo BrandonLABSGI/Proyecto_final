@@ -4,7 +4,8 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
-from modulos.config.conexion import obtener_conexion
+from modulos.conexion import obtener_conexion
+
 
 
 
