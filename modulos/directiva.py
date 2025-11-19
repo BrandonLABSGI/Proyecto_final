@@ -101,7 +101,7 @@ def pagina_asistencia():
             return
 
     # ---------------------------------------------------------
-    # ASISTENCIA
+    # ASISTENCIA (ORDEN CORREGIDO POR ID)
     # ---------------------------------------------------------
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
@@ -181,12 +181,11 @@ def pagina_asistencia():
     st.markdown("---")
 
     # ============================================================
-    # 🔵 NUEVA SECCIÓN — INGRESOS EXTRAORDINARIOS (MEJORADA)
+    # 🔵 INGRESOS EXTRAORDINARIOS (ORDEN CORREGIDO POR ID)
     # ============================================================
     st.header("💰 Ingresos extraordinarios de la reunión")
 
-    # Lista de socias para seleccionar quién aportó
-    cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Nombre ASC")
+    cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     lista_socias = cursor.fetchall()
     dict_socias = {nombre: id_socia for id_socia, nombre in lista_socias}
 
@@ -211,7 +210,6 @@ def pagina_asistencia():
         except Exception as e:
             st.error(f"❌ Error al registrar ingreso: {e}")
 
-    # Mostrar ingresos del día
     cursor.execute("""
         SELECT S.Nombre, I.Tipo, I.Descripcion, I.Monto
         FROM IngresosExtra I
@@ -241,7 +239,7 @@ def pagina_multas():
     con = obtener_conexion()
     cursor = con.cursor()
 
-    cursor.execute("SELECT Id_Socia, Nombre FROM Socia")
+    cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
     lista_socias = {nombre: id_socia for id_socia, nombre in socias}
 
