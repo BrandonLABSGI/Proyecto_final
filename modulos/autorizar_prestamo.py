@@ -66,17 +66,24 @@ def autorizar_prestamo():
             st.error(f"❌ Fondos insuficientes. Saldo disponible: ${saldo_actual}")
             return
 
-        saldo_pendiente = monto  # saldo total pendiente del préstamo
+        saldo_pendiente = monto  # saldo total pendiente
 
         try:
             # --------------------------------------------------
-            # 2. REGISTRAR PRÉSTAMO
+            # 2. REGISTRAR PRÉSTAMO (COLUMNAS EXACTAS)
             # --------------------------------------------------
             cursor.execute("""
                 INSERT INTO Prestamo(
-                    Fecha_del_prestamo, Monto_prestado, Tasa_de_interes,
-                    Plazo, Cuotas, Saldo_pendiente, Estado_del_prestamo,
-                    Id_Grupo, Id_Socia, Id_Caja
+                    `Fecha del préstamo`,
+                    `Monto prestado`,
+                    `Tasa de interes`,
+                    Plazo,
+                    Cuotas,
+                    Saldo_pendiente,
+                    `Estado del préstamo`,
+                    Id_Grupo,
+                    Id_Socia,
+                    Id_Caja
                 )
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """,
@@ -88,8 +95,8 @@ def autorizar_prestamo():
                 cuotas,
                 saldo_pendiente,
                 "activo",
-                1,          # Id_Grupo (ajustable)
-                id_socia,   # ID de la socia seleccionada
+                1,          # Id_Grupo
+                id_socia,
                 id_caja
             ))
 
@@ -97,15 +104,16 @@ def autorizar_prestamo():
             # 3. REGISTRAR EGRESO EN CAJA
             # --------------------------------------------------
             cursor.execute("""
-                INSERT INTO Caja(Concepto, Monto, Saldo_actual, Id_Grupo, Id_Tipo_movimiento)
-                VALUES (%s,%s,%s,%s,%s)
+                INSERT INTO Caja(Concepto, Monto, Saldo_actual, Id_Grupo, Id_Tipo_movimiento, Fecha)
+                VALUES (%s,%s,%s,%s,%s,%s)
             """,
             (
                 f"Préstamo otorgado a: {nombre_socia}",
                 -monto,
                 saldo_actual - monto,
-                1,                  # Id_Grupo
-                3                   # EGRESO
+                1,              # Id_Grupo
+                3,              # EGRESO
+                fecha_prestamo  # fecha en caja
             ))
 
             con.commit()
