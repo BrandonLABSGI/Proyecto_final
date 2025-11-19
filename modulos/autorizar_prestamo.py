@@ -1,6 +1,7 @@
 import streamlit as st
-from modulos.conexion import obtener_conexion
 from datetime import date
+from modulos.conexion import obtener_conexion
+
 
 def autorizar_prestamo():
 
@@ -53,7 +54,12 @@ def autorizar_prestamo():
         # --------------------------------------------------
         # 1. VERIFICAR SALDO DE CAJA
         # --------------------------------------------------
-        cursor.execute("SELECT Id_Caja, Saldo_actual FROM Caja ORDER BY Id_Caja DESC LIMIT 1")
+        cursor.execute("""
+            SELECT Id_Caja, Saldo_actual 
+            FROM Caja 
+            ORDER BY Id_Caja DESC 
+            LIMIT 1
+        """)
         caja = cursor.fetchone()
 
         if not caja:
@@ -95,13 +101,13 @@ def autorizar_prestamo():
                 cuotas,
                 saldo_pendiente,
                 "activo",
-                1,          # Id_Grupo
-                id_socia,   # Id de la socia
-                id_caja     # Id de caja
+                1,          
+                id_socia,   
+                id_caja    
             ))
 
             # --------------------------------------------------
-            # 3. REGISTRAR EGRESO EN CAJA (CON FECHA)
+            # 3. REGISTRAR EGRESO EN CAJA
             # --------------------------------------------------
             cursor.execute("""
                 INSERT INTO Caja(Concepto, Monto, Saldo_actual, Id_Grupo, Id_Tipo_movimiento, Fecha)
@@ -111,15 +117,49 @@ def autorizar_prestamo():
                 f"Préstamo otorgado a: {nombre_socia}",
                 -monto,
                 saldo_actual - monto,
-                1,                     # Grupo
-                3,                     # EGRESO
-                date.today().strftime("%Y-%m-%d")  # Fecha correcta
+                1,                  
+                3,                  
+                fecha_prestamo
             ))
 
             con.commit()
 
+            # ======================================================
+            # 4. RESUMEN DETALLADO DEL PRÉSTAMO
+            # ======================================================
+            interes_decimal = tasa_interes / 100
+            interes_dinero = monto * interes_decimal
+            total_pagar = monto + interes_dinero
+            cuota_mensual = total_pagar / plazo
+
             st.success("✅ Préstamo autorizado correctamente.")
-            st.info(f"Nuevo saldo en caja: ${saldo_actual - monto}")
+
+            # 🔵 BLOQUE DE RESUMEN
+            st.markdown("### 📘 **Resumen del préstamo**")
+            st.info(f"""
+**👩 Socia:** {nombre_socia}  
+**🆔 ID de la socia:** {id_socia}  
+**📅 Fecha del préstamo:** {fecha_prestamo}  
+
+---
+
+### 💵 **Detalles financieros**
+- **Monto prestado:** ${monto:.2f}  
+- **Tasa de interés:** {tasa_interes}%  
+- **Interés generado:** ${interes_dinero:.2f}  
+- **Total a pagar:** ${total_pagar:.2f}  
+- **Número de cuotas:** {plazo} meses  
+- **Cuota mensual:** ${cuota_mensual:.2f}  
+
+---
+
+### 🧮 Fórmulas usadas
+- Interés en dinero = Monto × (Tasa/100)  
+- Total a pagar = Monto + Interés  
+- Cuota mensual = Total a pagar ÷ Plazo
+""")
+
+            st.success(f"💵 Nuevo saldo en caja: ${saldo_actual - monto}")
 
         except Exception as e:
             con.rollback()
