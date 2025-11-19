@@ -5,7 +5,7 @@ def interfaz_promotora():
 
     rol = st.session_state.get("rol", "")
 
-    # Acceso exclusivo
+    # Seguridad: solo promotoras pueden entrar
     if rol != "Promotora":
         st.error("⛔ No tiene permisos para acceder al panel de promotora.")
         return
@@ -28,8 +28,12 @@ def interfaz_promotora():
         validar_finanzas()
 
     elif seleccion == "Reportes consolidados":
-        reportes()
+        reportes()   # ← AQUÍ SE LLAMA
 
+
+# ============================================
+# CONSULTAR GRUPOS
+# ============================================
 
 def consultar_grupos():
     st.header("👥 Grupos Asignados")
@@ -46,11 +50,15 @@ def consultar_grupos():
 
     for g in grupos:
         st.subheader(g["Nombre_Grupo"])
-        st.write(f"ID: {g['Id_Grupo']}")
-        st.write(f"Inicio: {g['Fecha_Inicio']}")
-        st.write(f"Periodicidad: {g['Periodicidad']}")
+        st.write(f"📌 ID: {g['Id_Grupo']}")
+        st.write(f"📅 Inicio: {g['Fecha_Inicio']}")
+        st.write(f"🔁 Periodicidad: {g['Periodicidad']}")
         st.markdown("---")
 
+
+# ============================================
+# VALIDAR FINANZAS
+# ============================================
 
 def validar_finanzas():
     st.header("📑 Validación Financiera")
@@ -59,8 +67,7 @@ def validar_finanzas():
     cursor = con.cursor(dictionary=True)
 
     try:
-        # Nombre exacto de la tabla según phpMyAdmin: Préstamo
-        cursor.execute("SELECT * FROM `Préstamo`")
+        cursor.execute("SELECT * FROM `Préstamo`")  # ← nombre exacto
         prestamos = cursor.fetchall()
 
         if not prestamos:
@@ -68,12 +75,22 @@ def validar_finanzas():
             return
 
         for p in prestamos:
-            st.write(f"🆔 ID Préstamo: {p['Id_Prestamo']}")
+            st.write(f"🆔 ID: {p['Id_Prestamo']}")
             st.write(f"💵 Monto: {p['Monto']}")
             st.write(f"📌 Estado: {p['Estado']}")
             st.markdown("---")
 
     except Exception as e:
-        st.error(f"⚠ Error al consultar la tabla `Préstamo`: {e}")
+        st.error(f"Error al consultar la tabla Préstamo: {e}")
+
+
+# ============================================
+# REPORTES CONSOLIDADOS  ← ESTA FALTABA
+# ============================================
+
+def reportes():
+    st.header("📊 Reportes Consolidados")
+    st.info("Aquí se podrán generar reportes PDF, Excel y estadísticas en futuras versiones.")
+
 
 
