@@ -40,6 +40,7 @@ def interfaz_directiva():
         pagina_registro_socias()
 
 
+
 # ---------------------------------------------------------
 # 🟩 REGISTRO DE ASISTENCIA
 # ---------------------------------------------------------
@@ -181,7 +182,7 @@ def pagina_asistencia():
     st.markdown("---")
 
     # ============================================================
-    # 🔵 INGRESOS EXTRAORDINARIOS (ORDEN CORREGIDO POR ID)
+    # 🔵 INGRESOS EXTRAORDINARIOS (AHORA INCLUYE FECHA)
     # ============================================================
     st.header("💰 Ingresos extraordinarios de la reunión")
 
@@ -196,12 +197,13 @@ def pagina_asistencia():
     descripcion = st.text_input("Descripción del ingreso (opcional)")
     monto = st.number_input("Monto recibido ($):", min_value=0.00, step=0.50)
 
+    # ⬅️ NUEVO: Registrar también la fecha
     if st.button("➕ Registrar ingreso extraordinario"):
         try:
             cursor.execute("""
-                INSERT INTO IngresosExtra (Id_Reunion, Id_Socia, Tipo, Descripcion, Monto)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (id_reunion, id_socia_aporta, tipo, descripcion, monto))
+                INSERT INTO IngresosExtra (Id_Reunion, Id_Socia, Tipo, Descripcion, Monto, Fecha)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (id_reunion, id_socia_aporta, tipo, descripcion, monto, fecha))
 
             con.commit()
             st.success("Ingreso extraordinario registrado con éxito.")
@@ -211,7 +213,7 @@ def pagina_asistencia():
             st.error(f"❌ Error al registrar ingreso: {e}")
 
     cursor.execute("""
-        SELECT S.Nombre, I.Tipo, I.Descripcion, I.Monto
+        SELECT S.Nombre, I.Tipo, I.Descripcion, I.Monto, I.Fecha
         FROM IngresosExtra I
         JOIN Socia S ON S.Id_Socia = I.Id_Socia
         WHERE I.Id_Reunion = %s
@@ -219,7 +221,7 @@ def pagina_asistencia():
     ingresos = cursor.fetchall()
 
     if ingresos:
-        df_ing = pd.DataFrame(ingresos, columns=["Socia", "Tipo", "Descripción", "Monto"])
+        df_ing = pd.DataFrame(ingresos, columns=["Socia", "Tipo", "Descripción", "Monto", "Fecha"])
         st.subheader("📌 Ingresos registrados hoy")
         st.dataframe(df_ing)
 
@@ -227,6 +229,7 @@ def pagina_asistencia():
         st.success(f"💵 Total del día: ${total_dia:.2f}")
     else:
         st.info("No hay ingresos extraordinarios registrados hoy.")
+
 
 
 # ---------------------------------------------------------
@@ -349,6 +352,7 @@ def pagina_multas():
 
     else:
         st.info("No hay multas registradas con esos filtros.")
+
 
 
 # ---------------------------------------------------------
