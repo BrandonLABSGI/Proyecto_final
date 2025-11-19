@@ -57,6 +57,10 @@ def pagina_asistencia():
     fecha_raw = st.date_input("📅 Fecha de reunión", value=date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
+    # ---------------------------------------------------------
+    # MEJORA IMPLEMENTADA AQUÍ 👇
+    # PERMITIR CUALQUIER FECHA EN LA REUNIÓN
+    # ---------------------------------------------------------
     cursor.execute("""
         SELECT Id_Reunion 
         FROM Reunion 
@@ -68,16 +72,40 @@ def pagina_asistencia():
         id_reunion = row[0]
     else:
         try:
-            cursor.execute("""
-                INSERT INTO Reunion (Fecha_reunion, observaciones, acuerdos, Tema_central, Id_Grupo)
-                VALUES (%s,'','','',1)
-            """, (fecha,))
+            # Obtener columnas de la tabla Reunion
+            cursor.execute("SHOW COLUMNS FROM Reunion")
+            columnas = [col[0] for col in cursor.fetchall()]
+
+            # Valores obligatorios
+            datos = {
+                "Fecha_reunion": fecha,
+                "observaciones": "",
+                "acuerdos": "",
+                "Tema_central": "",
+                "Id_Grupo": 1
+            }
+
+            # Llenar columnas faltantes con valores vacíos
+            for col in columnas:
+                if col not in datos and col != "Id_Reunion":
+                    datos[col] = ""
+
+            # INSERT dinámico
+            cols_sql = ", ".join(datos.keys())
+            vals_sql = ", ".join(["%s"] * len(datos))
+            query = f"INSERT INTO Reunion ({cols_sql}) VALUES ({vals_sql})"
+
+            cursor.execute(query, list(datos.values()))
             con.commit()
+
             id_reunion = cursor.lastrowid
             st.info(f"Reunión creada (ID {id_reunion}).")
-        except:
-            st.error("⚠ ERROR: No se pudo crear la reunión. Verifique Id_Grupo.")
+
+        except Exception as e:
+            st.error(f"⚠ ERROR al crear la reunión: {e}")
             return
+
+    # ---------------------------------------------------------
 
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
@@ -92,6 +120,7 @@ def pagina_asistencia():
 
     for idx, (id_socia, nombre) in enumerate(socias, start=1):
         c1, c2, c3 = st.columns([1, 3, 3])
+
         c1.write(idx)
         c2.write(nombre)
 
@@ -123,6 +152,7 @@ def pagina_asistencia():
                         SET Estado_asistencia = %s, Fecha = %s
                         WHERE Id_Reunion = %s AND Id_Socia = %s
                     """, (estado, fecha, id_reunion, id_socia))
+
                 else:
                     cursor.execute("""
                         INSERT INTO Asistencia (Id_Reunion, Id_Socia, Estado_asistencia, Fecha)
@@ -278,7 +308,7 @@ def pagina_multas():
 
 
 # ---------------------------------------------------------
-# 🟩 REGISTRO DE NUEVAS SOCIAS (CORREGIDO)
+# 🟩 REGISTRO DE NUEVAS SOCIAS
 # ---------------------------------------------------------
 def pagina_registro_socias():
 
@@ -293,7 +323,7 @@ def pagina_registro_socias():
 
     st.subheader("➕ Agregar una nueva socia")
 
-    nombre = st.text_input("Nombre completo de la socia (solo mujeres)")
+    nombre = st.text_input("Nombre completo de la socia")
 
     if st.button("💾 Registrar socia"):
 
@@ -316,9 +346,6 @@ def pagina_registro_socias():
 
     st.markdown("---")
 
-    st.subheader("📋 Lista de socias registradas")
-
-    # ❗ YA NO CONSULTAMOS LA COLUMNA ESTADO PORQUE NO EXISTE
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     datos = cursor.fetchall()
 
