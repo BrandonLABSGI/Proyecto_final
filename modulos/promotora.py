@@ -59,7 +59,8 @@ def validar_finanzas():
     cursor = con.cursor(dictionary=True)
 
     try:
-        cursor.execute("SELECT * FROM `Préstamo`")   # ← tabla correcta
+        # Nombre exacto de la tabla según phpMyAdmin: Préstamo
+        cursor.execute("SELECT * FROM `Préstamo`")
         prestamos = cursor.fetchall()
 
         if not prestamos:
@@ -73,5 +74,6 @@ def validar_finanzas():
             st.markdown("---")
 
     except Exception as e:
-        st.error(f"⚠ Error al consultar tabla Préstamo: {e}")
+        st.error(f"⚠ Error al consultar la tabla `Préstamo`: {e}")
+
 
