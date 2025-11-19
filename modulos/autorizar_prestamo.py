@@ -1,156 +1,114 @@
 import streamlit as st
 from datetime import date
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet
-from modulos.conexion import obtener_conexion
-
-
+from modulos.config.conexion import obtener_conexion
 
 
 # ---------------------------------------------------------
-#   FUNCION PARA GENERAR PDF
-# ---------------------------------------------------------
-def generar_pdf(detalle, calculos):
-    file_path = "/tmp/reporte_prestamo.pdf"
-    doc = SimpleDocTemplate(file_path, pagesize=letter)
-    styles = getSampleStyleSheet()
-
-    contenido = []
-
-    # --- TÍTULO ---
-    contenido.append(Paragraph("Resumen del Préstamo Autorizado", styles["Title"]))
-
-    # --- TABLA DETALLE ---
-    tabla_detalle = Table(detalle, colWidths=[180, 300])
-    tabla_detalle.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-        ("GRID", (0, 0), (-1, -1), 1, colors.grey),
-    ]))
-    contenido.append(tabla_detalle)
-
-    contenido.append(Paragraph("<br/><br/>Cálculos del préstamo", styles["Heading2"]))
-
-    # --- TABLA CÁLCULOS ---
-    tabla_calculos = Table(calculos, colWidths=[180, 300])
-    tabla_calculos.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-        ("GRID", (0, 0), (-1, -1), 1, colors.grey),
-    ]))
-    contenido.append(tabla_calculos)
-
-    doc.build(contenido)
-    return file_path
-
-
-
-# ---------------------------------------------------------
-#   FUNCION PRINCIPAL PARA AUTORIZAR PRESTAMO
+# 🟦 AUTORIZAR PRÉSTAMO
 # ---------------------------------------------------------
 def autorizar_prestamo():
 
     st.title("💳 Autorizar préstamo")
     st.write("Complete la información para autorizar un nuevo préstamo.")
 
-    # --- FORMULARIO ---
-    id_socia = st.number_input("ID de la socia:", min_value=1, step=1)
-    monto = st.number_input("💵 Monto prestado ($):", min_value=1, step=1)
-    tasa = st.number_input("📈 Tasa de interés (%)", min_value=1, step=1)
-    plazo = st.number_input("🗓 Plazo (meses)", min_value=1, step=1)
-    cuotas = st.number_input("📑 Número de cuotas", min_value=1, step=1)
+    con = obtener_conexion()
+    cursor = con.cursor()
+
+    # ---------------------------------------------------------
+    # 🔹 SELECCIÓN DE SOCIA (MEJORADO: muestra nombre)
+    # ---------------------------------------------------------
+    cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
+    socias = cursor.fetchall()
+
+    opciones = {f"{id_socia} - {nombre}": id_socia for id_socia, nombre in socias}
+
+    socia_seleccion = st.selectbox("👩Seleccione la socia:", list(opciones.keys()))
+    id_socia = opciones[socia_seleccion]
+
+    cursor.execute("SELECT Nombre FROM Socia WHERE Id_Socia = %s", (id_socia,))
+    nombre_socia = cursor.fetchone()[0]
+
+    st.success(f"📌 Socia seleccionada: **{nombre_socia}** (ID: {id_socia})")
+
+    st.write("---")
+
+    # ---------------------------------------------------------
+    # 🔹 CAMPOS DEL PRÉSTAMO
+    # ---------------------------------------------------------
+    monto = st.number_input("🟢 Monto prestado ($):", min_value=1, step=1)
+
+    tasa_interes = st.number_input("📉 Tasa de interés (%):", min_value=1, step=1)
+
+    plazo_meses = st.number_input("🗓 Plazo (meses)", min_value=1, step=1)
+
+    cuotas = st.number_input("📦 Número de cuotas", min_value=1, step=1)
+
     firma = st.text_input("✍️ Firma del directivo que autoriza")
 
+    fecha_prestamo = date.today().strftime("%Y-%m-%d")
+
+    st.write("---")
+
+    # ---------------------------------------------------------
+    # BOTÓN PARA AUTORIZAR PRÉSTAMO
+    # ---------------------------------------------------------
     if st.button("✅ Autorizar préstamo"):
 
         try:
-            con = obtener_conexion()
-            cursor = con.cursor()
+            cursor.execute("SELECT Saldo_actual FROM Caja ORDER BY Id_Caja DESC LIMIT 1")
+            caja = cursor.fetchone()
 
-            # ---------------------------------------------------------
-            #   VALIDAR EXISTENCIA DE LA SOCIA
-            # ---------------------------------------------------------
-            cursor.execute("SELECT Nombre FROM Socia WHERE Id_Socia = %s", (id_socia,))
-            row = cursor.fetchone()
-
-            if row is None:
-                st.error("❌ El ID de la socia no existe.")
+            if not caja:
+                st.error("⚠ No existe una caja registrada.")
                 return
 
-            nombre_socia = row[0]
+            saldo_actual = caja[0]
 
-            # ---------------------------------------------------------
-            #   CALCULOS DE PRÉSTAMO
-            # ---------------------------------------------------------
-            interes_total = round(monto * (tasa / 100), 2)
-            total_pagar = round(monto + interes_total, 2)
-            pago_por_cuota = round(total_pagar / cuotas, 2)
+            if monto > saldo_actual:
+                st.error("❌ El monto solicitado es mayor al saldo disponible en caja.")
+                return
 
-            # ---------------------------------------------------------
-            #   INSERTAR PRÉSTAMO EN LA BD
-            # ---------------------------------------------------------
-            cursor.execute("""
-                INSERT INTO Prestamo 
-                (Fecha, Monto, Tasa, Plazo, Cuotas, Saldo, Estado, Id_Grupo, Id_Socia, Id_Caja)
-                VALUES (%s, %s, %s, %s, %s, %s, 'activo', 1, %s, 1)
-            """, (
-                date.today(),
-                monto,
-                tasa,
-                plazo,
-                cuotas,
-                total_pagar,
-                id_socia
-            ))
+            cursor.execute(
+                """INSERT INTO Prestamo
+                (`Fecha del préstamo`, `Monto prestado`, `Tasa de interes`, Plazo, Cuotas,
+                `Saldo pendiente`, `Estado del préstamo`, Id_Grupo, Id_Socia, Id_Caja)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 1, %s,
+                (SELECT Id_Caja FROM Caja ORDER BY Id_Caja DESC LIMIT 1))""",
+                (fecha_prestamo, monto, tasa_interes, plazo_meses, cuotas,
+                 monto, "activo", id_socia)
+            )
 
             con.commit()
 
-            st.success("✅ Préstamo registrado correctamente.")
+            # ---------------------------------------------------------
+            # CÁLCULOS DEL PRÉSTAMO
+            # ---------------------------------------------------------
+            interes_total = monto * (tasa_interes / 100)
+            total_a_pagar = monto + interes_total
+            pago_por_cuota = total_a_pagar / cuotas
 
             # ---------------------------------------------------------
-            #   RESUMEN BONITO EN STREAMLIT
+            # RESUMEN BONITO
             # ---------------------------------------------------------
-            st.subheader("📄 Resumen del préstamo autorizado")
+            st.success("✅ Préstamo autorizado correctamente.")
 
-            detalle = [
-                ["Campo", "Valor"],
-                ["ID Socia", id_socia],
-                ["Nombre de la socia", nombre_socia],
-                ["Monto prestado", f"${monto:.2f}"],
-                ["Tasa de interés", f"{tasa}%"],
-                ["Plazo", f"{plazo} meses"],
-                ["Número de cuotas", cuotas],
-                ["Fecha del préstamo", str(date.today())]
-            ]
+            st.header("🧾 Resumen del préstamo autorizado")
 
-            calculos = [
-                ["Campo", "Valor"],
-                ["Interés total", f"${interes_total:.2f}"],
-                ["Total a pagar", f"${total_pagar:.2f}"],
-                ["Pago por cuota", f"${pago_por_cuota:.2f}"]
-            ]
+            st.subheader("📘 Detalle del préstamo")
+            st.write(f"🔹 **Beneficiaria:** {nombre_socia}")
+            st.write(f"🔹 **ID:** {id_socia}")
+            st.write(f"🔹 **Monto prestado:** ${monto:.2f}")
+            st.write(f"🔹 **Tasa de interés:** {tasa_interes}%")
+            st.write(f"🔹 **Plazo:** {plazo_meses} meses")
+            st.write(f"🔹 **Cuotas:** {cuotas}")
+            st.write(f"🔹 **Fecha del préstamo:** {fecha_prestamo}")
 
-            st.table(detalle)
-            st.table(calculos)
-
-            # ---------------------------------------------------------
-            #   GENERAR PDF
-            # ---------------------------------------------------------
-            pdf_path = generar_pdf(detalle, calculos)
-
-            with open(pdf_path, "rb") as f:
-                st.download_button(
-                    label="📥 Descargar resumen en PDF",
-                    data=f,
-                    file_name="Resumen_Prestamo.pdf",
-                    mime="application/pdf"
-                )
+            st.subheader("📊 Cálculos del préstamo")
+            st.write(f"💰 **Interés total:** ${interes_total:.2f}")
+            st.write(f"💵 **Total a pagar:** ${total_a_pagar:.2f}")
+            st.write(f"📦 **Pago por cuota:** ${pago_por_cuota:.2f}")
 
         except Exception as e:
             st.error(f"❌ Error al registrar el préstamo: {e}")
+
+    
