@@ -39,10 +39,9 @@ def autorizar_prestamo():
         tasa_interes = st.number_input("📈 Tasa de interés (%)", min_value=1, value=10)
 
         plazo = st.number_input("🗓 Plazo (meses)", min_value=1)
-
         cuotas = st.number_input("📑 Número de cuotas", min_value=1, value=plazo)
 
-        firma = st.text_input("✍️ Firma de autorización (nombre del directivo)")
+        firma = st.text_input("✍️ Firma del directivo que autoriza")
 
         enviar = st.form_submit_button("✅ Autorizar préstamo")
 
@@ -89,7 +88,7 @@ def autorizar_prestamo():
                 cuotas,
                 saldo_pendiente,
                 "activo",
-                1,          # Id_Grupo (ajusta si manejas varios grupos)
+                1,          # Id_Grupo (ajustable)
                 id_socia,   # ID de la socia seleccionada
                 id_caja
             ))
