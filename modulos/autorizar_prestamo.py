@@ -70,7 +70,7 @@ def autorizar_prestamo():
 
         try:
             # --------------------------------------------------
-            # 2. REGISTRAR PRÉSTAMO (COLUMNAS EXACTAS)
+            # 2. REGISTRAR PRÉSTAMO
             # --------------------------------------------------
             cursor.execute("""
                 INSERT INTO Prestamo(
@@ -101,24 +101,25 @@ def autorizar_prestamo():
             ))
 
             # --------------------------------------------------
-            # 3. REGISTRAR EGRESO (DESCUENTO DE PRESTAMO)
+            # 3. REGISTRAR EGRESO EN CAJA (CON FECHA)
             # --------------------------------------------------
             cursor.execute("""
-                INSERT INTO Caja(Concepto, Monto, Saldo_actual, Id_Grupo, Id_Tipo_movimiento)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO Caja(Concepto, Monto, Saldo_actual, Id_Grupo, Id_Tipo_movimiento, Fecha)
+                VALUES (%s,%s,%s,%s,%s,%s)
             """,
             (
                 f"Préstamo otorgado a: {nombre_socia}",
                 -monto,
                 saldo_actual - monto,
-                1,      # Grupo
-                3       # EGRESO
+                1,                     # Grupo
+                3,                     # EGRESO
+                date.today().strftime("%Y-%m-%d")  # Fecha correcta
             ))
 
             con.commit()
 
             st.success("✅ Préstamo autorizado correctamente.")
-            st.info(f"💰 Nuevo saldo en caja: ${saldo_actual - monto}")
+            st.info(f"Nuevo saldo en caja: ${saldo_actual - monto}")
 
         except Exception as e:
             con.rollback()
