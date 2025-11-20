@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import date
 from modulos.conexion import obtener_conexion
 
+
 def pago_prestamo():
 
     st.header("💵 Registro de pagos de préstamos")
@@ -11,7 +12,7 @@ def pago_prestamo():
     cursor = con.cursor()
 
     # ---------------------------------------------------------
-    # 1️⃣ SOCIAS CON ID
+    # 1️⃣ SOCIAS CON ID CORRECTOS
     # ---------------------------------------------------------
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
@@ -22,7 +23,7 @@ def pago_prestamo():
     id_socia = dict_socias[socia_sel]
 
     # ---------------------------------------------------------
-    # 2️⃣ PRÉSTAMOS ACTIVOS
+    # 2️⃣ BUSCAR PRÉSTAMOS ACTIVOS (NOMBRE CORRECTO)
     # ---------------------------------------------------------
     cursor.execute("""
         SELECT 
@@ -43,7 +44,7 @@ def pago_prestamo():
         return
 
     # ---------------------------------------------------------
-    # 3️⃣ SELECT DEL PRÉSTAMO
+    # 3️⃣ LISTA DE PRÉSTAMOS ACTIVOS
     # ---------------------------------------------------------
     opciones = {
         f"ID {p[0]} | Prestado: ${p[2]} | Saldo: ${p[3]}": p[0] for p in prestamos
@@ -53,7 +54,7 @@ def pago_prestamo():
     id_prestamo = opciones[prestamo_sel]
 
     # ---------------------------------------------------------
-    # 4️⃣ MOSTRAR DETALLE
+    # 4️⃣ OBTENER INFO DEL PRÉSTAMO SELECCIONADO
     # ---------------------------------------------------------
     cursor.execute("""
         SELECT 
@@ -67,8 +68,7 @@ def pago_prestamo():
         WHERE Id_Préstamo = %s
     """, (id_prestamo,))
 
-    datos = cursor.fetchone()
-    fecha_prestamo, monto_prestado, saldo_pendiente, tasa, plazo, cuotas = datos
+    fecha_prestamo, monto_prestado, saldo_pendiente, tasa, plazo, cuotas = cursor.fetchone()
 
     st.subheader("📄 Información del préstamo")
     st.write(f"**Fecha del préstamo:** {fecha_prestamo}")
@@ -93,16 +93,16 @@ def pago_prestamo():
 
         try:
             # ---------------------------------------------------------
-            # 6️⃣ REGISTRAR PAGO
+            # 6️⃣ INSERTAR EN Pago_del_prestamo (TABLA REAL)
             # ---------------------------------------------------------
             cursor.execute("""
                 INSERT INTO Pago_del_prestamo
-                (Fecha_de_pago, Monto_abonado, Interés_pagado, Capital_pagado, Saldo_restante, Id_Préstamo)
+                (Fecha_de_pago, Monto_abonado, Interes_pagado, Capital_pagado, Saldo_restante, Id_Préstamo)
                 VALUES (%s, %s, 0, 0, 0, %s)
             """, (fecha_pago, monto_abonado, id_prestamo))
 
             # ---------------------------------------------------------
-            # 7️⃣ ACTUALIZAR SALDO
+            # 7️⃣ ACTUALIZAR SALDO DEL PRÉSTAMO
             # ---------------------------------------------------------
             nuevo_saldo = saldo_pendiente - float(monto_abonado)
             if nuevo_saldo < 0:
@@ -116,7 +116,7 @@ def pago_prestamo():
             """, (nuevo_saldo, nuevo_saldo, id_prestamo))
 
             # ---------------------------------------------------------
-            # 8️⃣ ACTUALIZAR CAJA
+            # 8️⃣ AGREGAR INGRESO A CAJA
             # ---------------------------------------------------------
             cursor.execute("""
                 SELECT Saldo_actual
@@ -138,7 +138,7 @@ def pago_prestamo():
                 monto_abonado,
                 nuevo_saldo_caja,
                 1,
-                2,  # INGRESO
+                2,      # INGRESO
                 id_prestamo
             ))
 
