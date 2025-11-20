@@ -1,6 +1,6 @@
 import streamlit as st
 from datetime import date
-from modulos.config.conexion import obtener_conexion
+from modulos.conexion import obtener_conexion
 
 
 def ahorro():
