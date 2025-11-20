@@ -3,33 +3,46 @@ from modulos.conexion import obtener_conexion
 
 def login():
 
-    # CONFIGURACIÓN Y ESTILOS --------------------------------------------
+    # ============================
+    #       ESTILOS CSS
+    # ============================
     st.markdown("""
         <style>
 
-            /* Fondo oscuro general */
+            /* Importar tipografía */
+            @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+            html, body, * {
+                font-family: 'Poppins', sans-serif !important;
+            }
+
+            /* Fondo oscuro */
             body {
                 background-color: #0e1117 !important;
             }
 
             /* Contenedor principal centrado */
-            .login-container {
+            .container {
                 display: flex;
                 flex-direction: column;
                 align-items: center;
-                justify-content: center;
-                margin-top: 40px;
+                margin-top: 20px;
             }
 
-            /* Caja del formulario */
+            /* Eliminar recuadro molesto superior */
+            .st-emotion-cache-1dp5vir, .st-emotion-cache-1m2q0ib {
+                display: none !important;
+            }
+
+            /* Caja del login */
             .login-box {
-                background-color: #161a23;
+                background: #161a23;
                 padding: 30px;
+                border-radius: 18px;
                 width: 90%;
                 max-width: 380px;
-                border-radius: 18px;
-                box-shadow: 0px 4px 20px rgba(0,0,0,0.6);
-                margin-top: 20px;
+                box-shadow: 0px 4px 18px rgba(0,0,0,0.45);
+                margin-top: 10px;
             }
 
             /* Logo centrado */
@@ -37,52 +50,59 @@ def login():
                 display: block;
                 margin-left: auto;
                 margin-right: auto;
-                width: 140px;
-                filter: brightness(0.90);
+                width: 150px;
             }
 
-            /* Título */
             h2 {
-                text-align: center;
                 color: #e3e6ed !important;
-                font-weight: 700;
+                text-align: center;
+                font-weight: 600;
+                margin-top: 10px;
             }
 
-            /* Inputs */
+            /* Input */
             .stTextInput > div > div > input {
                 background-color: #1f2430 !important;
                 color: #ffffff !important;
-                border: 1px solid #444a55 !important;
+                border: 1px solid #3d4352 !important;
+                padding: 10px 40px 10px 35px !important;
                 border-radius: 8px;
-                padding: 10px;
+                font-size: 15px;
             }
 
-            /* Quitar sombra superior extra */
-            .st-emotion-cache-1dp5vir {
-                display: none;
+            /* Iconos dentro del input */
+            .icon {
+                position: relative;
+                top: -35px;
+                left: 10px;
+                color: #9aa0ad;
+                font-size: 18px;
             }
 
-            /* Botón verde */
+            /* Botón */
             .stButton > button {
                 width: 100%;
                 background-color: #2e7d32 !important;
                 color: white;
                 font-size: 16px;
-                font-weight: bold;
+                font-weight: 600;
+                padding: 10px;
                 border-radius: 8px;
-                padding: 10px 0px;
                 border: none;
             }
 
             .stButton > button:hover {
-                background-color: #3fa043 !important;
+                background-color: #42a043 !important;
             }
 
         </style>
     """, unsafe_allow_html=True)
 
-    # CONTENIDO -----------------------------------------------------
-    st.markdown("<div class='login-container'>", unsafe_allow_html=True)
+
+    # ============================
+    #        CONTENIDO
+    # ============================
+    st.markdown("<div class='container'>", unsafe_allow_html=True)
 
     # LOGO CENTRADO
     st.markdown("<div class='logo-container'>", unsafe_allow_html=True)
@@ -94,15 +114,20 @@ def login():
 
     st.markdown("<h2>Inicio de Sesión</h2>", unsafe_allow_html=True)
 
+    # ICONOS E INPUTS
     usuario = st.text_input("Usuario")
-    password = st.text_input("Contraseña", type="password")
+    st.markdown("<div class='icon'>👤</div>", unsafe_allow_html=True)
 
+    password = st.text_input("Contraseña", type="password")
+    st.markdown("<div class='icon'>🔒</div>", unsafe_allow_html=True)
+
+    # BOTÓN
     if st.button("Iniciar sesión"):
         con = obtener_conexion()
         if not con:
-            st.error("❌ No hay conexión con la base de datos")
+            st.error("❌ No se pudo conectar a la base de datos.")
             return
-        
+
         cursor = con.cursor(dictionary=True)
         cursor.execute("""
             SELECT Usuario, Rol 
