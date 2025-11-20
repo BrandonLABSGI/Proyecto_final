@@ -1,52 +1,118 @@
 import streamlit as st
+from modulos.conexion import obtener_conexion
+import base64
 
-from modulos.login import login
-from modulos.directiva import interfaz_directiva
-from modulos.promotora import interfaz_promotora
-# from modulos.administrador import interfaz_admin  # ← LO DESACTIVAMOS PARA EVITAR EL ERROR
+def login():
+
+    # ----------- ESTILOS CSS -----------
+    st.markdown("""
+        <style>
+
+        /* Fondo general oscuro */
+        body {
+            background-color: #0E1117 !important;
+        }
+
+        /* Contenedor centrado */
+        .login-container {
+            max-width: 380px;
+            margin: auto;
+            margin-top: 60px;
+            padding: 30px;
+            background: #1A1D23;
+            border-radius: 16px;
+            box-shadow: 0px 4px 12px rgba(0,0,0,0.4);
+        }
+
+        /* Texto */
+        .login-title {
+            text-align: center;
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: -5px;
+            color: #FFD43B;
+        }
+
+        .welcome-text {
+            text-align: center;
+            color: #ffffff;
+            font-size: 17px;
+            margin-bottom: 20px;
+        }
+
+        /* Input boxes */
+        .stTextInput > div > div > input {
+            background-color: #2C2F36;
+            color: #fff !important;
+            border-radius: 10px;
+            border: 1px solid #3A3F47;
+        }
+
+        /* Botón */
+        .stButton button {
+            width: 100%;
+            background-color: #FFD43B !important;
+            color: black !important;
+            border-radius: 10px;
+            height: 45px;
+            font-size: 17px;
+            font-weight: 600;
+            border: none;
+        }
+
+        .stButton button:hover {
+            background-color: #ffcc00 !important;
+            scale: 1.02;
+        }
+
+        label {
+            font-weight: 600 !important;
+            color: #E5E5E5 !important;
+        }
+
+        </style>
+    """, unsafe_allow_html=True)
 
 
-# -------------------------------
-# ESTADO DE SESIÓN
-# -------------------------------
+    # ----------- ESTRUCTURA DEL LOGIN -----------
+    st.markdown('<div class="login-container">', unsafe_allow_html=True)
 
-if "sesion_iniciada" not in st.session_state:
-    st.session_state["sesion_iniciada"] = False
+    st.markdown('<div class="login-title">🔒 Solidaridad CVX</div>', unsafe_allow_html=True)
+    st.markdown('<p class="welcome-text">Bienvenido a tu sistema Solidaridad CVX</p>', unsafe_allow_html=True)
+    st.markdown('<p class="welcome-text" style="font-size:14px; margin-top:-10px;">Ingrese sus credenciales para acceder al sistema</p>', unsafe_allow_html=True)
 
-if "rol" not in st.session_state:
-    st.session_state["rol"] = None
+    usuario = st.text_input("👤 Usuario")
+    password = st.text_input("🔑 Contraseña", type="password")
+
+    login_btn = st.button("Iniciar sesión")
+
+    st.markdown('</div>', unsafe_allow_html=True)  # Cerrar container
 
 
-# -------------------------------
-# LÓGICA PRINCIPAL
-# -------------------------------
+    # ----------- LÓGICA DEL LOGIN -----------
+    if login_btn:
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
 
-if st.session_state["sesion_iniciada"]:
+        try:
+            cursor.execute("""
+                SELECT Usuario, Rol
+                FROM Empleado
+                WHERE Usuario = %s AND Contra = %s
+            """, (usuario, password))
 
-    rol = st.session_state["rol"]
+            datos = cursor.fetchone()
 
-    # DIRECTOR
-    if rol == "Director":
-        interfaz_directiva()
+            if datos:
+                st.session_state["usuario"] = datos["Usuario"]
+                st.session_state["rol"] = datos["Rol"]
+                st.session_state["sesion_iniciada"] = True
 
-    # PROMOTORA
-    elif rol == "Promotora":
-        interfaz_promotora()
+                st.success("Inicio de sesión exitoso.")
+                st.rerun()
 
-    # ADMINISTRADOR – dejar mientras no existe el módulo
-    elif rol == "Administrador":
-        st.title("🛠 Panel del Administrador (en construcción)")
-        st.info("Este panel aún no está disponible.")
+            else:
+                st.error("❌ Credenciales incorrectas.")
 
-    else:
-        st.error(f"❌ Rol no reconocido: {rol}")
-        st.session_state.clear()
-        st.rerun()
-
-    # BOTÓN CERRAR SESIÓN
-    if st.sidebar.button("Cerrar sesión"):
-        st.session_state.clear()
-        st.rerun()
-
-else:
-    login()
+        except Exception as e:
+            st.error(f"Error en login: {e}")
