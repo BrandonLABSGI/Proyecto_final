@@ -3,7 +3,6 @@ import pandas as pd
 from datetime import date
 from modulos.conexion import obtener_conexion
 
-
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
@@ -48,13 +47,11 @@ def autorizar_prestamo():
 
         enviar = st.form_submit_button("✅ Autorizar préstamo")
 
-
     # ======================================================
     # PROCESAR FORMULARIO
     # ======================================================
     if enviar:
 
-        # Obtener caja actual
         cursor.execute("SELECT Id_Caja, Saldo_actual FROM Caja ORDER BY Id_Caja DESC LIMIT 1")
         caja = cursor.fetchone()
 
@@ -72,12 +69,12 @@ def autorizar_prestamo():
 
         try:
             # --------------------------------------------------
-            # 1. REGISTRAR PRÉSTAMO
+            # 1. REGISTRAR PRÉSTAMO (CORREGIDO)
             # --------------------------------------------------
             cursor.execute("""
                 INSERT INTO Prestamo(
                     `Fecha del préstamo`, `Monto prestado`, `Tasa de interes`,
-                    `Plazo`, `Cuotas`, `Saldo pendiente`, `Estado del préstamo`,
+                    `Plazo`, `Cuotas`, `Saldo pendiente`, Estado_del_prestamo,
                     Id_Grupo, Id_Socia, Id_Caja
                 )
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
@@ -96,74 +93,21 @@ def autorizar_prestamo():
             ))
 
             # --------------------------------------------------
-            # 2. REGISTRAR EGRESO EN CAJA (CORREGIDO)
+            # 2. REGISTRAR EGRESO EN CAJA
             # --------------------------------------------------
             cursor.execute("""
                 INSERT INTO Caja(Concepto, Monto, Saldo_actual, Id_Grupo, Id_Tipo_movimiento, Fecha)
-                VALUES (%s, %s, %s, %s, %s, CURRENT_DATE())
+                VALUES (%s, %s, %s, 1, 3, CURRENT_DATE())
             """,
             (
                 f"Préstamo otorgado a: {socia_seleccionada}",
                 -monto,
-                saldo_actual - monto,
-                1,
-                3
+                saldo_actual - monto
             ))
 
             con.commit()
 
-            # ======================================================
-            # CÁLCULOS DEL PRÉSTAMO
-            # ======================================================
-            interes_total = monto * (tasa_interes / 100)
-            total_a_pagar = monto + interes_total
-            pago_por_cuota = total_a_pagar / cuotas
-
             st.success("✔ Préstamo autorizado correctamente.")
-
-            # ======================================================
-            # MOSTRAR RESUMEN EN TABLA
-            # ======================================================
-
-            st.subheader("📄 Resumen del préstamo autorizado")
-
-            data = [
-                ["Campo", "Valor"],
-                ["ID de socia", id_socia],
-                ["Nombre", socia_seleccionada.split(" - ")[1]],
-                ["Monto prestado", f"${monto:.2f}"],
-                ["Interés (%)", f"{tasa_interes}%"],
-                ["Interés total generado", f"${interes_total:.2f}"],
-                ["Total a pagar", f"${total_a_pagar:.2f}"],
-                ["Cuotas", cuotas],
-                ["Pago por cuota", f"${pago_por_cuota:.2f}"],
-                ["Fecha del préstamo", str(fecha_prestamo)],
-            ]
-
-            df_resumen = pd.DataFrame(data, columns=["Detalle", "Valor"])
-            st.table(df_resumen)
-
-            # ======================================================
-            # DESCARGAR PDF
-            # ======================================================
-            if st.button("📥 Descargar resumen en PDF"):
-
-                nombre_pdf = f"prestamo_socia_{id_socia}.pdf"
-
-                doc = SimpleDocTemplate(nombre_pdf, pagesize=letter)
-                tabla_pdf = Table(data)
-                tabla_pdf.setStyle(TableStyle([
-                    ("BACKGROUND", (0,0), (-1,0), colors.gray),
-                    ("TEXTCOLOR", (0,0), (-1,0), colors.whitesmoke),
-                    ("ALIGN", (0,0), (-1,-1), "CENTER"),
-                    ("BOX", (0,0), (-1,-1), 1, colors.black),
-                    ("GRID", (0,0), (-1,-1), 1, colors.black),
-                ]))
-
-                doc.build([tabla_pdf])
-
-                with open(nombre_pdf, "rb") as f:
-                    st.download_button("📥 Descargar PDF", f, file_name=nombre_pdf)
 
         except Exception as e:
             st.error(f"❌ Error al registrar el préstamo: {e}")
