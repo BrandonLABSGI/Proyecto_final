@@ -68,9 +68,16 @@ def autorizar_prestamo():
         saldo_pendiente = monto
 
         try:
-            # --------------------------------------------------
-            # 1. REGISTRAR PRÉSTAMO (CORREGIDO)
-            # --------------------------------------------------
+            # ======================================================
+            # 1️⃣ CÁLCULO DE INTERESES Y CUOTAS
+            # ======================================================
+            interes_total = monto * (tasa_interes / 100)
+            total_a_pagar = monto + interes_total
+            pago_por_cuota = total_a_pagar / cuotas
+
+            # ======================================================
+            # 2️⃣ REGISTRAR PRÉSTAMO
+            # ======================================================
             cursor.execute("""
                 INSERT INTO Prestamo(
                     `Fecha del préstamo`, `Monto prestado`, `Tasa de interes`,
@@ -85,16 +92,16 @@ def autorizar_prestamo():
                 tasa_interes,
                 plazo,
                 cuotas,
-                saldo_pendiente,
+                total_a_pagar,      # ⬅ Nota: saldo pendiente INCLUYE intereses
                 "activo",
                 1,
                 id_socia,
                 id_caja
             ))
 
-            # --------------------------------------------------
-            # 2. REGISTRAR EGRESO EN CAJA
-            # --------------------------------------------------
+            # ======================================================
+            # 3️⃣ CONSUMIR CAJA POR EL PRÉSTAMO
+            # ======================================================
             cursor.execute("""
                 INSERT INTO Caja(Concepto, Monto, Saldo_actual, Id_Grupo, Id_Tipo_movimiento, Fecha)
                 VALUES (%s, %s, %s, 1, 3, CURRENT_DATE())
@@ -107,7 +114,51 @@ def autorizar_prestamo():
 
             con.commit()
 
+            # ======================================================
+            # 4️⃣ MOSTRAR RESUMEN
+            # ======================================================
+
             st.success("✔ Préstamo autorizado correctamente.")
+            st.subheader("📄 Resumen del préstamo autorizado")
+
+            data = [
+                ["Campo", "Valor"],
+                ["ID de socia", id_socia],
+                ["Nombre", socia_seleccionada.split(" - ")[1]],
+                ["Monto prestado", f"${monto:.2f}"],
+                ["Interés aplicado (%)", f"{tasa_interes}%"],
+                ["Interés total generado", f"${interes_total:.2f}"],
+                ["Total a pagar", f"${total_a_pagar:.2f}"],
+                ["Cuotas", cuotas],
+                ["Pago por cuota", f"${pago_por_cuota:.2f}"],
+                ["Fecha del préstamo", str(fecha_prestamo)],
+                ["Firma autorización", firma],
+            ]
+
+            df_resumen = pd.DataFrame(data, columns=["Detalle", "Valor"])
+            st.table(df_resumen)
+
+            # ======================================================
+            # 5️⃣ DESCARGA DEL PDF
+            # ======================================================
+            if st.button("📥 Descargar resumen en PDF"):
+
+                nombre_pdf = f"prestamo_socia_{id_socia}.pdf"
+                doc = SimpleDocTemplate(nombre_pdf, pagesize=letter)
+
+                tabla_pdf = Table(data)
+                tabla_pdf.setStyle(TableStyle([
+                    ("BACKGROUND", (0,0), (-1,0), colors.gray),
+                    ("TEXTCOLOR", (0,0), (-1,0), colors.whitesmoke),
+                    ("ALIGN", (0,0), (-1,-1), "CENTER"),
+                    ("BOX", (0,0), (-1,-1), 1, colors.black),
+                    ("GRID", (0,0), (-1,-1), 1, colors.black),
+                ]))
+
+                doc.build([tabla_pdf])
+
+                with open(nombre_pdf, "rb") as f:
+                    st.download_button("📥 Descargar PDF", f, file_name=nombre_pdf)
 
         except Exception as e:
             st.error(f"❌ Error al registrar el préstamo: {e}")
