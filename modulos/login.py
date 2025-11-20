@@ -2,37 +2,38 @@ import streamlit as st
 from modulos.conexion import obtener_conexion
 import base64
 
-# ================================================
-# FUNCIÓN PARA CARGAR IMÁGENES BASE64
-# ================================================
+# =========================================================
+# Cargar imágenes en base64
+# =========================================================
 def load_base64(path):
     with open(path, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
 
 
 def login():
-
-    # Cargar imágenes
     logo = load_base64("modulos/imagenes/logo.png")
     ilustracion = load_base64("modulos/imagenes/ilustracion.png")
 
-    # ============================================
-    # ESTILOS PREMIUM REALES (FUNCIONA EN STREAMLIT)
-    # ============================================
+    # ======================================================
+    # CSS limpio y 100% compatible con Streamlit Cloud
+    # ======================================================
     st.markdown("""
     <style>
 
-    * { font-family: 'Poppins', sans-serif !important; }
-
     .stApp {
-        background: #F4F5F0 !important;
+        background-color: #F2F3EE !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
 
     /* Imagen izquierda */
     .img-ilustracion {
-        width: 95%;
+        width: 90%;
         border-radius: 20px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        box-shadow: 0 12px 28px rgba(0,0,0,0.17);
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
     }
 
     /* Tarjeta */
@@ -41,32 +42,36 @@ def login():
         padding: 40px 50px;
         border-radius: 25px;
         box-shadow: 0 12px 30px rgba(0,0,0,0.18);
-        width: 420px;
+        width: 430px;
         margin: auto;
         text-align: center;
     }
 
-    /* Logo */
     .logo-img {
-        width: 170px;
+        width: 160px;
         margin-bottom: 10px;
     }
 
     .title {
         font-size: 28px;
         font-weight: 600;
-        color: #123A75;
+        color: #0F3A75;
         margin-bottom: 25px;
     }
 
     /* Inputs */
+    label {
+        color: #0F3A75 !important;
+        font-weight: 500;
+        font-size: 15px;
+    }
+
     .stTextInput>div>div>input {
-        background: #FFFFFF !important;
-        color: #000000 !important;            /* <-- Texto negro */
-        border: 1px solid #7A7A7A !important;
+        color: #000 !important;
+        background: #FFF !important;
         border-radius: 10px !important;
-        padding: 12px !important;
-        font-size: 16px !important;
+        border: 1px solid #777 !important;
+        padding: 10px !important;
     }
 
     /* Botón */
@@ -74,37 +79,31 @@ def login():
         background-color: #6FB43F !important;
         color: white !important;
         font-size: 18px !important;
-        font-weight: bold !important;
         border-radius: 10px !important;
-        height: 50px;
         width: 100%;
-        border: none !important;
+        height: 48px;
+        border: none;
+        font-weight: bold;
     }
-
-    .stButton>button:hover {
-        background-color: #5A9634 !important;
-    }
-
     </style>
     """, unsafe_allow_html=True)
 
-    # ============================================
-    # LAYOUT REAL EN COLUMNAS STREAMLIT
-    # ============================================
+    # ======================================================
+    # LAYOUT REAL STREAMLIT (no HTML grid)
+    # ======================================================
     col1, col2 = st.columns([1.2, 1])
 
-    # Columna izquierda: Ilustración
+    # Columna izquierda
     with col1:
         st.markdown(
             f"<img src='data:image/png;base64,{ilustracion}' class='img-ilustracion'>",
             unsafe_allow_html=True
         )
 
-    # Columna derecha: Tarjeta de Login
+    # Columna derecha: tarjeta
     with col2:
         st.markdown("<div class='login-card'>", unsafe_allow_html=True)
 
-        # Logo
         st.markdown(
             f"<img src='data:image/png;base64,{logo}' class='logo-img'>",
             unsafe_allow_html=True
@@ -113,30 +112,22 @@ def login():
         st.markdown("<div class='title'>Inicio de Sesión</div>", unsafe_allow_html=True)
 
         usuario = st.text_input("Usuario")
-        contraseña = st.text_input("Contraseña", type="password")
+        password = st.text_input("Contraseña", type="password")
 
         if st.button("Iniciar sesión"):
-            try:
-                con = obtener_conexion()
-                cursor = con.cursor(dictionary=True)
-                cursor.execute("""
-                    SELECT Usuario, Rol
-                    FROM Empleado
-                    WHERE Usuario = %s AND Contra = %s
-                """, (usuario, contraseña))
+            con = obtener_conexion()
+            cur = con.cursor(dictionary=True)
+            cur.execute("SELECT Usuario, Rol FROM Empleado WHERE Usuario=%s AND Contra=%s",
+                        (usuario, password))
+            datos = cur.fetchone()
 
-                datos = cursor.fetchone()
-
-                if datos:
-                    st.session_state["usuario"] = datos["Usuario"]
-                    st.session_state["rol"] = datos["Rol"]
-                    st.session_state["sesion_iniciada"] = True
-                    st.success("Bienvenido ✔")
-                    st.rerun()
-                else:
-                    st.error("❌ Usuario o contraseña incorrectos.")
-
-            except Exception as e:
-                st.error(f"Error en login: {e}")
+            if datos:
+                st.session_state["usuario"] = datos["Usuario"]
+                st.session_state["rol"] = datos["Rol"]
+                st.session_state["sesion_iniciada"] = True
+                st.success("Ingreso exitoso ✔")
+                st.rerun()
+            else:
+                st.error("❌ Credenciales incorrectas")
 
         st.markdown("</div>", unsafe_allow_html=True)
