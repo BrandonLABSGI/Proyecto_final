@@ -12,7 +12,7 @@ def pago_prestamo():
     cursor = con.cursor()
 
     # ---------------------------------------------------------
-    # 1️⃣ SOCIAS CON ID CORRECTOS
+    # 1️⃣ SOCIAS CON SU ID REAL
     # ---------------------------------------------------------
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
@@ -23,7 +23,7 @@ def pago_prestamo():
     id_socia = dict_socias[socia_sel]
 
     # ---------------------------------------------------------
-    # 2️⃣ BUSCAR PRÉSTAMOS ACTIVOS (NOMBRE CORRECTO)
+    # 2️⃣ BUSCAR PRÉSTAMOS ACTIVOS (CORREGIDO DEFINITIVO)
     # ---------------------------------------------------------
     cursor.execute("""
         SELECT 
@@ -35,8 +35,10 @@ def pago_prestamo():
             Tasa_de_interes,
             Plazo
         FROM Prestamo
-        WHERE Id_Socia = %s AND Estado_del_prestamo = 'Activo'
+        WHERE Id_Socia = %s 
+        AND TRIM(Estado_del_prestamo) = 'Activo'
     """, (id_socia,))
+
     prestamos = cursor.fetchall()
 
     if not prestamos:
@@ -44,7 +46,7 @@ def pago_prestamo():
         return
 
     # ---------------------------------------------------------
-    # 3️⃣ LISTA DE PRÉSTAMOS ACTIVOS
+    # 3️⃣ SELECT DEL PRÉSTAMO
     # ---------------------------------------------------------
     opciones = {
         f"ID {p[0]} | Prestado: ${p[2]} | Saldo: ${p[3]}": p[0] for p in prestamos
@@ -54,7 +56,7 @@ def pago_prestamo():
     id_prestamo = opciones[prestamo_sel]
 
     # ---------------------------------------------------------
-    # 4️⃣ OBTENER INFO DEL PRÉSTAMO SELECCIONADO
+    # 4️⃣ OBTENER DATOS DEL PRÉSTAMO
     # ---------------------------------------------------------
     cursor.execute("""
         SELECT 
@@ -68,7 +70,8 @@ def pago_prestamo():
         WHERE Id_Préstamo = %s
     """, (id_prestamo,))
 
-    fecha_prestamo, monto_prestado, saldo_pendiente, tasa, plazo, cuotas = cursor.fetchone()
+    datos = cursor.fetchone()
+    fecha_prestamo, monto_prestado, saldo_pendiente, tasa, plazo, cuotas = datos
 
     st.subheader("📄 Información del préstamo")
     st.write(f"**Fecha del préstamo:** {fecha_prestamo}")
@@ -79,7 +82,7 @@ def pago_prestamo():
     st.write(f"**Cuotas:** {cuotas}")
 
     # ---------------------------------------------------------
-    # 5️⃣ FORMULARIO DE PAGO
+    # 5️⃣ FORMULARIO PARA REGISTRAR PAGO
     # ---------------------------------------------------------
     st.markdown("---")
     st.header("🧾 Registrar pago")
@@ -93,35 +96,39 @@ def pago_prestamo():
 
         try:
             # ---------------------------------------------------------
-            # 6️⃣ INSERTAR EN Pago_del_prestamo (TABLA REAL)
+            # 6️⃣ INSERTAR PAGO EN TABLA Pago_del_prestamo
             # ---------------------------------------------------------
             cursor.execute("""
-                INSERT INTO Pago_del_prestamo
+                INSERT INTO Pago_del_prestamo 
                 (Fecha_de_pago, Monto_abonado, Interes_pagado, Capital_pagado, Saldo_restante, Id_Préstamo)
                 VALUES (%s, %s, 0, 0, 0, %s)
             """, (fecha_pago, monto_abonado, id_prestamo))
 
-            # ---------------------------------------------------------
-            # 7️⃣ ACTUALIZAR SALDO DEL PRÉSTAMO
-            # ---------------------------------------------------------
+            # Calcular nuevo saldo
             nuevo_saldo = saldo_pendiente - float(monto_abonado)
             if nuevo_saldo < 0:
                 nuevo_saldo = 0
 
+            # ---------------------------------------------------------
+            # 7️⃣ ACTUALIZAR PRÉSTAMO
+            # ---------------------------------------------------------
             cursor.execute("""
                 UPDATE Prestamo
                 SET Saldo_pendiente = %s,
-                    Estado_del_prestamo = CASE WHEN %s = 0 THEN 'Cancelado' ELSE 'Activo' END
+                    Estado_del_prestamo = CASE 
+                        WHEN %s = 0 THEN 'Cancelado'
+                        ELSE 'Activo'
+                    END
                 WHERE Id_Préstamo = %s
             """, (nuevo_saldo, nuevo_saldo, id_prestamo))
 
             # ---------------------------------------------------------
-            # 8️⃣ AGREGAR INGRESO A CAJA
+            # 8️⃣ SUMAR A CAJA
             # ---------------------------------------------------------
             cursor.execute("""
-                SELECT Saldo_actual
-                FROM Caja
-                ORDER BY Id_Caja DESC
+                SELECT Saldo_actual 
+                FROM Caja 
+                ORDER BY Id_Caja DESC 
                 LIMIT 1
             """)
             row = cursor.fetchone()
@@ -138,7 +145,7 @@ def pago_prestamo():
                 monto_abonado,
                 nuevo_saldo_caja,
                 1,
-                2,      # INGRESO
+                2,  # INGRESO
                 id_prestamo
             ))
 
