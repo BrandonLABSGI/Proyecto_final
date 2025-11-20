@@ -1,7 +1,3 @@
-# =======================
-#   DIRECTIVA.PY COMPLETO
-# =======================
-
 import streamlit as st
 import pandas as pd
 from datetime import date
@@ -11,6 +7,7 @@ from modulos.conexion import obtener_conexion
 from modulos.autorizar_prestamo import autorizar_prestamo
 from modulos.pago_prestamo import pago_prestamo
 from modulos.ahorro import ahorro
+from modulos.reporte_caja import reporte_caja     # 👈 NUEVO
 
 
 # ============================================================
@@ -51,6 +48,7 @@ def interfaz_directiva():
         st.session_state.clear()
         st.rerun()
 
+    # Menú lateral
     menu = st.sidebar.radio(
         "Selección rápida:",
         [
@@ -59,7 +57,8 @@ def interfaz_directiva():
             "Registrar nuevas socias",
             "Autorizar préstamo",
             "Registrar pago de préstamo",
-            "Registrar ahorro"
+            "Registrar ahorro",
+            "Reporte de caja"            # 👈 AGREGADO
         ]
     )
 
@@ -80,6 +79,9 @@ def interfaz_directiva():
 
     elif menu == "Registrar ahorro":
         ahorro()
+
+    elif menu == "Reporte de caja":
+        reporte_caja()
 
 
 
@@ -217,7 +219,7 @@ def pagina_asistencia():
 
 
 # ============================================================
-# MULTAS (CON FILTRO + ACTUALIZACIÓN + SUMA A CAJA)
+# MULTAS + FILTRO + SUMA A CAJA
 # ============================================================
 def pagina_multas():
 
@@ -250,6 +252,7 @@ def pagina_multas():
             INSERT INTO Multa(Monto,Fecha_aplicacion,Estado,Id_Tipo_multa,Id_Socia)
             VALUES(%s,%s,%s,%s,%s)
         """, (monto, fecha, estado, id_tipo_multa, id_socia))
+
         con.commit()
         st.success("Multa registrada.")
         st.rerun()
