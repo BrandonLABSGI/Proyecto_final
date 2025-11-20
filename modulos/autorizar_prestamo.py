@@ -52,6 +52,34 @@ def autorizar_prestamo():
     # ======================================================
     if enviar:
 
+        # ======================================================
+        # VERIFICAR AHORRO DE LA SOCIA
+        # ======================================================
+        cursor.execute("""
+            SELECT `Saldo acumulado`
+            FROM Ahorro
+            WHERE Id_Socia = %s
+            ORDER BY Id_Ahorro DESC
+            LIMIT 1
+        """, (id_socia,))
+
+        row_ahorro = cursor.fetchone()
+        saldo_ahorro = row_ahorro[0] if row_ahorro else 0
+
+        if monto > saldo_ahorro:
+            st.error(f"""
+            ❌ No es posible autorizar este préstamo.
+
+            La socia tiene en ahorros: **${saldo_ahorro:.2f}**  
+            Monto solicitado: **${monto:.2f}**
+
+            🔒 *El monto del préstamo no puede ser mayor que el ahorro disponible.*
+            """)
+            return
+
+        # ======================================================
+        # CAJA ACTUAL
+        # ======================================================
         cursor.execute("SELECT Id_Caja, Saldo_actual FROM Caja ORDER BY Id_Caja DESC LIMIT 1")
         caja = cursor.fetchone()
 
@@ -68,21 +96,21 @@ def autorizar_prestamo():
         saldo_pendiente = monto
 
         try:
-            # ======================================================
-            # 1️⃣ CÁLCULO DE INTERESES Y CUOTAS
-            # ======================================================
-            interes_total = monto * (tasa_interes / 100)
-            total_a_pagar = monto + interes_total
-            pago_por_cuota = total_a_pagar / cuotas
-
-            # ======================================================
-            # 2️⃣ REGISTRAR PRÉSTAMO
-            # ======================================================
+            # --------------------------------------------------
+            # 1. REGISTRAR PRÉSTAMO
+            # --------------------------------------------------
             cursor.execute("""
                 INSERT INTO Prestamo(
-                    `Fecha del préstamo`, `Monto prestado`, `Tasa de interes`,
-                    `Plazo`, `Cuotas`, `Saldo pendiente`, Estado_del_prestamo,
-                    Id_Grupo, Id_Socia, Id_Caja
+                    `Fecha del préstamo`,
+                    `Monto prestado`,
+                    `Tasa de interes`,
+                    `Plazo`,
+                    `Cuotas`,
+                    `Saldo pendiente`,
+                    Estado_del_prestamo,
+                    Id_Grupo,
+                    Id_Socia,
+                    Id_Caja
                 )
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """,
@@ -92,33 +120,42 @@ def autorizar_prestamo():
                 tasa_interes,
                 plazo,
                 cuotas,
-                total_a_pagar,      # ⬅ Nota: saldo pendiente INCLUYE intereses
+                saldo_pendiente,
                 "activo",
                 1,
                 id_socia,
                 id_caja
             ))
 
-            # ======================================================
-            # 3️⃣ CONSUMIR CAJA POR EL PRÉSTAMO
-            # ======================================================
+            # --------------------------------------------------
+            # 2. REGISTRAR EGRESO EN CAJA (SALIDA DE EFECTIVO)
+            # --------------------------------------------------
             cursor.execute("""
                 INSERT INTO Caja(Concepto, Monto, Saldo_actual, Id_Grupo, Id_Tipo_movimiento, Fecha)
-                VALUES (%s, %s, %s, 1, 3, CURRENT_DATE())
+                VALUES (%s, %s, %s, %s, %s, CURRENT_DATE())
             """,
             (
                 f"Préstamo otorgado a: {socia_seleccionada}",
                 -monto,
-                saldo_actual - monto
+                saldo_actual - monto,
+                1,
+                3
             ))
 
             con.commit()
 
             # ======================================================
-            # 4️⃣ MOSTRAR RESUMEN
+            # CÁLCULOS DEL PRÉSTAMO
             # ======================================================
+            interes_total = monto * (tasa_interes / 100)
+            total_a_pagar = monto + interes_total
+            pago_por_cuota = total_a_pagar / cuotas
 
             st.success("✔ Préstamo autorizado correctamente.")
+
+            # ======================================================
+            # MOSTRAR RESUMEN EN TABLA
+            # ======================================================
             st.subheader("📄 Resumen del préstamo autorizado")
 
             data = [
@@ -126,26 +163,26 @@ def autorizar_prestamo():
                 ["ID de socia", id_socia],
                 ["Nombre", socia_seleccionada.split(" - ")[1]],
                 ["Monto prestado", f"${monto:.2f}"],
-                ["Interés aplicado (%)", f"{tasa_interes}%"],
+                ["Interés (%)", f"{tasa_interes}%"],
                 ["Interés total generado", f"${interes_total:.2f}"],
                 ["Total a pagar", f"${total_a_pagar:.2f}"],
                 ["Cuotas", cuotas],
                 ["Pago por cuota", f"${pago_por_cuota:.2f}"],
                 ["Fecha del préstamo", str(fecha_prestamo)],
-                ["Firma autorización", firma],
+                ["Saldo en ahorros", f"${saldo_ahorro:.2f}"]
             ]
 
             df_resumen = pd.DataFrame(data, columns=["Detalle", "Valor"])
             st.table(df_resumen)
 
             # ======================================================
-            # 5️⃣ DESCARGA DEL PDF
+            # DESCARGAR PDF
             # ======================================================
             if st.button("📥 Descargar resumen en PDF"):
 
                 nombre_pdf = f"prestamo_socia_{id_socia}.pdf"
-                doc = SimpleDocTemplate(nombre_pdf, pagesize=letter)
 
+                doc = SimpleDocTemplate(nombre_pdf, pagesize=letter)
                 tabla_pdf = Table(data)
                 tabla_pdf.setStyle(TableStyle([
                     ("BACKGROUND", (0,0), (-1,0), colors.gray),
