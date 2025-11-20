@@ -212,7 +212,7 @@ def pagina_asistencia():
     st.markdown("---")
 
     # ---------------------------------------------------------
-    # INGRESOS EXTRAORDINARIOS
+    # INGRESOS EXTRAORDINARIOS (CORREGIDO)
     # ---------------------------------------------------------
     st.header("💰 Ingresos extraordinarios de la reunión")
 
@@ -227,86 +227,65 @@ def pagina_asistencia():
     descripcion = st.text_input("Descripción del ingreso (opcional)")
     monto = st.number_input("Monto recibido ($):", min_value=0.00, step=0.50)
 
-    # ---------------------------------------------------------
-# INGRESOS EXTRAORDINARIOS
-# ---------------------------------------------------------
-st.header("💰 Ingresos extraordinarios de la reunión")
+    if st.button("➕ Registrar ingreso extraordinario"):
+        try:
+            # 1️⃣ Registrar ingreso en IngresosExtra
+            cursor.execute("""
+                INSERT INTO IngresosExtra (Id_Reunion, Id_Socia, Tipo, Descripcion, Monto, Fecha)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (id_reunion, id_socia_aporta, tipo, descripcion, monto, fecha))
 
-cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
-lista_socias = cursor.fetchall()
-dict_socias = {nombre: id_socia for id_socia, nombre in lista_socias}
+            # 2️⃣ Obtener saldo actual
+            cursor.execute("""
+                SELECT Saldo_actual
+                FROM Caja
+                ORDER BY Id_Caja DESC
+                LIMIT 1
+            """)
+            row = cursor.fetchone()
+            saldo_actual = row[0] if row else 0
 
-socia_sel = st.selectbox("👩 Socia que aporta:", dict_socias.keys())
-id_socia_aporta = dict_socias[socia_sel]
+            # 3️⃣ Nuevo saldo
+            nuevo_saldo = saldo_actual + float(monto)
 
-tipo = st.selectbox("Tipo de ingreso:", ["Rifa", "Donación", "Actividad", "Otro"])
-descripcion = st.text_input("Descripción del ingreso (opcional)")
-monto = st.number_input("Monto recibido ($):", min_value=0.00, step=0.50)
+            # 4️⃣ Registrar movimiento en CAJA
+            cursor.execute("""
+                INSERT INTO Caja (Concepto, Monto, Saldo_actual, Id_Grupo, Id_Tipo_movimiento, Fecha)
+                VALUES (%s, %s, %s, %s, %s, CURRENT_DATE())
+            """,
+            (
+                f"Ingreso extraordinario – {socia_sel} ({tipo})",
+                monto,
+                nuevo_saldo,
+                1,
+                2   # INGRESO
+            ))
 
-# =============================
-# BOTÓN DE REGISTRAR INGRESO
-# =============================
-if st.button("➕ Registrar ingreso extraordinario"):
-    try:
-        # 1️⃣ Registrar ingreso en tabla IngresosExtra
-        cursor.execute("""
-            INSERT INTO IngresosExtra (Id_Reunion, Id_Socia, Tipo, Descripcion, Monto, Fecha)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (id_reunion, id_socia_aporta, tipo, descripcion, monto, fecha))
+            con.commit()
+            st.success("Ingreso extraordinario registrado y agregado a caja.")
+            st.rerun()
 
-        # 2️⃣ Obtener saldo actual de caja
-        cursor.execute("""
-            SELECT Saldo_actual
-            FROM Caja
-            ORDER BY Id_Caja DESC
-            LIMIT 1
-        """)
-        row = cursor.fetchone()
-        saldo_actual = row[0] if row else 0
+        except Exception as e:
+            st.error(f"❌ Error al registrar ingreso: {e}")
 
-        # 3️⃣ Calcular nuevo saldo
-        nuevo_saldo = saldo_actual + float(monto)
+    cursor.execute("""
+        SELECT S.Nombre, I.Tipo, I.Descripcion, I.Monto, I.Fecha
+        FROM IngresosExtra I
+        JOIN Socia S ON S.Id_Socia = I.Id_Socia
+        WHERE I.Id_Reunion = %s
+    """, (id_reunion,))
+    ingresos = cursor.fetchall()
 
-        # 4️⃣ Registrar movimiento en CAJA como Ingreso
-        cursor.execute("""
-            INSERT INTO Caja (Concepto, Monto, Saldo_actual, Id_Grupo, Id_Tipo_movimiento, Fecha)
-            VALUES (%s, %s, %s, %s, %s, CURRENT_DATE())
-        """,
-        (
-            f"Ingreso extraordinario – {socia_sel} ({tipo})",
-            monto,
-            nuevo_saldo,
-            1,     # Id_Grupo
-            2      # 2 = INGRESO
-        ))
+    if ingresos:
+        df_ing = pd.DataFrame(ingresos, columns=["Socia", "Tipo", "Descripción", "Monto", "Fecha"])
+        st.subheader("📌 Ingresos registrados hoy")
+        st.dataframe(df_ing)
 
-        con.commit()
-        st.success("Ingreso extraordinario registrado y agregado a caja.")
-        st.rerun()
+        total_dia = df_ing["Monto"].sum()
+        st.success(f"💵 Total del día: ${total_dia:.2f}")
+    else:
+        st.info("No hay ingresos extraordinarios registrados hoy.")
 
-    except Exception as e:
-        st.error(f"❌ Error al registrar ingreso: {e}")
-
-# =============================
-# MOSTRAR INGRESOS DEL DÍA
-# =============================
-cursor.execute("""
-    SELECT S.Nombre, I.Tipo, I.Descripcion, I.Monto, I.Fecha
-    FROM IngresosExtra I
-    JOIN Socia S ON S.Id_Socia = I.Id_Socia
-    WHERE I.Id_Reunion = %s
-""", (id_reunion,))
-ingresos = cursor.fetchall()
-
-if ingresos:
-    df_ing = pd.DataFrame(ingresos, columns=["Socia", "Tipo", "Descripción", "Monto", "Fecha"])
-    st.subheader("📌 Ingresos registrados hoy")
-    st.dataframe(df_ing)
-
-    total_dia = df_ing["Monto"].sum()
-    st.success(f"💵 Total del día: ${total_dia:.2f}")
-else:
-    st.info("No hay ingresos extraordinarios registrados hoy.")
 
 
 # ---------------------------------------------------------
@@ -344,6 +323,7 @@ def pagina_multas():
                 INSERT INTO Multa (Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
                 VALUES (%s, %s, %s, %s, %s)
             """, (monto, fecha, estado, id_tipo_multa, id_socia))
+
             con.commit()
             st.success("Multa registrada correctamente.")
             st.rerun()
@@ -399,14 +379,14 @@ def pagina_multas():
         cols[6].write("**Acción**")
 
         for row in multas:
-            id_multa, socia, tipo, monto, estado_actual, fecha_mult = row
+            id_multa, socia, tipo, monto_multa, estado_actual, fecha_mult = row
 
             col1, col2, col3, col4, col5, col6, col7 = st.columns([1,3,3,2,2,2,2])
 
             col1.write(id_multa)
             col2.write(socia)
             col3.write(tipo)
-            col4.write(f"${monto}")
+            col4.write(f"${monto_multa}")
 
             nuevo_estado = col5.selectbox(
                 "",
@@ -431,7 +411,7 @@ def pagina_multas():
                     row_saldo = cursor.fetchone()
                     saldo_actual = row_saldo[0] if row_saldo else 0
 
-                    nuevo_saldo = saldo_actual + float(monto)
+                    nuevo_saldo = saldo_actual + float(monto_multa)
 
                     cursor.execute("""
                         INSERT INTO Caja (Concepto, Monto, Saldo_actual, Id_Grupo, Id_Tipo_movimiento, Id_Multa, Fecha)
@@ -439,7 +419,7 @@ def pagina_multas():
                     """,
                     (
                         f"Pago de multa – {socia}",
-                        monto,
+                        monto_multa,
                         nuevo_saldo,
                         1,
                         2,      # INGRESO
