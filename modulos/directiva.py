@@ -4,7 +4,7 @@ from datetime import date
 from modulos.conexion import obtener_conexion
 from modulos.autorizar_prestamo import autorizar_prestamo
 
-# 👇 AGREGA ESTO
+# 👇 NUEVOS IMPORTS
 from modulos.pago_prestamo import pago_prestamo
 from modulos.ahorro import ahorro
 
@@ -25,7 +25,7 @@ def interfaz_directiva():
     st.title("👩‍💼 Panel de la Directiva del Grupo")
     st.write("Administre reuniones, asistencia y multas.")
 
-    # 🔹 MOSTRAR SALDO ACTUAL DE CAJA
+    # MOSTRAR SALDO DE CAJA
     try:
         con = obtener_conexion()
         cursor = con.cursor()
@@ -45,29 +45,45 @@ def interfaz_directiva():
     except:
         st.warning("⚠ No se pudo obtener el saldo actual de caja.")
 
+    # BOTÓN CERRAR SESIÓN
     if st.sidebar.button("🔒 Cerrar sesión"):
         st.session_state.clear()
         st.rerun()
 
-    # Menú
+    # ---------------------------------------------------------
+    # NUEVO MENÚ COMPLETO
+    # ---------------------------------------------------------
     menu = st.sidebar.radio(
         "Seleccione una sección:",
         [
             "Registro de asistencia",
             "Aplicar multas",
             "Registrar nuevas socias",
-            "Autorizar préstamo"
+            "Autorizar préstamo",
+            "Registrar pago de préstamo",   # 👈 NUEVO
+            "Registrar ahorro"              # 👈 NUEVO
         ]
     )
 
+    # ENRUTAMIENTO DEL MENÚ
     if menu == "Registro de asistencia":
         pagina_asistencia()
+
     elif menu == "Aplicar multas":
         pagina_multas()
+
     elif menu == "Registrar nuevas socias":
         pagina_registro_socias()
+
     elif menu == "Autorizar préstamo":
         autorizar_prestamo()
+
+    elif menu == "Registrar pago de préstamo":
+        pago_prestamo()   # 👈 LLAMA AL MÓDULO NUEVO
+
+    elif menu == "Registrar ahorro":
+        ahorro()           # 👈 LLAMA AL MÓDULO NUEVO
+
     else:
         st.error("Opción no válida")
 
@@ -97,9 +113,7 @@ def pagina_asistencia():
     """, (fecha,))
     row = cursor.fetchone()
 
-    # ---------------------------------------------------------
-    # CREACIÓN DE REUNIÓN
-    # ---------------------------------------------------------
+    # CREAR REUNIÓN
     if row:
         id_reunion = row[0]
     else:
@@ -136,9 +150,7 @@ def pagina_asistencia():
             st.error(f"⚠ ERROR al crear la reunión: {e}")
             return
 
-    # ---------------------------------------------------------
-    # ASISTENCIA
-    # ---------------------------------------------------------
+    # LISTA DE SOCIAS + FORM
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
 
@@ -217,7 +229,7 @@ def pagina_asistencia():
     st.markdown("---")
 
     # ---------------------------------------------------------
-    # 💰 INGRESOS EXTRAORDINARIOS (CORREGIDO + CAJA)
+    # 💰 INGRESOS EXTRAORDINARIOS
     # ---------------------------------------------------------
     st.header("💰 Ingresos extraordinarios de la reunión")
 
@@ -234,25 +246,25 @@ def pagina_asistencia():
 
     if st.button("➕ Registrar ingreso extraordinario"):
         try:
-            # 1️⃣ Guardar en tabla IngresosExtra
+            # GUARDAR EN IngresosExtra
             cursor.execute("""
                 INSERT INTO IngresosExtra (Id_Reunion, Id_Socia, Tipo, Descripcion, Monto, Fecha)
                 VALUES (%s, %s, %s, %s, %s, %s)
             """, (id_reunion, id_socia_aporta, tipo, descripcion, monto, fecha))
 
-            # 2️⃣ Obtener saldo actual de caja
+            # OBTENER SALDO ACTUAL
             cursor.execute("""
                 SELECT Saldo_actual
                 FROM Caja
                 ORDER BY Id_Caja DESC
                 LIMIT 1
             """)
-            row = cursor.fetchone()
-            saldo_actual = row[0] if row else 0
+            row_saldo = cursor.fetchone()
+            saldo_actual = row_saldo[0] if row_saldo else 0
 
             nuevo_saldo = saldo_actual + float(monto)
 
-            # 3️⃣ Registrar movimiento en CAJA
+            # GUARDAR EN CAJA
             cursor.execute("""
                 INSERT INTO Caja (Concepto, Monto, Saldo_actual, Id_Grupo, Id_Tipo_movimiento, Fecha)
                 VALUES (%s, %s, %s, %s, %s, CURRENT_DATE())
@@ -262,7 +274,7 @@ def pagina_asistencia():
                 monto,
                 nuevo_saldo,
                 1,
-                2  # INGRESO
+                2
             ))
 
             con.commit()
@@ -272,7 +284,6 @@ def pagina_asistencia():
         except Exception as e:
             st.error(f"❌ Error al registrar ingreso: {e}")
 
-    # Mostrar ingresos del día
     cursor.execute("""
         SELECT S.Nombre, I.Tipo, I.Descripcion, I.Monto, I.Fecha
         FROM IngresosExtra I
@@ -403,7 +414,6 @@ def pagina_multas():
 
             if col7.button("Actualizar", key=f"btn_{id_multa}"):
 
-                # ✔ Si pasa de "A pagar" → "Pagada", registrar INGRESO EN CAJA
                 if estado_actual == "A pagar" and nuevo_estado == "Pagada":
 
                     cursor.execute("""
@@ -426,7 +436,7 @@ def pagina_multas():
                         monto,
                         nuevo_saldo,
                         1,
-                        2,      # INGRESO
+                        2,
                         id_multa
                     ))
 
