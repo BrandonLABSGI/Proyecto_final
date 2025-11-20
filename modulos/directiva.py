@@ -20,7 +20,7 @@ def interfaz_directiva():
     st.title("👩‍💼 Panel de la Directiva del Grupo")
     st.write("Administre reuniones, asistencia y multas.")
 
-    # 🔹 MOSTRAR SALDO ACTUAL DE CAJA (ÚNICA PARTE MODIFICADA)
+    # 🔹 MOSTRAR SALDO ACTUAL DE CAJA
     try:
         con = obtener_conexion()
         cursor = con.cursor()
@@ -51,7 +51,7 @@ def interfaz_directiva():
             "Registro de asistencia",
             "Aplicar multas",
             "Registrar nuevas socias",
-            "Autorizar préstamo"         # << AGREGADO
+            "Autorizar préstamo"
         ]
     )
 
@@ -92,6 +92,9 @@ def pagina_asistencia():
     """, (fecha,))
     row = cursor.fetchone()
 
+    # ---------------------------------------------------------
+    # CREAR REUNIÓN SI NO EXISTE (CORREGIDO)
+    # ---------------------------------------------------------
     if row:
         id_reunion = row[0]
     else:
@@ -99,6 +102,7 @@ def pagina_asistencia():
             cursor.execute("SHOW COLUMNS FROM Reunion")
             columnas = [col[0] for col in cursor.fetchall()]
 
+            # Campos base
             datos = {
                 "Fecha_reunion": fecha,
                 "observaciones": "",
@@ -107,9 +111,13 @@ def pagina_asistencia():
                 "Id_Grupo": 1
             }
 
+            # AGREGAR SOLO COLUMNAS QUE FALTAN (corregido)
             for col in columnas:
-                if col not in datos and col != "Id_Reunion":
-                    datos[col] = ""
+                if col == "Id_Reunion":
+                    continue
+                if col in datos:
+                    continue
+                datos[col] = ""
 
             cols_sql = ", ".join(datos.keys())
             vals_sql = ", ".join(["%s"] * len(datos))
@@ -125,6 +133,9 @@ def pagina_asistencia():
             st.error(f"⚠ ERROR al crear la reunión: {e}")
             return
 
+    # ---------------------------------------------------------
+    # ASISTENCIA
+    # ---------------------------------------------------------
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
 
@@ -202,6 +213,9 @@ def pagina_asistencia():
 
     st.markdown("---")
 
+    # ---------------------------------------------------------
+    # INGRESOS EXTRAORDINARIOS
+    # ---------------------------------------------------------
     st.header("💰 Ingresos extraordinarios de la reunión")
 
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
