@@ -3,8 +3,6 @@ import pandas as pd
 from datetime import date
 from modulos.conexion import obtener_conexion
 from modulos.autorizar_prestamo import autorizar_prestamo
-
-# 👇 MODULOS NUEVOS
 from modulos.pago_prestamo import pago_prestamo
 from modulos.ahorro import ahorro
 
@@ -24,7 +22,7 @@ def interfaz_directiva():
     st.title("👩‍💼 Panel de la Directiva del Grupo")
     st.write("Administre reuniones, asistencia, multas, préstamos y ahorros.")
 
-    # 🔹 SALDO DE CAJA
+    # SALDO DE CAJA
     try:
         con = obtener_conexion()
         cursor = con.cursor()
@@ -48,7 +46,6 @@ def interfaz_directiva():
         st.session_state.clear()
         st.rerun()
 
-    # MENU LATERAL
     menu = st.sidebar.radio(
         "Seleccione una sección:",
         [
@@ -80,8 +77,9 @@ def interfaz_directiva():
         ahorro()
 
 
+
 # ---------------------------------------------------------
-# 🟩 REGISTRO DE ASISTENCIA + INGRESOS EXTRAORDINARIOS
+# 🟩 REGISTRO DE ASISTENCIA
 # ---------------------------------------------------------
 def pagina_asistencia():
 
@@ -96,65 +94,29 @@ def pagina_asistencia():
     cursor.execute("SELECT Id_Reunion FROM Reunion WHERE Fecha_reunion = %s", (fecha,))
     row = cursor.fetchone()
 
-    # -----------------------------------------------------
-    # CREAR REUNIÓN SI NO EXISTE
-    # -----------------------------------------------------
     if row:
         id_reunion = row[0]
     else:
-        try:
-            cursor.execute("SHOW COLUMNS FROM Reunion")
-            columnas = [col[0] for col in cursor.fetchall()]
+        cursor.execute("""
+            INSERT INTO Reunion (Fecha_reunion, observaciones, Acuerdos, Tema_central, Id_Grupo)
+            VALUES (%s, '', '', '', 1)
+        """, (fecha,))
+        con.commit()
+        id_reunion = cursor.lastrowid
+        st.info(f"Reunión creada (ID {id_reunion}).")
 
-            datos = {
-                "Fecha_reunion": fecha,
-                "observaciones": "",
-                "Acuerdos": "",
-                "Tema_central": "",
-                "Id_Grupo": 1
-            }
-
-            for col in columnas:
-                if col == "Id_Reunion":
-                    continue
-                if col not in datos:
-                    datos[col] = ""
-
-            query = f"""
-                INSERT INTO Reunion ({','.join(datos.keys())})
-                VALUES ({','.join(['%s'] * len(datos))})
-            """
-            cursor.execute(query, list(datos.values()))
-            con.commit()
-
-            id_reunion = cursor.lastrowid
-            st.info(f"Reunión creada (ID {id_reunion}).")
-
-        except Exception as e:
-            st.error(f"⚠ ERROR al crear la reunión: {e}")
-            return
-
-    # -----------------------------------------------------
-    # LISTA DE SOCIAS (CON ID)
-    # -----------------------------------------------------
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
 
     st.subheader("Lista de asistencia")
     asistencia_registro = {}
 
-    col1, col2, col3 = st.columns([1, 3, 3])
-    col1.write("**ID**")
-    col2.write("**Socia**")
-    col3.write("**Asistencia (SI / NO)**")
-
     for id_socia, nombre in socias:
+        col1, col2, col3 = st.columns([1, 3, 2])
+        col1.write(id_socia)
+        col2.write(nombre)
 
-        c1, c2, c3 = st.columns([1, 3, 3])
-        c1.write(id_socia)
-        c2.write(nombre)
-
-        asistencia = c3.selectbox(
+        asistencia = col3.selectbox(
             "",
             ["SI", "NO"],
             key=f"asis_{id_socia}"
@@ -162,7 +124,6 @@ def pagina_asistencia():
 
         asistencia_registro[id_socia] = asistencia
 
-    # GUARDAR ASISTENCIA
     if st.button("💾 Guardar asistencia general"):
 
         try:
@@ -192,11 +153,11 @@ def pagina_asistencia():
 
             con.commit()
             st.success("Asistencia guardada correctamente.")
+            st.rerun()
 
         except Exception as e:
             st.error(f"Error al guardar asistencia: {e}")
 
-    # MOSTRAR ASISTENCIA
     cursor.execute("""
         SELECT S.Id_Socia, S.Nombre, A.Estado_asistencia
         FROM Asistencia A
@@ -209,86 +170,22 @@ def pagina_asistencia():
         df = pd.DataFrame(registros, columns=["ID", "Socia", "Asistencia"])
         st.dataframe(df)
 
-    st.markdown("---")
+        total_presentes = df[df["Asistencia"] == "Presente"].shape[0]
+        st.success(f"👥 Total presentes: **{total_presentes}**")
 
-    # -----------------------------------------------------
-    # INGRESOS EXTRAORDINARIOS (CORREGIDO)
-    # -----------------------------------------------------
-    st.header("💰 Ingresos extraordinarios de la reunión")
-
-    cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
-    lista_socias = cursor.fetchall()
-
-    dict_socias = {f"{id_socia} - {nombre}": id_socia for id_socia, nombre in lista_socias}
-
-    socia_sel = st.selectbox("👩 Socia que aporta:", dict_socias.keys())
-    id_socia_aporta = dict_socias[socia_sel]
-
-    tipo = st.selectbox("Tipo de ingreso:", ["Rifa", "Donación", "Actividad", "Otro"])
-    descripcion = st.text_input("Descripción del ingreso (opcional)")
-    monto = st.number_input("Monto recibido ($):", min_value=0.00, step=0.50)
-
-    if st.button("➕ Registrar ingreso extraordinario"):
-
-        try:
-            cursor.execute("""
-                INSERT INTO IngresosExtra (Id_Reunion, Id_Socia, Tipo, Descripcion, Monto, Fecha)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (id_reunion, id_socia_aporta, tipo, descripcion, monto, fecha))
-
-            cursor.execute("""
-                SELECT Saldo_actual FROM Caja ORDER BY Id_Caja DESC LIMIT 1
-            """)
-            row = cursor.fetchone()
-            saldo_actual = row[0] if row else 0
-
-            nuevo_saldo = saldo_actual + float(monto)
-
-            cursor.execute("""
-                INSERT INTO Caja (Concepto, Monto, Saldo_actual, Id_Grupo, Id_Tipo_movimiento, Fecha)
-                VALUES (%s, %s, %s, %s, %s, CURRENT_DATE())
-            """,
-            (
-                f"Ingreso extraordinario – {socia_sel}",
-                monto,
-                nuevo_saldo,
-                1,
-                2
-            ))
-
-            con.commit()
-            st.success("Ingreso registrado y agregado a CAJA.")
-            st.rerun()
-
-        except Exception as e:
-            st.error(f"❌ Error al registrar ingreso: {e}")
-
-    # MOSTRAR INGRESOS DEL DÍA
-    cursor.execute("""
-        SELECT S.Id_Socia, S.Nombre, I.Tipo, I.Descripcion, I.Monto, I.Fecha
-        FROM IngresosExtra I
-        JOIN Socia S ON S.Id_Socia = I.Id_Socia
-        WHERE I.Id_Reunion = %s
-    """, (id_reunion,))
-    ingresos = cursor.fetchall()
-
-    if ingresos:
-        df_ing = pd.DataFrame(
-            ingresos,
-            columns=["ID", "Socia", "Tipo", "Descripción", "Monto", "Fecha"]
-        )
-        st.dataframe(df_ing)
 
 
 # ---------------------------------------------------------
-# 🟥 MULTAS
+# 🟥 MULTAS (COMPLETAS Y CON CAJA)
 # ---------------------------------------------------------
 def pagina_multas():
 
-    st.subheader("⚠️ Aplicación de multas")
+    st.header("⚠️ Gestión de multas")
 
     con = obtener_conexion()
     cursor = con.cursor()
+
+    st.subheader("➕ Registrar multa")
 
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
@@ -304,21 +201,117 @@ def pagina_multas():
     tipo_sel = st.selectbox("📌 Tipo de multa:", dict_tipos.keys())
     id_tipo_multa = dict_tipos[tipo_sel]
 
-    monto = st.number_input("💵 Monto:", min_value=0.01, step=0.50)
+    monto = st.number_input("💵 Monto:", min_value=0.01)
     fecha_raw = st.date_input("📅 Fecha")
     fecha = fecha_raw.strftime("%Y-%m-%d")
     estado = st.selectbox("📍 Estado:", ["A pagar", "Pagada"])
 
     if st.button("💾 Registrar multa"):
-
         cursor.execute("""
             INSERT INTO Multa (Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
             VALUES (%s, %s, %s, %s, %s)
         """, (monto, fecha, estado, id_tipo_multa, id_socia))
 
+        multa_id = cursor.lastrowid
+
+        if estado == "Pagada":
+            cursor.execute("SELECT Saldo_actual FROM Caja ORDER BY Id_Caja DESC LIMIT 1")
+            row = cursor.fetchone()
+            saldo_actual = row[0] if row else 0
+
+            nuevo_saldo = saldo_actual + float(monto)
+
+            cursor.execute("""
+                INSERT INTO Caja (Concepto, Monto, Saldo_actual, Id_Grupo, Id_Tipo_movimiento, Fecha, Id_Multa)
+                VALUES (%s, %s, %s, 1, 2, CURRENT_DATE(), %s)
+            """, (f"Pago de multa – {socia_sel}", monto, nuevo_saldo, multa_id))
+
         con.commit()
-        st.success("Multa registrada.")
+        st.success("Multa registrada correctamente.")
         st.rerun()
+
+    st.markdown("---")
+
+    st.subheader("🔍 Filtros")
+
+    col1, col2, col3 = st.columns(3)
+    filtro_fecha = col1.date_input("Filtrar por fecha:", value=None)
+    filtro_estado = col2.selectbox("Estado:", ["Todos", "A pagar", "Pagada"])
+    filtro_nombre = col3.text_input("Buscar por nombre:")
+
+    query = """
+        SELECT M.Id_Multa, S.Nombre, M.Monto, M.Fecha_aplicacion, M.Estado,
+               T.`Tipo de multa`
+        FROM Multa M
+        JOIN Socia S ON S.Id_Socia = M.Id_Socia
+        JOIN `Tipo de multa` T ON T.Id_Tipo_multa = M.Id_Tipo_multa
+        WHERE 1 = 1
+    """
+
+    params = []
+
+    if filtro_fecha:
+        query += " AND M.Fecha_aplicacion = %s"
+        params.append(filtro_fecha.strftime("%Y-%m-%d"))
+
+    if filtro_estado != "Todos":
+        query += " AND M.Estado = %s"
+        params.append(filtro_estado)
+
+    if filtro_nombre.strip() != "":
+        query += " AND S.Nombre LIKE %s"
+        params.append(f"%{filtro_nombre}%")
+
+    cursor.execute(query, tuple(params))
+    multas = cursor.fetchall()
+
+    if multas:
+        df = pd.DataFrame(
+            multas,
+            columns=["ID", "Socia", "Monto", "Fecha", "Estado", "Tipo"]
+        )
+        st.dataframe(df, use_container_width=True)
+
+        st.subheader("Actualizar estado de multa")
+
+        id_multa_sel = st.selectbox(
+            "Seleccione una multa:",
+            df["ID"].tolist()
+        )
+
+        nuevo_estado = st.selectbox(
+            "Nuevo estado:",
+            ["A pagar", "Pagada"]
+        )
+
+        if st.button("Actualizar multa"):
+
+            cursor.execute("""
+                UPDATE Multa
+                SET Estado = %s
+                WHERE Id_Multa = %s
+            """, (nuevo_estado, id_multa_sel))
+
+            if nuevo_estado == "Pagada":
+                monto = df[df["ID"] == id_multa_sel]["Monto"].values[0]
+
+                cursor.execute("SELECT Saldo_actual FROM Caja ORDER BY Id_Caja DESC LIMIT 1")
+                row = cursor.fetchone()
+                saldo_actual = row[0] if row else 0
+
+                nuevo_saldo = saldo_actual + float(monto)
+
+                cursor.execute("""
+                    INSERT INTO Caja (Concepto, Monto, Saldo_actual, Id_Grupo, Id_Tipo_movimiento, Fecha, Id_Multa)
+                    VALUES (%s, %s, %s, 1, 2, CURRENT_DATE(), %s)
+                """, (f"Pago de multa (actualizado) – ID {id_multa_sel}", monto, nuevo_saldo, id_multa_sel))
+
+            con.commit()
+            st.success("Multa actualizada correctamente.")
+            st.rerun()
+    else:
+        st.info("No hay multas registradas con los filtros seleccionados.")
+
 
 
 # ---------------------------------------------------------
