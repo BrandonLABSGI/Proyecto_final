@@ -2,6 +2,9 @@ import streamlit as st
 from datetime import date
 from modulos.conexion import obtener_conexion
 
+# Importar funciones del nuevo sistema de caja
+from modulos.caja import obtener_o_crear_reunion, registrar_movimiento
+
 
 def pago_prestamo():
 
@@ -42,12 +45,14 @@ def pago_prestamo():
         st.info("Esta socia no tiene préstamos activos.")
         return
 
-    opciones = {f"ID {p[0]} | Prestado: ${p[2]} | Saldo: ${p[3]}": p[0] for p in prestamos}
+    opciones = {
+        f"ID {p[0]} | Prestado: ${p[2]} | Saldo: ${p[3]}": p[0] for p in prestamos
+    }
     prestamo_sel = st.selectbox("📌 Seleccione el préstamo:", opciones.keys())
     id_prestamo = opciones[prestamo_sel]
 
     # ---------------------------------------------------------
-    # 3️⃣ OBTENER DATOS DEL PRÉSTAMO
+    # 3️⃣ DATOS DEL PRÉSTAMO
     # ---------------------------------------------------------
     cursor.execute("""
         SELECT 
@@ -72,7 +77,7 @@ def pago_prestamo():
     st.write(f"**Cuotas:** {cuotas}")
 
     # ---------------------------------------------------------
-    # 4️⃣ REGISTRO DE PAGO
+    # 4️⃣ REGISTRO DEL PAGO
     # ---------------------------------------------------------
     st.markdown("---")
     fecha_pago_raw = st.date_input("📅 Fecha del pago", value=date.today())
@@ -84,70 +89,51 @@ def pago_prestamo():
 
         try:
             # ---------------------------------------------------------
-            # 5️⃣ INSERTAR MOVIMIENTO EN CAJA
+            # 5️⃣ ACTUALIZAR SALDO DEL PRÉSTAMO
             # ---------------------------------------------------------
-            cursor.execute("""
-                SELECT Saldo_actual
-                FROM Caja
-                ORDER BY Id_Caja DESC
-                LIMIT 1
-            """)
-            row = cursor.fetchone()
-            saldo_actual = row[0] if row else 0
-
-            nuevo_saldo_caja = saldo_actual + float(monto_abonado)
-
-            cursor.execute("""
-                INSERT INTO Caja (Concepto, Monto, Saldo_actual, Id_Grupo, Id_Tipo_movimiento, Fecha)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (
-                f"Pago de préstamo (socia {id_socia})",
-                monto_abonado,
-                nuevo_saldo_caja,
-                1,
-                2,  # INGRESO
-                fecha_pago
-            ))
-
-            id_caja = cursor.lastrowid
-
-            # ---------------------------------------------------------
-            # 6️⃣ REGISTRAR EL PAGO EN LA TABLA (NOMBRES CON ESPACIOS)
-            # ---------------------------------------------------------
-            nuevo_saldo_prestamo = saldo_pendiente - float(monto_abonado)
-            if nuevo_saldo_prestamo < 0:
-                nuevo_saldo_prestamo = 0
+            nuevo_saldo = saldo_pendiente - float(monto_abonado)
+            if nuevo_saldo < 0:
+                nuevo_saldo = 0
 
             cursor.execute("""
                 INSERT INTO `Pago del prestamo`
-                (`Fecha de pago`, `Monto abonado`, `Interés pagado`, `Capital pagado`, `Saldo restante`, Id_Préstamo, Id_Caja)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                (`Fecha de pago`, `Monto abonado`, `Interés pagado`, `Capital pagado`,
+                 `Saldo restante`, Id_Préstamo)
+                VALUES (%s, %s, %s, %s, %s, %s)
             """, (
                 fecha_pago,
                 monto_abonado,
                 0,  # interés
-                0,  # capital
-                nuevo_saldo_prestamo,
-                id_prestamo,
-                id_caja
+                monto_abonado,  # capital pagado
+                nuevo_saldo,
+                id_prestamo
             ))
 
-            # ---------------------------------------------------------
-            # 7️⃣ ACTUALIZAR PRÉSTAMO
-            # ---------------------------------------------------------
             cursor.execute("""
                 UPDATE Prestamo
                 SET `Saldo pendiente` = %s,
                     Estado_del_prestamo = CASE 
-                        WHEN %s = 0 THEN 'cancelado' 
-                        ELSE 'activo' 
+                        WHEN %s = 0 THEN 'cancelado'
+                        ELSE 'activo'
                     END
                 WHERE Id_Préstamo = %s
-            """, (nuevo_saldo_prestamo, nuevo_saldo_prestamo, id_prestamo))
+            """, (nuevo_saldo, nuevo_saldo, id_prestamo))
+
+
+            # ---------------------------------------------------------
+            # 6️⃣ REGISTRAR MOVIMIENTO EN CAJA POR REUNIÓN
+            # ---------------------------------------------------------
+            id_caja = obtener_o_crear_reunion(fecha_pago)
+            registrar_movimiento(
+                id_caja,
+                "Ingreso",
+                f"Pago préstamo – Socia {id_socia}",
+                monto_abonado
+            )
+
 
             con.commit()
-            st.success("✅ Pago registrado y CAJA actualizada.")
-
+            st.success("✅ Pago registrado y agregado a caja por reunión.")
             st.rerun()
 
         except Exception as e:
