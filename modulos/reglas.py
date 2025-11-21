@@ -1,19 +1,18 @@
 import streamlit as st
-import pandas as pd
-from datetime import date
-from modulos.conexion import obtener_conexion
+import mysql.connector
+import io
 from reportlab.platypus import SimpleDocTemplate, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
+from modulos.conexion import obtener_conexion
 
 
-# ---------------------------------------------------------
-#  PANEL PRINCIPAL DE GESTIÓN DE REGLAS
-# ---------------------------------------------------------
+# ===========================================================
+# PANTALLA PRINCIPAL DE REGLAS INTERNAS
+# ===========================================================
 def gestionar_reglas():
-
     st.title("📘 Reglas internas del grupo")
 
-    menu = st.radio(
+    opcion = st.radio(
         "Seleccione una sección:",
         [
             "Editor de reglas internas",
@@ -23,184 +22,225 @@ def gestionar_reglas():
         ]
     )
 
-    if menu == "Editor de reglas internas":
-        editar_reglas()
+    if opcion == "Editor de reglas internas":
+        mostrar_reglas()
 
-    elif menu == "Comité directivo":
-        gestionar_comite()
+    elif opcion == "Comité directivo":
+        mostrar_comite()
 
-    elif menu == "Permisos válidos de inasistencia":
-        gestionar_permisos()
+    elif opcion == "Permisos válidos de inasistencia":
+        mostrar_permisos()
 
-    elif menu == "Exportar reglas en PDF":
+    elif opcion == "Exportar reglas en PDF":
         exportar_pdf()
 
 
 
-# =========================================================
-#  1) EDITOR DE REGLAS INTERNAS
-# =========================================================
-def editar_reglas():
+# ===========================================================
+# SECCIÓN 1: REGLAS DEL GRUPO
+# Tabla: reglas_grupo
+# ===========================================================
+def mostrar_reglas():
 
-    st.subheader("📝 Editor de reglas internas")
-
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    # Cargar única regla (id_regla = 1)
-    cursor.execute("SELECT * FROM reglas_grupo WHERE id_regla = 1")
-    datos = cursor.fetchone()
-
-    if not datos:
-        st.error("No existe registro base en reglas_grupo (id_regla=1).")
-        return
-
-    nombre_grupo = st.text_input("Nombre del Grupo", datos["nombre_grupo"])
-    nombre_comunidad = st.text_input("Comunidad", datos["nombre_comunidad"])
-    multa_inasistencia = st.number_input("Multa por inasistencia", value=float(datos["multa_inasistencia"]))
-    ahorro_minimo = st.number_input("Ahorro mínimo", value=float(datos["ahorro_minimo"]))
-    interes_por_10 = st.number_input("Interés por cada $10 prestados (%)", value=float(datos["interes_por_10"]))
-    prestamo_maximo = st.number_input("Préstamo máximo", value=float(datos["prestamo_maximo"]))
-    plazo_maximo = st.number_input("Plazo máximo (meses)", value=int(datos["plazo_maximo"]))
-    otras = st.text_area("Otras reglas", datos["otras_reglas"])
-
-    if st.button("💾 Guardar cambios"):
-
-        cursor.execute("""
-            UPDATE reglas_grupo SET 
-                nombre_grupo=%s,
-                nombre_comunidad=%s,
-                multa_inasistencia=%s,
-                ahorro_minimo=%s,
-                interes_por_10=%s,
-                prestamo_maximo=%s,
-                plazo_maximo=%s,
-                otras_reglas=%s
-            WHERE id_regla=1
-        """, (
-            nombre_grupo, nombre_comunidad, multa_inasistencia,
-            ahorro_minimo, interes_por_10, prestamo_maximo,
-            plazo_maximo, otras
-        ))
-
-        con.commit()
-        st.success("Reglas internas actualizadas correctamente.")
-
-
-
-# =========================================================
-#  2) COMITÉ DIRECTIVO
-# =========================================================
-def gestionar_comite():
-
-    st.subheader("👩‍💼 Comité Directivo")
+    st.subheader("📖 Editor de reglas internas")
 
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    st.markdown("### ➕ Registrar nuevo miembro")
+    nueva = st.text_input("Agregar nueva regla:")
 
-    cargo = st.text_input("Cargo (Ejemplo: Presidenta)")
-    nombre = st.text_input("Nombre de la socia")
+    if st.button("➕ Añadir regla"):
+        if nueva.strip() != "":
+            cursor.execute("""
+                INSERT INTO reglas_grupo (descripcion, id_grupo)
+                VALUES (%s, 1)
+            """, (nueva,))
+            con.commit()
+            st.success("Regla agregada correctamente.")
+            st.rerun()
 
-    if st.button("Registrar miembro"):
+    cursor.execute("SELECT id_regla, descripcion FROM reglas_grupo ORDER BY id_regla ASC")
+    reglas = cursor.fetchall()
 
+    st.markdown("### 📋 Lista de reglas")
+    for r in reglas:
+        col1, col2, col3 = st.columns([7, 1, 1])
+        col1.write(r["descripcion"])
+
+        if col2.button("✏️", key=f"edit_r{r['id_regla']}"):
+            editar_regla(r["id_regla"], r["descripcion"])
+            st.rerun()
+
+        if col3.button("🗑️", key=f"del_r{r['id_regla']}"):
+            cursor.execute("DELETE FROM reglas_grupo WHERE id_regla=%s", (r["id_regla"],))
+            con.commit()
+            st.success("Regla eliminada.")
+            st.rerun()
+
+    cursor.close()
+    con.close()
+
+
+
+# ===========================================================
+# Editar regla interna
+# ===========================================================
+def editar_regla(id_regla, texto_actual):
+    st.markdown("### ✏️ Editar regla")
+    nuevo = st.text_area("Nueva descripción:", texto_actual)
+
+    if st.button("💾 Guardar cambios", key=f"save_edit_{id_regla}"):
+        con = obtener_conexion()
+        cursor = con.cursor()
         cursor.execute("""
-            INSERT INTO comite_directiva(id_regla, cargo, nombre_socia)
-            VALUES(1, %s, %s)
-        """, (cargo, nombre))
-
+            UPDATE reglas_grupo 
+            SET descripcion=%s
+            WHERE id_regla=%s
+        """, (nuevo, id_regla))
         con.commit()
-        st.success("Miembro agregado al comité.")
+        cursor.close()
+        con.close()
+        st.success("Regla actualizada.")
         st.rerun()
 
-    # Mostrar comité
-    cursor.execute("SELECT * FROM comite_directiva WHERE id_regla = 1")
-    tabla = cursor.fetchall()
-
-    if tabla:
-        st.markdown("### 🧾 Comité actual")
-        df = pd.DataFrame(tabla)
-        st.dataframe(df)
 
 
-
-# =========================================================
-#  3) PERMISOS DE INASISTENCIA
-# =========================================================
-def gestionar_permisos():
-
-    st.subheader("🆗 Permisos válidos de inasistencia")
+# ===========================================================
+# SECCIÓN 2: COMITÉ DIRECTIVO
+# Tabla: comite_directiva
+# ===========================================================
+def mostrar_comite():
+    st.subheader("👥 Comité directivo")
 
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    st.markdown("### ➕ Agregar nuevo permiso")
+    st.markdown("### Registrar nuevo miembro")
 
-    descripcion = st.text_input("Descripción del permiso")
+    cargo = st.text_input("Cargo")
+    nombre = st.text_input("Nombre de la socia")
 
-    if st.button("Registrar permiso"):
-
+    if st.button("➕ Registrar miembro"):
         cursor.execute("""
-            INSERT INTO regla_permisos_inasistencia(id_regla, descripcion)
-            VALUES(1, %s)
-        """, (descripcion,))
+            INSERT INTO comite_directiva (id_regla, cargo, nombre_socia)
+            VALUES (1, %s, %s)
+        """, (cargo, nombre))
+        con.commit()
+        st.success("Miembro registrado.")
+        st.rerun()
 
+    cursor.execute("""
+        SELECT id_comite, cargo, nombre_socia 
+        FROM comite_directiva 
+        ORDER BY id_comite ASC
+    """)
+    miembros = cursor.fetchall()
+
+    st.markdown("### 📋 Miembros del comité")
+    for m in miembros:
+        col1, col2, col3 = st.columns([5, 3, 1])
+        col1.write(f"**{m['cargo']}**")
+        col2.write(m["nombre_socia"])
+
+        if col3.button("❌", key=f"del_c{m['id_comite']}"):
+            cursor.execute("DELETE FROM comite_directiva WHERE id_comite=%s", (m["id_comite"],))
+            con.commit()
+            st.success("Miembro eliminado.")
+            st.rerun()
+
+    cursor.close()
+    con.close()
+
+
+
+# ===========================================================
+# SECCIÓN 3: PERMISOS VÁLIDOS DE INASISTENCIA
+# Tabla: regla_permisos_inasistencia
+# ===========================================================
+def mostrar_permisos():
+
+    st.subheader("📝 Permisos válidos de inasistencia")
+
+    con = obtener_conexion()
+    cursor = con.cursor(dictionary=True)
+
+    permiso = st.text_input("Agregar nuevo permiso")
+
+    if st.button("➕ Registrar permiso"):
+        cursor.execute("""
+            INSERT INTO regla_permisos_inasistencia (id_regla, descripcion)
+            VALUES (1, %s)
+        """, (permiso,))
         con.commit()
         st.success("Permiso registrado.")
         st.rerun()
 
-    # Mostrar permisos
-    cursor.execute("SELECT * FROM regla_permisos_inasistencia WHERE id_regla = 1")
-    permisos = cursor.fetchall()
+    cursor.execute("""
+        SELECT id_permiso, descripcion
+        FROM regla_permisos_inasistencia
+        ORDER BY id_permiso ASC
+    """)
+    lista = cursor.fetchall()
 
-    if permisos:
-        st.markdown("### 📋 Permisos registrados")
-        df = pd.DataFrame(permisos)
-        st.dataframe(df)
+    st.markdown("### 📋 Lista de permisos")
+    for p in lista:
+        col1, col2 = st.columns([8, 1])
+        col1.write(p["descripcion"])
+
+        if col2.button("🗑️", key=f"del_p{p['id_permiso']}"):
+            cursor.execute("DELETE FROM regla_permisos_inasistencia WHERE id_permiso=%s", (p["id_permiso"],))
+            con.commit()
+            st.success("Permiso eliminado.")
+            st.rerun()
+
+    cursor.close()
+    con.close()
 
 
 
-# =========================================================
-#  4) EXPORTAR A PDF
-# =========================================================
+# ===========================================================
+# SECCIÓN 4: EXPORTAR PDF (FUNCIONA EN STREAMLIT CLOUD)
+# ===========================================================
 def exportar_pdf():
 
     st.subheader("📄 Exportar todas las reglas en PDF")
 
     con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
+    cursor = con.cursor()
 
-    cursor.execute("SELECT * FROM reglas_grupo WHERE id_regla = 1")
-    reglas = cursor.fetchone()
+    cursor.execute("SELECT descripcion FROM reglas_grupo ORDER BY id_regla ASC")
+    reglas = cursor.fetchall()
 
-    cursor.execute("SELECT cargo, nombre_socia FROM comite_directiva WHERE id_regla = 1")
-    comite = cursor.fetchall()
+    cursor.close()
+    con.close()
 
-    cursor.execute("SELECT descripcion FROM regla_permisos_inasistencia WHERE id_regla = 1")
-    permisos = cursor.fetchall()
+    if not reglas:
+        st.warning("No hay reglas para exportar.")
+        return
 
-    filename = "/mnt/data/reglas_grupo.pdf"
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer)
     styles = getSampleStyleSheet()
-    doc = SimpleDocTemplate(filename)
 
     contenido = []
 
-    contenido.append(Paragraph("<b>Reglas del Grupo</b><br/><br/>", styles["Title"]))
+    contenido.append(Paragraph("<b>REGLAS INTERNAS DEL GRUPO</b>", styles["Title"]))
+    contenido.append(Paragraph("<br/><br/>", styles["Normal"]))
 
-    for clave, valor in reglas.items():
-        contenido.append(Paragraph(f"<b>{clave}:</b> {valor}<br/>", styles["Normal"]))
-
-    contenido.append(Paragraph("<br/><b>Comité Directivo</b><br/>", styles["Heading2"]))
-    for fila in comite:
-        contenido.append(Paragraph(f"{fila['cargo']}: {fila['nombre_socia']}<br/>", styles["Normal"]))
-
-    contenido.append(Paragraph("<br/><b>Permisos válidos</b><br/>", styles["Heading2"]))
-    for p in permisos:
-        contenido.append(Paragraph(f"- {p['descripcion']}<br/>", styles["Normal"]))
+    for r in reglas:
+        contenido.append(Paragraph(f"• {r[0]}", styles["Normal"]))
 
     doc.build(contenido)
 
+    buffer.seek(0)
+
     st.success("PDF generado correctamente.")
-    st.download_button("📥 Descargar PDF", open(filename, "rb"), file_name="reglas_grupo.pdf")
+
+    st.download_button(
+        label="📥 Descargar PDF",
+        data=buffer,
+        file_name="Reglas_internas.pdf",
+        mime="application/pdf"
+    )
+
 
