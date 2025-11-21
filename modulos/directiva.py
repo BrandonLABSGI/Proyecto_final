@@ -212,7 +212,6 @@ def pagina_asistencia():
 
         con.commit()
 
-        # Registrar movimiento en caja_reunion
         id_caja = obtener_o_crear_reunion(fecha)
         registrar_movimiento(id_caja, "Ingreso", f"Ingreso Extra – {tipo}", monto)
 
@@ -291,7 +290,6 @@ def pagina_multas():
 
         if c6.button("Actualizar", key=f"btn{mid}"):
 
-            # Si pasa de A pagar → Pagada → SE SUMA A CAJA
             if estado_actual == "A pagar" and nuevo_estado == "Pagada":
 
                 id_caja = obtener_o_crear_reunion(fecha_m)
