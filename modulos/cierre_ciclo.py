@@ -1,159 +1,99 @@
 import streamlit as st
-import pandas as pd
 from datetime import date
-from modulos.conexion import obtener_conexion
+from modulos.config.conexion import obtener_conexion
 
-# Caja por reunión
-from modulos.caja import obtener_o_crear_reunion, registrar_movimiento
-
-
-# ============================================================
-#                 🟦 MÓDULO DE CIERRE DE CICLO
-# ============================================================
 def cierre_ciclo():
 
-    st.header("🔚 Cierre de Ciclo – Solidaridad CVX")
+    st.title("🔴 Cierre del Ciclo General – Solidaridad CVX")
 
     con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
+    cursor = con.cursor()
 
-    # ============================================================
-    # 1️⃣ OBTENER CICLO ACTIVO
-    # ============================================================
-    cursor.execute("""
-        SELECT *
-        FROM cierre_ciclo
-        WHERE Estado = 'Abierto'
-        ORDER BY Id_Cierre DESC
-        LIMIT 1
-    """)
+    # --------------------------------------------------------------
+    # 1️⃣ CICLO ACTIVO
+    # --------------------------------------------------------------
+    cursor.execute("SELECT id_ciclo, nombre_ciclo, fecha_inicio FROM ciclo WHERE estado='abierto'")
     ciclo = cursor.fetchone()
 
     if not ciclo:
-        st.error("❌ No existe ningún ciclo activo. Debes crear uno antes de cerrar.")
+        st.error("❌ No existe un ciclo activo.")
         return
 
-    id_cierre = ciclo["Id_Cierre"]
-    fecha_inicio = ciclo["Fecha_inicio"]
+    id_ciclo, nombre_ciclo, fecha_inicio = ciclo
 
-    st.info(f"📌 Ciclo activo iniciado el: **{fecha_inicio}**")
+    st.info(f"📌 Ciclo activo: **{nombre_ciclo}** (Inició: {fecha_inicio})")
 
-    # ============================================================
-    # 2️⃣ OBTENER DATOS DE AHORROS POR SOCIA
-    # ============================================================
+    # --------------------------------------------------------------
+    # 2️⃣ SUMAR INGRESOS DEL CICLO
+    # --------------------------------------------------------------
+
+    # MULTAS PAGADAS
     cursor.execute("""
-        SELECT S.Id_Socia, S.Nombre,
-               COALESCE(A.`Saldo acumulado`,0) AS saldo_final
-        FROM Socia S
-        LEFT JOIN (
-            SELECT Id_Socia, `Saldo acumulado`
-            FROM Ahorro
-            ORDER BY Id_Ahorro DESC
-        ) A ON S.Id_Socia = A.Id_Socia
-        ORDER BY S.Id_Socia ASC;
+        SELECT IFNULL(SUM(Monto),0)
+        FROM multa
+        WHERE Estado='pagada'
     """)
-    socias = cursor.fetchall()
+    total_multas = cursor.fetchone()[0]
 
-    df_socias = pd.DataFrame(socias)
-
-    total_ahorros = df_socias["saldo_final"].sum()
-
-    # ============================================================
-    # 3️⃣ OBTENER FONDO DEL GRUPO (CAJA)
-    # ============================================================
+    # INGRESOS EXTRA
     cursor.execute("""
-        SELECT saldo_final
-        FROM caja_reunion
-        ORDER BY fecha DESC
-        LIMIT 1
+        SELECT IFNULL(SUM(Monto),0)
+        FROM IngresosExtra
     """)
-    row_fondo = cursor.fetchone()
+    total_ing_extra = cursor.fetchone()[0]
 
-    total_fondo = row_fondo["saldo_final"] if row_fondo else 0
+    # PAGOS DE PRÉSTAMO (capital + interés)
+    cursor.execute("""
+        SELECT IFNULL(SUM(Monto_abonado + Interes_pagado),0)
+        FROM Pago_del_prestamo
+    """)
+    total_pagos = cursor.fetchone()[0]
 
-    # ============================================================
-    # 4️⃣ MOSTRAR RESUMEN PREVIO
-    # ============================================================
-    st.subheader("📊 Resumen del ciclo antes del cierre")
+    total_ingresos = total_multas + total_ing_extra + total_pagos
 
-    c1, c2 = st.columns(2)
-    c1.metric("💰 Total ahorros individuales", f"${total_ahorros:,.2f}")
-    c2.metric("🏦 Fondo total del grupo (caja)", f"${total_fondo:,.2f}")
+    # --------------------------------------------------------------
+    # 3️⃣ SUMAR EGRESOS DEL CICLO
+    # --------------------------------------------------------------
 
-    # ============================================================
-    # 5️⃣ CALCULAR UTILIDADES DEL GRUPO
-    # ============================================================
-    if total_ahorros == 0:
-        st.error("❌ No hay ahorros registrados. No puede hacerse el cierre.")
-        return
+    cursor.execute("""
+        SELECT IFNULL(SUM(Monto_prestado),0)
+        FROM Prestamo
+    """)
+    total_prestamos = cursor.fetchone()[0]
 
-    utilidades = total_fondo - total_ahorros
-    if utilidades < 0:
-        st.warning("⚠ El fondo del grupo es menor que los ahorros. No se puede cerrar.")
-        return
+    total_egresos = total_prestamos
 
-    st.metric("📈 Utilidades del grupo", f"${utilidades:,.2f}")
+    # --------------------------------------------------------------
+    # 4️⃣ CÁLCULOS FINALES DEL CICLO
+    # --------------------------------------------------------------
 
-    # ============================================================
-    # 6️⃣ DISTRIBUCIÓN PROPORCIONAL
-    # ============================================================
-    df_socias["porcentaje"] = df_socias["saldo_final"] / total_ahorros
-    df_socias["utilidad_asignada"] = df_socias["porcentaje"] * utilidades
-    df_socias["utilidad_redondeada"] = df_socias["utilidad_asignada"].round(2)
-    df_socias["saldo_siguiente_ciclo"] = df_socias["saldo_final"] + df_socias["utilidad_redondeada"]
+    saldo_inicial = 0.00
+    monto_repartido = (saldo_inicial + total_ingresos) - total_egresos
+    saldo_final = 0.00   # regla oficial
 
-    st.subheader("📄 Distribución proporcional")
+    st.subheader("📊 Resumen del ciclo")
 
-    st.dataframe(df_socias[[
-        "Id_Socia", "Nombre", "saldo_final",
-        "porcentaje", "utilidad_redondeada", "saldo_siguiente_ciclo"
-    ]])
+    st.write(f"💰 **Total de ingresos del ciclo:** ${total_ingresos:,.2f}")
+    st.write(f"🏦 **Total de egresos del ciclo:** ${total_egresos:,.2f}")
+    st.write("---")
+    st.success(f"🧮 **Monto a repartir:** ${monto_repartido:,.2f}")
+    st.info("El saldo final del ciclo será **$0.00** porque todo el dinero se reparte.")
 
-    faltante = utilidades - df_socias["utilidad_redondeada"].sum()
+    # --------------------------------------------------------------
+    # 5️⃣ BOTÓN DE CIERRE
+    # --------------------------------------------------------------
 
-    st.info(f"🧮 Ajuste por redondeo (sobrante): **${faltante:.2f}**")
+    if st.button("🔒 Cerrar ciclo ahora"):
 
-    # ============================================================
-    # 7️⃣ CONFIRMAR CIERRE
-    # ============================================================
-    if st.button("🔒 Confirmar cierre de ciclo"):
+        cursor.execute("""
+            UPDATE ciclo
+            SET fecha_fin=%s,
+                saldo_final=%s,
+                estado='cerrado'
+            WHERE id_ciclo=%s
+        """, (date.today(), saldo_final, id_ciclo))
 
-        try:
-            # 1️⃣ Registrar valores finales del ciclo
-            cursor.execute("""
-                UPDATE cierre_ciclo
-                SET 
-                    Fecha_cierre = %s,
-                    Total_ahorros = %s,
-                    Total_fondo_grupo = %s,
-                    Utilidades = %s,
-                    Sobrante = %s,
-                    Estado = 'Cerrado'
-                WHERE Id_Cierre = %s
-            """, (
-                date.today().strftime("%Y-%m-%d"),
-                total_ahorros,
-                total_fondo,
-                utilidades,
-                faltante,
-                id_cierre
-            ))
+        con.commit()
 
-            # 2️⃣ Crear nuevo ciclo automáticamente
-            cursor.execute("""
-                INSERT INTO cierre_ciclo
-                (Fecha_inicio, Fecha_cierre, Total_ahorros, Total_fondo_grupo,
-                 Utilidades, Sobrante, Estado, Id_Grupo)
-                VALUES (%s, NULL, 0, 0, 0, 0, 'Abierto', %s)
-            """, (
-                date.today().strftime("%Y-%m-%d"),
-                ciclo["Id_Grupo"]
-            ))
-
-            con.commit()
-            st.success("✔ El ciclo ha sido cerrado correctamente y un nuevo ciclo fue creado.")
-            st.rerun()
-
-        except Exception as e:
-            st.error(f"❌ Error al cerrar ciclo: {e}")
-
+        st.success("✔ Ciclo cerrado exitosamente. El saldo final es 0.00.")
+        st.rerun()
