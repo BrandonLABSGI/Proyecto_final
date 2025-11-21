@@ -16,11 +16,8 @@ from modulos.caja import obtener_o_crear_reunion, registrar_movimiento, obtener_
 # NUEVO MÓDULO: OTROS GASTOS DEL GRUPO
 from modulos.gastos_grupo import gastos_grupo
 
-# NUEVO: CIERRE DE CICLO
+# 🔵 AGREGADO: CIERRE DE CICLO
 from modulos.cierre_ciclo import cierre_ciclo
-
-# NUEVO: REGLAS INTERNAS
-from modulos.reglas import gestionar_reglas
 
 
 
@@ -31,7 +28,6 @@ def interfaz_directiva():
 
     rol = st.session_state.get("rol", "")
 
-    # Seguridad de acceso
     if rol != "Director":
         st.title("Acceso denegado")
         st.warning("Solo el Director puede acceder a esta sección.")
@@ -39,9 +35,6 @@ def interfaz_directiva():
 
     st.title("👩‍💼 Panel de la Directiva del Grupo")
 
-    # ============================================================
-    # NUEVA FECHA GLOBAL
-    # ============================================================
     st.markdown("### 📅 Seleccione la fecha de reunión del reporte:")
 
     if "fecha_global" not in st.session_state:
@@ -54,21 +47,18 @@ def interfaz_directiva():
 
     st.session_state["fecha_global"] = fecha_sel
 
-    # ============================================================
     # MOSTRAR SALDO ACTUAL DE CAJA
-    # ============================================================
     try:
         saldo = obtener_saldo_por_fecha(fecha_sel)
         st.info(f"💰 Saldo de caja para {fecha_sel}: **${saldo:.2f}**")
     except:
         st.warning("⚠ Error al obtener el saldo de caja.")
 
-    # Cerrar sesión
     if st.sidebar.button("🔒 Cerrar sesión"):
         st.session_state.clear()
         st.rerun()
 
-    # Menú lateral
+    # MENÚ
     menu = st.sidebar.radio(
         "Selección rápida:",
         [
@@ -80,41 +70,28 @@ def interfaz_directiva():
             "Registrar ahorro",
             "Registrar otros gastos",
             "Cierre de ciclo",
-            "Reporte de caja",
-            "Reglas internas"      # ← AGREGADO
+            "Reporte de caja"
         ]
     )
 
     if menu == "Registro de asistencia":
         pagina_asistencia()
-
     elif menu == "Aplicar multas":
         pagina_multas()
-
     elif menu == "Registrar nuevas socias":
         pagina_registro_socias()
-
     elif menu == "Autorizar préstamo":
         autorizar_prestamo()
-
     elif menu == "Registrar pago de préstamo":
         pago_prestamo()
-
     elif menu == "Registrar ahorro":
         ahorro()
-
     elif menu == "Registrar otros gastos":
         gastos_grupo()
-
     elif menu == "Cierre de ciclo":
         cierre_ciclo()
-
     elif menu == "Reporte de caja":
         reporte_caja()
-
-    elif menu == "Reglas internas":
-        gestionar_reglas()
-
 
 
 
@@ -131,7 +108,6 @@ def pagina_asistencia():
     fecha_raw = st.date_input("📅 Fecha de la reunión", date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
-    # Verificar si existe la reunión
     cursor.execute("SELECT Id_Reunion FROM Reunion WHERE Fecha_reunion=%s", (fecha,))
     row = cursor.fetchone()
 
@@ -146,7 +122,7 @@ def pagina_asistencia():
         id_reunion = cursor.lastrowid
         st.success(f"Reunión creada (ID {id_reunion}).")
 
-    # Lista de socias
+    # LISTA DE SOCIAS
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
 
@@ -187,7 +163,7 @@ def pagina_asistencia():
         con.commit()
         st.success("Asistencia registrada.")
 
-    # Mostrar asistencia
+    # MOSTRAR ASISTENCIA
     cursor.execute("""
         SELECT S.Nombre, A.Estado_asistencia
         FROM Asistencia A
@@ -197,8 +173,21 @@ def pagina_asistencia():
     datos = cursor.fetchall()
 
     if datos:
-        df = pd.DataFrame(datos, columns=["Socia", "Asistencia"])
+        df = pd.DataFrame(datos, columns=["Socia", "Estado"])
         st.dataframe(df)
+
+        # ================================
+        # RESUMEN DE ASISTENCIA (NUEVO)
+        # ================================
+        total_presentes = df[df["Estado"] == "Presente"].shape[0]
+        total_ausentes = df[df["Estado"] == "Ausente"].shape[0]
+        total_socias = len(df)
+
+        st.markdown("### 📊 Resumen de asistencia")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Presentes", total_presentes)
+        c2.metric("Ausentes", total_ausentes)
+        c3.metric("Total socias", total_socias)
 
     st.markdown("---")
 
@@ -227,13 +216,11 @@ def pagina_asistencia():
 
         con.commit()
 
-        # Registrar movimiento en caja
         id_caja = obtener_o_crear_reunion(fecha)
         registrar_movimiento(id_caja, "Ingreso", f"Ingreso Extra – {tipo}", monto)
 
         st.success("Ingreso extraordinario registrado y sumado a caja.")
         st.rerun()
-
 
 
 
