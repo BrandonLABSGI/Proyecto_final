@@ -1,8 +1,5 @@
 import streamlit as st
 from datetime import date
-from reportlab.platypus import SimpleDocTemplate, Paragraph
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet
 from modulos.conexion import obtener_conexion
 from modulos.caja import obtener_o_crear_reunion, registrar_movimiento, obtener_saldo_por_fecha
 
@@ -21,30 +18,19 @@ def gastos_grupo():
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
     # --------------------------------------------------------
-    # RESPONSABLE DEL GASTO
+    # RESPONSABLE
     # --------------------------------------------------------
     responsable = st.text_input("👤 Nombre de la persona responsable del gasto")
 
     # --------------------------------------------------------
-    # DUI SOLO 9 NÚMEROS
+    # DUI
     # --------------------------------------------------------
     dui_input = st.text_input("DUI (9 dígitos)", max_chars=9)
 
-    if dui_input:
-        if not dui_input.isdigit():
-            st.warning("⚠️ El DUI debe contener solo números.")
-            return
-
-        if len(dui_input) != 9:
-            st.warning("⚠️ El DUI debe tener exactamente 9 dígitos.")
-            return
-
-        # DUI válido
+    # Formateo del DUI solo si tiene 9 dígitos correctos
+    dui_formateado = None
+    if dui_input.isdigit() and len(dui_input) == 9:
         dui_formateado = dui_input[:8] + "-" + dui_input[8:]
-
-    else:
-        st.warning("⚠️ Debe ingresar el DUI.")
-        return
 
     # --------------------------------------------------------
     # DESCRIPCIÓN
@@ -57,22 +43,18 @@ def gastos_grupo():
     monto = st.number_input("Monto del gasto ($)", min_value=0.25, step=0.25)
 
     # --------------------------------------------------------
-    # SALDO DISPONIBLE
+    # SALDO
     # --------------------------------------------------------
     saldo = obtener_saldo_por_fecha(fecha)
     st.info(f"💰 Saldo disponible en caja para {fecha}: **${saldo:.2f}**")
 
     # --------------------------------------------------------
-    # BOTÓN PARA REGISTRO
+    # BOTÓN
     # --------------------------------------------------------
     if st.button("💳 Registrar gasto"):
 
-        # Validación de saldo
-        if monto > saldo:
-            st.error("❌ El monto del gasto NO puede ser mayor al saldo disponible.")
-            return
+        # === VALIDACIONES SOLO AQUÍ ===
 
-        # Validación extra de campos obligatorios
         if not responsable.strip():
             st.error("❌ Debe ingresar el nombre del responsable.")
             return
@@ -81,17 +63,31 @@ def gastos_grupo():
             st.error("❌ Debe ingresar la descripción del gasto.")
             return
 
-        # Obtener reunión
+        if not dui_input.isdigit() or len(dui_input) != 9:
+            st.error("❌ El DUI debe tener exactamente 9 dígitos numéricos.")
+            return
+
+        if monto > saldo:
+            st.error("❌ El monto del gasto no puede ser mayor al saldo disponible.")
+            return
+
+        # ----------------------------------------------------
+        # CREAR O OBTENER REUNIÓN
+        # ----------------------------------------------------
         id_caja = obtener_o_crear_reunion(fecha)
 
-        # Registrar gasto en tabla Gastos_grupo
+        # ----------------------------------------------------
+        # REGISTRAR EN TABLA Gastos_grupo
+        # ----------------------------------------------------
         cursor.execute("""
             INSERT INTO Gastos_grupo(Fecha_gasto, Descripcion, Monto, Responsable, DUI, Id_Caja)
             VALUES (%s, %s, %s, %s, %s, %s)
         """, (fecha, descripcion, monto, responsable, dui_formateado, id_caja))
         con.commit()
 
-        # Registrar salida de caja
+        # ----------------------------------------------------
+        # REGISTRAR MOVIMIENTO EN CAJA
+        # ----------------------------------------------------
         registrar_movimiento(id_caja, "Egreso", f"Gasto – {descripcion}", monto)
 
         st.success("✔ Gasto registrado exitosamente.")
