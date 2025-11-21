@@ -57,7 +57,6 @@ def editor_reglas():
         st.error("No existe el registro de reglas internas (id_regla = 1).")
         return
 
-    # ------ campos existentes en tu tabla ------
     nombre_grupo = st.text_input("Nombre del Grupo", datos["nombre_grupo"])
     nombre_comunidad = st.text_input("Comunidad", datos["nombre_comunidad"])
 
@@ -93,7 +92,6 @@ def editor_reglas():
 
     otras_reglas = st.text_area("Otras reglas", datos["otras_reglas"])
 
-    # ------------------ GUARDAR ------------------
     if st.button("💾 Guardar cambios"):
 
         cursor.execute("""
@@ -121,6 +119,7 @@ def editor_reglas():
         con.commit()
         st.success("Cambios guardados correctamente.")
         st.rerun()
+
 
 
 # ============================================================
@@ -158,7 +157,6 @@ def mostrar_permisos():
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    # Agregar un permiso nuevo
     nuevo = st.text_input("Agregar nuevo permiso")
 
     if st.button("➕ Registrar permiso"):
@@ -228,9 +226,9 @@ def exportar_pdf():
         contenido.append(Paragraph(f"<b>Ahorro mínimo:</b> ${datos['ahorro_minimo']}", styles["Normal"]))
         contenido.append(Paragraph(f"<b>Interés por cada $10 prestados:</b> {datos['interes_por_10']}%", styles["Normal"]))
         contenido.append(Paragraph(f"<b>Préstamo máximo:</b> ${datos['prestamo_maximo']}", styles["Normal"]))
-       contenido.append(Paragraph(f"<b>Plazo máximo:</b> {datos['plazo_maximo']} meses", styles["Normal"]))
+        contenido.append(Paragraph(f"<b>Plazo máximo:</b> {datos['plazo_maximo']} meses", styles["Normal"]))
+        
         contenido.append(Spacer(1, 12))
-
         contenido.append(Paragraph("<b>Otras reglas:</b>", styles["Heading3"]))
         contenido.append(Paragraph(datos["otras_reglas"], styles["Normal"]))
 
@@ -240,6 +238,8 @@ def exportar_pdf():
         doc.build(contenido)
 
         st.success("PDF generado correctamente.")
-        st.download_button("📥 Descargar PDF", data=open(filename, "rb").read(), file_name="reglas_internas.pdf")
-
-
+        st.download_button(
+            "📥 Descargar PDF",
+            data=open(filename, "rb").read(),
+            file_name="reglas_internas.pdf"
+        )
