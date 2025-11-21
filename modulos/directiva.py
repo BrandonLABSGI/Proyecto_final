@@ -11,7 +11,9 @@ from modulos.pago_prestamo import pago_prestamo
 from modulos.ahorro import ahorro
 from modulos.reporte_caja import reporte_caja
 from modulos.gastos_grupo import gastos_grupo
-from modulos.cierre_ciclo import cierre_ciclo
+
+# 🔵 AHORA IMPORTAMOS EL NUEVO CIERRE DE CICLO (VERSIÓN UNIFICADA)
+from modulos.cierre_ciclo_v2 import cierre_ciclo
 
 # NUEVO MÓDULO DE REGLAS INTERNAS
 from modulos.reglas import gestionar_reglas
@@ -77,9 +79,9 @@ def interfaz_directiva():
             "Registrar pago de préstamo",
             "Registrar ahorro",
             "Registrar otros gastos",
-            "Cierre de ciclo",
+            "Cierre de ciclo",         # ← USARÁ EL NUEVO
             "Reporte de caja",
-            "Reglas internas"   # ← NUEVO
+            "Reglas internas"          # ← NUEVO
         ]
     )
 
@@ -109,7 +111,7 @@ def interfaz_directiva():
         gastos_grupo()
 
     elif menu == "Cierre de ciclo":
-        cierre_ciclo()
+        cierre_ciclo()   # ← YA ES EL NUEVO
 
     elif menu == "Reporte de caja":
         reporte_caja()
@@ -120,11 +122,11 @@ def interfaz_directiva():
 
 
 
-# -------------------------------------------------------------
-#        TODAS LAS FUNCIONES YA EXISTENTES EN TU SISTEMA
-#        (NO LAS MODIFIQUÉ, SOLO LAS MANTENGO)
-# -------------------------------------------------------------
 
+
+# -------------------------------------------------------------
+#        TODAS LAS FUNCIONES EXISTENTES DE TU SISTEMA
+# -------------------------------------------------------------
 def pagina_asistencia():
 
     st.header("📝 Registro de asistencia")
