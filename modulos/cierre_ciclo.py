@@ -1,135 +1,159 @@
 import streamlit as st
+import pandas as pd
 from datetime import date
 from modulos.conexion import obtener_conexion
-from modulos.caja import obtener_saldo_por_fecha
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet
+
+# Caja por reunión
+from modulos.caja import obtener_o_crear_reunion, registrar_movimiento
 
 
+# ============================================================
+#                 🟦 MÓDULO DE CIERRE DE CICLO
+# ============================================================
 def cierre_ciclo():
 
     st.header("🔚 Cierre de Ciclo – Solidaridad CVX")
 
-    # ----------------------------------
-    # FECHA DEL CIERRE
-    # ----------------------------------
-    fecha_raw = st.date_input("📅 Fecha del cierre", date.today())
-    fecha_cierre = fecha_raw.strftime("%Y-%m-%d")
-
-    # ----------------------------------
-    # RESPONSABLE
-    # ----------------------------------
-    responsable = st.text_input("👤 Responsable del cierre (Directiva)")
-    observaciones = st.text_area("📝 Observaciones del cierre (opcional)")
-
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    # ----------------------------------
-    # OBTENER CICLO ACTUAL
-    # ----------------------------------
-    cursor.execute("SELECT * FROM ciclo ORDER BY id_ciclo DESC LIMIT 1")
-    ciclo_actual = cursor.fetchone()
+    # ============================================================
+    # 1️⃣ OBTENER CICLO ACTIVO
+    # ============================================================
+    cursor.execute("""
+        SELECT *
+        FROM cierre_ciclo
+        WHERE Estado = 'Abierto'
+        ORDER BY Id_Cierre DESC
+        LIMIT 1
+    """)
+    ciclo = cursor.fetchone()
 
-    if not ciclo_actual:
+    if not ciclo:
         st.error("❌ No existe ningún ciclo activo. Debes crear uno antes de cerrar.")
         return
 
-    id_ciclo = ciclo_actual["id_ciclo"]
-    fecha_inicio = ciclo_actual["fecha_inicio"]
+    id_cierre = ciclo["Id_Cierre"]
+    fecha_inicio = ciclo["Fecha_inicio"]
 
-    # ----------------------------------
-    # OBTENER SALDO FINAL A ESA FECHA
-    # ----------------------------------
-    saldo_final = obtener_saldo_por_fecha(fecha_cierre)
+    st.info(f"📌 Ciclo activo iniciado el: **{fecha_inicio}**")
 
-    st.info(f"💰 **Saldo final de caja al {fecha_cierre}: ${saldo_final:.2f}**")
+    # ============================================================
+    # 2️⃣ OBTENER DATOS DE AHORROS POR SOCIA
+    # ============================================================
+    cursor.execute("""
+        SELECT S.Id_Socia, S.Nombre,
+               COALESCE(A.`Saldo acumulado`,0) AS saldo_final
+        FROM Socia S
+        LEFT JOIN (
+            SELECT Id_Socia, `Saldo acumulado`
+            FROM Ahorro
+            ORDER BY Id_Ahorro DESC
+        ) A ON S.Id_Socia = A.Id_Socia
+        ORDER BY S.Id_Socia ASC;
+    """)
+    socias = cursor.fetchall()
 
-    # ----------------------------------
-    # BOTÓN PRINCIPAL
-    # ----------------------------------
-    if st.button("🔐 Cerrar Ciclo"):
+    df_socias = pd.DataFrame(socias)
 
-        if responsable.strip() == "":
-            st.warning("⚠ Debe escribir un responsable para el cierre.")
-            return
+    total_ahorros = df_socias["saldo_final"].sum()
 
-        # Guardar cierre en la base de datos
-        cursor.execute("""
-            INSERT INTO cierre_ciclo (id_ciclo, fecha_cierre, saldo_final, observaciones, responsable)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (id_ciclo, fecha_cierre, saldo_final, observaciones, responsable))
-        con.commit()
+    # ============================================================
+    # 3️⃣ OBTENER FONDO DEL GRUPO (CAJA)
+    # ============================================================
+    cursor.execute("""
+        SELECT saldo_final
+        FROM caja_reunion
+        ORDER BY fecha DESC
+        LIMIT 1
+    """)
+    row_fondo = cursor.fetchone()
 
-        id_cierre = cursor.lastrowid
+    total_fondo = row_fondo["saldo_final"] if row_fondo else 0
 
-        # ----------------------------------
-        # CREAR AUTOMÁTICAMENTE EL NUEVO CICLO
-        # ----------------------------------
-        cursor.execute("""
-            INSERT INTO ciclo (fecha_inicio, saldo_inicial)
-            VALUES (%s, %s)
-        """, (fecha_cierre, saldo_final))
-        con.commit()
+    # ============================================================
+    # 4️⃣ MOSTRAR RESUMEN PREVIO
+    # ============================================================
+    st.subheader("📊 Resumen del ciclo antes del cierre")
 
-        # ----------------------------------
-        # GENERAR PDF
-        # ----------------------------------
-        nombre_pdf = f"cierre_ciclo_{id_cierre}.pdf"
-        styles = getSampleStyleSheet()
+    c1, c2 = st.columns(2)
+    c1.metric("💰 Total ahorros individuales", f"${total_ahorros:,.2f}")
+    c2.metric("🏦 Fondo total del grupo (caja)", f"${total_fondo:,.2f}")
 
-        doc = SimpleDocTemplate(nombre_pdf, pagesize=letter)
-        elementos = []
+    # ============================================================
+    # 5️⃣ CALCULAR UTILIDADES DEL GRUPO
+    # ============================================================
+    if total_ahorros == 0:
+        st.error("❌ No hay ahorros registrados. No puede hacerse el cierre.")
+        return
 
-        # Título
-        titulo = Paragraph(
-            "<b><font size=16>SOLIDARIDAD CVX</font></b>",
-            styles["Title"]
-        )
-        elementos.append(titulo)
-        elementos.append(Spacer(1, 12))
+    utilidades = total_fondo - total_ahorros
+    if utilidades < 0:
+        st.warning("⚠ El fondo del grupo es menor que los ahorros. No se puede cerrar.")
+        return
 
-        subtitulo = Paragraph(
-            "<b><font size=14>Cierre de Ciclo</font></b>",
-            styles["Title"]
-        )
-        elementos.append(subtitulo)
-        elementos.append(Spacer(1, 24))
+    st.metric("📈 Utilidades del grupo", f"${utilidades:,.2f}")
 
-        tabla = Table([
-            ["Campo", "Valor"],
-            ["Fecha de inicio del ciclo", str(fecha_inicio)],
-            ["Fecha de cierre del ciclo", fecha_cierre],
-            ["Saldo final del ciclo", f"${saldo_final:.2f}"],
-            ["Responsable", responsable],
-            ["Observaciones", observaciones if observaciones else "Ninguna"]
-        ])
+    # ============================================================
+    # 6️⃣ DISTRIBUCIÓN PROPORCIONAL
+    # ============================================================
+    df_socias["porcentaje"] = df_socias["saldo_final"] / total_ahorros
+    df_socias["utilidad_asignada"] = df_socias["porcentaje"] * utilidades
+    df_socias["utilidad_redondeada"] = df_socias["utilidad_asignada"].round(2)
+    df_socias["saldo_siguiente_ciclo"] = df_socias["saldo_final"] + df_socias["utilidad_redondeada"]
 
-        tabla.setStyle(TableStyle([
-            ("BACKGROUND", (0,0), (-1,0), colors.gray),
-            ("TEXTCOLOR", (0,0), (-1,0), colors.white),
-            ("BOX", (0,0), (-1,-1), 1, colors.black),
-            ("GRID", (0,0), (-1,-1), 1, colors.black),
-            ("ALIGN", (0,0), (-1,-1), "CENTER"),
-        ]))
+    st.subheader("📄 Distribución proporcional")
 
-        elementos.append(tabla)
-        elementos.append(Spacer(1, 25))
+    st.dataframe(df_socias[[
+        "Id_Socia", "Nombre", "saldo_final",
+        "porcentaje", "utilidad_redondeada", "saldo_siguiente_ciclo"
+    ]])
 
-        firma = Paragraph("<b>Firma del responsable:</b> ________________________________", styles["Normal"])
-        elementos.append(firma)
+    faltante = utilidades - df_socias["utilidad_redondeada"].sum()
 
-        doc.build(elementos)
+    st.info(f"🧮 Ajuste por redondeo (sobrante): **${faltante:.2f}**")
 
-        # Descargar PDF
-        with open(nombre_pdf, "rb") as f:
-            st.download_button(
-                "📥 Descargar PDF del cierre",
-                f,
-                file_name=nombre_pdf
-            )
+    # ============================================================
+    # 7️⃣ CONFIRMAR CIERRE
+    # ============================================================
+    if st.button("🔒 Confirmar cierre de ciclo"):
 
-        st.success("✔ Ciclo cerrado exitosamente. El nuevo ciclo fue creado automáticamente.")
-        st.balloons()
+        try:
+            # 1️⃣ Registrar valores finales del ciclo
+            cursor.execute("""
+                UPDATE cierre_ciclo
+                SET 
+                    Fecha_cierre = %s,
+                    Total_ahorros = %s,
+                    Total_fondo_grupo = %s,
+                    Utilidades = %s,
+                    Sobrante = %s,
+                    Estado = 'Cerrado'
+                WHERE Id_Cierre = %s
+            """, (
+                date.today().strftime("%Y-%m-%d"),
+                total_ahorros,
+                total_fondo,
+                utilidades,
+                faltante,
+                id_cierre
+            ))
+
+            # 2️⃣ Crear nuevo ciclo automáticamente
+            cursor.execute("""
+                INSERT INTO cierre_ciclo
+                (Fecha_inicio, Fecha_cierre, Total_ahorros, Total_fondo_grupo,
+                 Utilidades, Sobrante, Estado, Id_Grupo)
+                VALUES (%s, NULL, 0, 0, 0, 0, 'Abierto', %s)
+            """, (
+                date.today().strftime("%Y-%m-%d"),
+                ciclo["Id_Grupo"]
+            ))
+
+            con.commit()
+            st.success("✔ El ciclo ha sido cerrado correctamente y un nuevo ciclo fue creado.")
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"❌ Error al cerrar ciclo: {e}")
+
