@@ -314,86 +314,65 @@ def pagina_multas():
 
 
 
-# ============================================================
-# REGISTRO DE SOCIAS
-# ============================================================
-def pagina_registro_socias():
+# ==========================
+# CAMPOS DE DUI Y TELÉFONO
+# ==========================
 
-    st.header("👩‍🦰 Registro de nuevas socias")
+st.subheader("Datos de identificación")
 
-    con = obtener_conexion()
+# -------------- DUI --------------
+dui_input = st.text_input(
+    "DUI – Número de DUI (solo 9 números)",
+    max_chars=9,
+    key="dui_raw"
+)
+
+# Solo números
+dui_numerico = "".join([c for c in dui_input if c.isdigit()])[:9]
+
+# Formato automático: 8 dígitos + guion + 1
+dui_formateado = ""
+if len(dui_numerico) > 8:
+    dui_formateado = f"{dui_numerico[:8]}-{dui_numerico[8]}"
+else:
+    dui_formateado = dui_numerico
+
+# Mostrar formato bajo el input
+st.caption(f"Formato DUI: **{dui_formateado}**")
+
+
+# -------------- TELÉFONO --------------
+telefono_input = st.text_input(
+    "Teléfono (8 dígitos – solo números)",
+    max_chars=8,
+    key="telefono_raw"
+)
+
+# Filtrar solo números
+telefono_filtrado = "".join([c for c in telefono_input if c.isdigit()])[:8]
+
+# Mostrar número limpio
+st.caption(f"Teléfono ingresado: **{telefono_filtrado}**")
+
+
+# -------------- BOTÓN DE REGISTRO --------------
+if st.button("Registrar socia"):
+
+    if len(dui_numerico) != 9:
+        st.error("❌ El DUI debe tener **9 dígitos numéricos**.")
+        st.stop()
+
+    if len(telefono_filtrado) != 8:
+        st.error("❌ El teléfono debe tener **8 dígitos numéricos**.")
+        st.stop()
+
+    # Guardar en BD
     cursor = con.cursor()
-
-    nombre = st.text_input("Nombre completo")
-
-    # ----------------------------
-    # DUI (solo números, 9 dígitos)
-    # ----------------------------
-    dui_raw = st.text_input(
-        "DUI – Número de DUI",
-        max_chars=9,
-        placeholder="Solo números (9 dígitos)",
+    cursor.execute(
+        "INSERT INTO Socia (Nombre, DUI, Telefono, Sexo) VALUES (%s, %s, %s, 'F')",
+        (nombre, dui_formateado, telefono_filtrado)
     )
+    con.commit()
 
-    # Sanitizar: quitar letras
-    dui_raw = ''.join(filter(str.isdigit, dui_raw))
-
-    # Campo de confirmación
-    dui_confirm = st.text_input(
-        "Confirmar DUI",
-        max_chars=9,
-        placeholder="Reingrese el DUI",
-    )
-    dui_confirm = ''.join(filter(str.isdigit, dui_confirm))
-
-    # DUI final con guion
-    dui_formateado = None
-    if len(dui_raw) == 9:
-        dui_formateado = dui_raw[:8] + "-" + dui_raw[8]
-
-    # ----------------------------
-    # Teléfono (solo números, 8 dígitos)
-    # ----------------------------
-    tel_raw = st.text_input(
-        "Teléfono (8 dígitos)",
-        max_chars=8,
-        placeholder="Ej: 70123456"
-    )
-    tel_raw = ''.join(filter(str.isdigit, tel_raw))
-
-    if st.button("Registrar socia"):
-
-        if nombre.strip() == "":
-            st.warning("Debe ingresar un nombre.")
-            return
-
-        if len(dui_raw) != 9:
-            st.error("El DUI debe tener exactamente 9 dígitos.")
-            return
-
-        if dui_raw != dui_confirm:
-            st.error("El DUI ingresado no coincide con la confirmación.")
-            return
-
-        if len(tel_raw) != 8:
-            st.error("El número de teléfono debe tener exactamente 8 dígitos.")
-            return
-
-        # Insertar en la base
-        cursor.execute("""
-            INSERT INTO Socia(Nombre, DUI, Telefono, Sexo)
-            VALUES(%s, %s, %s, 'F')
-        """, (nombre, dui_formateado, tel_raw))
-
-        con.commit()
-
-        st.success(f"Socia registrada correctamente: {nombre}")
-        st.rerun()
-
-    # Mostrar listado
-    cursor.execute("SELECT Id_Socia, Nombre, DUI, Telefono FROM Socia ORDER BY Id_Socia ASC")
-    datos = cursor.fetchall()
-
-    if datos:
-        df = pd.DataFrame(datos, columns=["ID", "Nombre", "DUI", "Telefono"])
-        st.dataframe(df)
+    st.success("✔ Socia registrada correctamente.")
+    st.rerun()
