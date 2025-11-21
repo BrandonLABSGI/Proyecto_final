@@ -315,7 +315,7 @@ def pagina_multas():
 
 
 # ============================================================
-# REGISTRO DE SOCIAS  (CORREGIDO CON DUI Y TELÉFONO)
+# REGISTRO DE SOCIAS  (CORREGIDO CON VALIDACIÓN DUI Y TELÉFONO)
 # ============================================================
 def pagina_registro_socias():
 
@@ -325,8 +325,28 @@ def pagina_registro_socias():
     cursor = con.cursor()
 
     nombre = st.text_input("Nombre completo")
-    dui = st.text_input("Número de DUI (formato 00000000-0)")
-    telefono = st.text_input("Número de teléfono (0000-0000)")
+
+    # DUI: 00000000-0
+    dui = st.text_input("Número de DUI (formato 00000000-0)", 
+                        max_chars=10, 
+                        placeholder="00000000-0")
+
+    # Teléfono: 0000-0000
+    telefono = st.text_input("Número de teléfono (0000-0000)",
+                             max_chars=9,
+                             placeholder="0000-0000")
+
+    # -------------------------------
+    # VALIDACIÓN
+    # -------------------------------
+
+    import re
+
+    # Expresión del DUI: 8 dígitos, -, 1 dígito
+    patron_dui = r"^[0-9]{8}-[0-9]$"
+
+    # Teléfono: 4 dígitos, -, 4 dígitos
+    patron_tel = r"^[0-9]{4}-[0-9]{4}$"
 
     if st.button("Registrar socia"):
 
@@ -334,6 +354,17 @@ def pagina_registro_socias():
             st.warning("Debe completar todos los campos.")
             return
 
+        # 🔴 Validar DUI
+        if not re.match(patron_dui, dui):
+            st.error("❌ Formato de DUI incorrecto. Debe ser 00000000-0")
+            return
+
+        # 🔴 Validar teléfono
+        if not re.match(patron_tel, telefono):
+            st.error("❌ Formato de teléfono incorrecto. Debe ser 0000-0000")
+            return
+
+        # Guardar si todo es válido
         cursor.execute("""
             INSERT INTO Socia (Nombre, DUI, Telefono, Sexo)
             VALUES (%s, %s, %s, 'F')
@@ -341,13 +372,13 @@ def pagina_registro_socias():
 
         con.commit()
 
-        st.success("Socia registrada.")
+        st.success("Socia registrada correctamente.")
         st.rerun()
 
+    # Mostrar socias registradas
     cursor.execute("SELECT Id_Socia, Nombre, DUI, Telefono FROM Socia ORDER BY Id_Socia ASC")
     datos = cursor.fetchall()
 
     if datos:
         df = pd.DataFrame(datos, columns=["ID", "Nombre", "DUI", "Teléfono"])
         st.dataframe(df)
-
