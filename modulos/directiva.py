@@ -315,7 +315,7 @@ def pagina_multas():
 
 
 # ============================================================
-# REGISTRO DE SOCIAS
+# REGISTRO DE SOCIAS  (CORREGIDO CON DUI Y TELÉFONO)
 # ============================================================
 def pagina_registro_socias():
 
@@ -325,22 +325,29 @@ def pagina_registro_socias():
     cursor = con.cursor()
 
     nombre = st.text_input("Nombre completo")
+    dui = st.text_input("Número de DUI (formato 00000000-0)")
+    telefono = st.text_input("Número de teléfono (0000-0000)")
 
     if st.button("Registrar socia"):
 
-        if nombre.strip() == "":
-            st.warning("Debe ingresar un nombre.")
+        if nombre.strip() == "" or dui.strip() == "" or telefono.strip() == "":
+            st.warning("Debe completar todos los campos.")
             return
 
-        cursor.execute("INSERT INTO Socia(Nombre,Sexo) VALUES(%s,'F')", (nombre,))
+        cursor.execute("""
+            INSERT INTO Socia (Nombre, DUI, Telefono, Sexo)
+            VALUES (%s, %s, %s, 'F')
+        """, (nombre, dui, telefono))
+
         con.commit()
 
         st.success("Socia registrada.")
         st.rerun()
 
-    cursor.execute("SELECT Id_Socia,Nombre FROM Socia ORDER BY Id_Socia ASC")
+    cursor.execute("SELECT Id_Socia, Nombre, DUI, Telefono FROM Socia ORDER BY Id_Socia ASC")
     datos = cursor.fetchall()
 
     if datos:
-        df = pd.DataFrame(datos, columns=["ID","Nombre"])
+        df = pd.DataFrame(datos, columns=["ID", "Nombre", "DUI", "Teléfono"])
         st.dataframe(df)
+
