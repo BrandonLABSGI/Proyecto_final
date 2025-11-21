@@ -44,13 +44,12 @@ def cierre_ciclo():
 
     total_ingresos = total_multas + total_ing_extra + total_pagos
 
-   # 3️⃣ EGRESOS DEL CICLO
-cursor.execute("""
-    SELECT IFNULL(SUM(`Monto prestado`),0)
-    FROM Prestamo
-""")
-total_prestamos = cursor.fetchone()[0]
-
+    # 3️⃣ EGRESOS DEL CICLO
+    cursor.execute("""
+        SELECT IFNULL(SUM(`Monto prestado`),0)
+        FROM Prestamo
+    """)
+    total_prestamos = cursor.fetchone()[0]
 
     total_egresos = total_prestamos
 
