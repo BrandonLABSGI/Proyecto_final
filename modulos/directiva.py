@@ -13,8 +13,11 @@ from modulos.reporte_caja import reporte_caja
 # CAJA POR REUNIÓN (Opción A)
 from modulos.caja import obtener_o_crear_reunion, registrar_movimiento, obtener_saldo_por_fecha
 
-# NUEVO MÓDULO: OTROS GASTOS DEL GRUPO
+# OTROS GASTOS
 from modulos.gastos_grupo import gastos_grupo
+
+# *** NUEVO: CIERRE DE CICLO ***
+from modulos.cierre_ciclo import cierre_ciclo
 
 
 
@@ -62,7 +65,7 @@ def interfaz_directiva():
         st.session_state.clear()
         st.rerun()
 
-    # Menú lateral
+    # Menú lateral  ---------------------------------------------
     menu = st.sidebar.radio(
         "Selección rápida:",
         [
@@ -72,7 +75,8 @@ def interfaz_directiva():
             "Autorizar préstamo",
             "Registrar pago de préstamo",
             "Registrar ahorro",
-            "Registrar otros gastos",   # ← AGREGADO
+            "Registrar otros gastos",
+            "Cierre de ciclo",          # ← AGREGADO
             "Reporte de caja"
         ]
     )
@@ -95,8 +99,11 @@ def interfaz_directiva():
     elif menu == "Registrar ahorro":
         ahorro()
 
-    elif menu == "Registrar otros gastos":   # ← AGREGADO
+    elif menu == "Registrar otros gastos":
         gastos_grupo()
+
+    elif menu == "Cierre de ciclo":           # ← AGREGADO
+        cierre_ciclo()
 
     elif menu == "Reporte de caja":
         reporte_caja()
@@ -116,7 +123,6 @@ def pagina_asistencia():
     fecha_raw = st.date_input("📅 Fecha de la reunión", date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
-    # Verificar si existe la reunión
     cursor.execute("SELECT Id_Reunion FROM Reunion WHERE Fecha_reunion=%s", (fecha,))
     row = cursor.fetchone()
 
@@ -131,7 +137,6 @@ def pagina_asistencia():
         id_reunion = cursor.lastrowid
         st.success(f"Reunión creada (ID {id_reunion}).")
 
-    # Lista de socias
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
 
@@ -172,7 +177,6 @@ def pagina_asistencia():
         con.commit()
         st.success("Asistencia registrada.")
 
-    # Mostrar asistencia
     cursor.execute("""
         SELECT S.Nombre, A.Estado_asistencia
         FROM Asistencia A
@@ -187,9 +191,8 @@ def pagina_asistencia():
 
     st.markdown("---")
 
-    # ============================================================
-    # INGRESOS EXTRAORDINARIOS
-    # ============================================================
+    # INGRESOS EXTRAORDINARIOS -------------------------------
+
     st.header("💰 Ingresos extraordinarios")
 
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
@@ -301,7 +304,7 @@ def pagina_multas():
                 )
 
             cursor.execute("""
-                UPDATE Multa SET Estado=%s WHERE Id_Multa=%s
+                UPDATE Multa SET Estado=%s WHERE Id_Munta=%s
             """, (nuevo_estado, mid))
 
             con.commit()
