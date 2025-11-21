@@ -13,7 +13,7 @@ from modulos.reporte_caja import reporte_caja
 from modulos.gastos_grupo import gastos_grupo
 
 # 🔵 AHORA IMPORTAMOS EL NUEVO CIERRE DE CICLO (VERSIÓN UNIFICADA)
-from modulos.cierre_ciclo_v2 import cierre_ciclo
+from modulos.cierre_ciclo import cierre_ciclo
 
 # NUEVO MÓDULO DE REGLAS INTERNAS
 from modulos.reglas import gestionar_reglas
