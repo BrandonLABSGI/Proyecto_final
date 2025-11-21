@@ -315,7 +315,7 @@ def pagina_multas():
 
 
 # ============================================================
-# REGISTRO DE SOCIAS
+# REGISTRO DE SOCIAS  (CORREGIDO)
 # ============================================================
 def pagina_registro_socias():
 
@@ -324,87 +324,66 @@ def pagina_registro_socias():
     con = obtener_conexion()
     cursor = con.cursor()
 
-    # ------------------------
-    # CAMPOS DE REGISTRO
-    # ------------------------
-
+    # -------------------------
+    # CAMPOS DEL FORMULARIO
+    # -------------------------
     nombre = st.text_input("Nombre completo")
 
-    # DUI → solo permitir 9 dígitos
-    dui_raw = st.text_input(
-        "DUI – Número de DUI (solo 9 dígitos)",
-        max_chars=9,
-        key="dui_input"
-    )
+    # DUI – solo números (9 dígitos)
+    dui_raw = st.text_input("DUI (9 dígitos, sin guion)", max_chars=9)
 
-    # Limitar a solo dígitos
-    dui_filtrado = "".join([c for c in dui_raw if c.isdigit()])[:9]
-
-    # Actualizar el campo si el usuario intenta poner letras
-    if dui_raw != dui_filtrado:
-        st.session_state["dui_input"] = dui_filtrado
-
-    # Mostrar ejemplo del formato abajo
+    # Formateo automático del resumen DUI
     dui_formateado = ""
-    if len(dui_filtrado) == 9:
-        dui_formateado = f"{dui_filtrado[:8]}-{dui_filtrado[8]}" 
-    elif len(dui_filtrado) > 0:
-        dui_formateado = dui_filtrado
+    if dui_raw.isdigit() and len(dui_raw) == 9:
+        dui_formateado = f"{dui_raw[:8]}-{dui_raw[8]}"
+        st.success(f"Formato DUI: {dui_formateado}")
+    else:
+        st.info("Formato DUI esperado: 00000000-0")
 
-    st.caption(f"Formato: **{dui_formateado or '00000000-0'}**")
+    # Teléfono – solo números, 8 dígitos
+    telefono_raw = st.text_input("Teléfono (8 dígitos)", max_chars=8)
 
-    # ------------------------
-    # TELÉFONO (solo 8 dígitos)
-    # ------------------------
+    if telefono_raw and not telefono_raw.isdigit():
+        st.error("El teléfono solo debe contener números.")
 
-    tel_raw = st.text_input(
-        "Teléfono (8 dígitos)",
-        max_chars=8,
-        key="tel_input"
-    )
-
-    tel_filtrado = "".join([c for c in tel_raw if c.isdigit()])[:8]
-
-    if tel_raw != tel_filtrado:
-        st.session_state["tel_input"] = tel_filtrado
-
-    # ------------------------
+    # -------------------------
     # BOTÓN DE REGISTRO
-    # ------------------------
-
+    # -------------------------
     if st.button("Registrar socia"):
 
+        # Validaciones
         if nombre.strip() == "":
             st.warning("Debe ingresar un nombre.")
             return
 
-        if len(dui_filtrado) != 9:
-            st.error("El DUI debe tener exactamente 9 dígitos.")
+        if not (dui_raw.isdigit() and len(dui_raw) == 9):
+            st.error("El DUI debe contener exactamente 9 dígitos.")
             return
 
-        if len(tel_filtrado) != 8:
-            st.error("El teléfono debe tener 8 dígitos.")
+        if not (telefono_raw.isdigit() and len(telefono_raw) == 8):
+            st.error("El teléfono debe contener exactamente 8 dígitos.")
             return
 
-        # Guardar en formato final con guion
-        dui_final = f"{dui_filtrado[:8]}-{dui_filtrado[8]}"
-
+        # Insertar socia
         cursor.execute("""
             INSERT INTO Socia(Nombre, DUI, Telefono, Sexo)
-            VALUES (%s, %s, %s, 'F')
-        """, (nombre, dui_final, tel_filtrado))
+            VALUES(%s, %s, %s, 'F')
+        """, (nombre, dui_formateado, telefono_raw))
 
         con.commit()
+
         st.success("Socia registrada correctamente.")
         st.rerun()
 
-    # ------------------------
+    # -------------------------
     # MOSTRAR SOCIAS REGISTRADAS
-    # ------------------------
-
-    cursor.execute("SELECT Nombre, DUI, Telefono FROM Socia ORDER BY Id_Socia ASC")
+    # -------------------------
+    cursor.execute("SELECT Id_Socia AS ID, Nombre, DUI, Telefono FROM Socia ORDER BY Id_Socia ASC")
     datos = cursor.fetchall()
 
     if datos:
-        df = pd.DataFrame(datos, columns=["Nombre", "DUI", "Teléfono"])
-        st.dataframe(df, hide_index=True)
+        df = pd.DataFrame(datos, columns=["ID", "Nombre", "DUI", "Teléfono"])
+        st.dataframe(df, hide_index=True)   # ← OCULTA SOLO EL ÍNDICE, NO EL ID
+
+    cursor.close()
+    con.close()
