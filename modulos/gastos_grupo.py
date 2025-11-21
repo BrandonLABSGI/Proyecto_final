@@ -1,9 +1,14 @@
 import streamlit as st
-from datetime import date
+from datetime import date, datetime
 from modulos.conexion import obtener_conexion
 
-# Caja por reunión (ya existente)
+# Caja por reunión
 from modulos.caja import obtener_o_crear_reunion, registrar_movimiento
+
+# PDF
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
 
 
 def gastos_grupo():
@@ -30,10 +35,25 @@ def gastos_grupo():
             return
 
         try:
-            # 1️⃣ Crear u obtener la reunión según la fecha
+            # -------------------------------------------------
+            # 1️⃣ Obtener o crear reunión/caja del día
+            # -------------------------------------------------
             id_caja = obtener_o_crear_reunion(fecha_gasto)
 
-            # 2️⃣ Registrar el movimiento en caja (EGRESO)
+            # Obtener saldo anterior
+            con = obtener_conexion()
+            cursor = con.cursor()
+            cursor.execute("""
+                SELECT saldo_final 
+                FROM caja_reunion 
+                WHERE id_caja = %s
+            """, (id_caja,))
+            row = cursor.fetchone()
+            saldo_anterior = row[0] if row else 0
+
+            # -------------------------------------------------
+            # 2️⃣ Registrar el movimiento (EGRESO)
+            # -------------------------------------------------
             descripcion = f"Gasto del grupo – {concepto}"
             if responsable.strip() != "":
                 descripcion += f" (Responsable: {responsable})"
@@ -45,7 +65,57 @@ def gastos_grupo():
                 monto
             )
 
-            st.success("✔ Gasto registrado y descontado de la caja del día.")
+            # Obtener nuevo saldo
+            cursor.execute("""
+                SELECT saldo_final
+                FROM caja_reunion
+                WHERE id_caja = %s
+            """, (id_caja,))
+            saldo_nuevo = cursor.fetchone()[0]
+
+            con.close()
+
+            # -------------------------------------------------
+            # 3️⃣ Generar PDF
+            # -------------------------------------------------
+            nombre_pdf = f"gasto_{id_caja}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+
+            tabla = [
+                ["Detalle", "Valor"],
+                ["Fecha del gasto", fecha_gasto],
+                ["Concepto", concepto],
+                ["Responsable", responsable if responsable else "N/A"],
+                ["Monto del gasto", f"${monto:.2f}"],
+                ["Saldo anterior", f"${saldo_anterior:.2f}"],
+                ["Saldo después del gasto", f"${saldo_nuevo:.2f}"],
+                ["ID de caja del día", str(id_caja)],
+                ["Hora de registro", datetime.now().strftime("%H:%M:%S")],
+            ]
+
+            doc = SimpleDocTemplate(nombre_pdf, pagesize=letter)
+            tabla_pdf = Table(tabla)
+            tabla_pdf.setStyle(TableStyle([
+                ("BACKGROUND", (0,0), (-1,0), colors.darkgray),
+                ("TEXTCOLOR", (0,0), (-1,0), colors.whitesmoke),
+                ("ALIGN", (0,0), (-1,-1), "CENTER"),
+                ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+                ("GRID", (0,0), (-1,-1), 1, colors.black),
+            ]))
+
+            doc.build([tabla_pdf])
+
+            st.success("✔ Gasto registrado, descontado de caja y PDF generado.")
+
+            # -------------------------------------------------
+            # 4️⃣ Botón de descarga del PDF
+            # -------------------------------------------------
+            with open(nombre_pdf, "rb") as f:
+                st.download_button(
+                    "📥 Descargar comprobante en PDF",
+                    f,
+                    file_name=nombre_pdf,
+                    mime="application/pdf"
+                )
 
             st.rerun()
 
