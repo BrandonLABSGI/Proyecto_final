@@ -315,7 +315,7 @@ def pagina_multas():
 
 
 # ============================================================
-# REGISTRO DE SOCIAS  (CORREGIDO COMPLETO)
+# REGISTRO DE SOCIAS
 # ============================================================
 def pagina_registro_socias():
 
@@ -324,81 +324,87 @@ def pagina_registro_socias():
     con = obtener_conexion()
     cursor = con.cursor()
 
-    # ----------------------------
-    # NOMBRE
-    # ----------------------------
+    # ------------------------
+    # CAMPOS DE REGISTRO
+    # ------------------------
+
     nombre = st.text_input("Nombre completo")
 
-    st.subheader("Datos de identificación")
-
-    # ----------------------------
-    # DUI (9 dígitos, solo números)
-    # ----------------------------
-    dui_input = st.text_input(
-        "DUI – Número de DUI (solo números, 9 dígitos)",
+    # DUI → solo permitir 9 dígitos
+    dui_raw = st.text_input(
+        "DUI – Número de DUI (solo 9 dígitos)",
         max_chars=9,
-        key="dui_raw"
+        key="dui_input"
     )
 
-    dui_numerico = "".join([c for c in dui_input if c.isdigit()])[:9]
+    # Limitar a solo dígitos
+    dui_filtrado = "".join([c for c in dui_raw if c.isdigit()])[:9]
 
-    # Formateo visual: 00000000-0
-    if len(dui_numerico) == 9:
-        dui_formateado = f"{dui_numerico[:8]}-{dui_numerico[8]}"
-    else:
-        dui_formateado = dui_numerico
+    # Actualizar el campo si el usuario intenta poner letras
+    if dui_raw != dui_filtrado:
+        st.session_state["dui_input"] = dui_filtrado
 
-    st.caption(f"Formato DUI: **{dui_formateado}**")
+    # Mostrar ejemplo del formato abajo
+    dui_formateado = ""
+    if len(dui_filtrado) == 9:
+        dui_formateado = f"{dui_filtrado[:8]}-{dui_filtrado[8]}" 
+    elif len(dui_filtrado) > 0:
+        dui_formateado = dui_filtrado
 
+    st.caption(f"Formato: **{dui_formateado or '00000000-0'}**")
 
-    # ----------------------------
-    # TELÉFONO (solo 8 números)
-    # ----------------------------
-    telefono_input = st.text_input(
-        "Teléfono (8 dígitos – solo números)",
+    # ------------------------
+    # TELÉFONO (solo 8 dígitos)
+    # ------------------------
+
+    tel_raw = st.text_input(
+        "Teléfono (8 dígitos)",
         max_chars=8,
-        key="telefono_raw"
+        key="tel_input"
     )
 
-    telefono_filtrado = "".join([c for c in telefono_input if c.isdigit()])[:8]
+    tel_filtrado = "".join([c for c in tel_raw if c.isdigit()])[:8]
 
-    st.caption(f"Teléfono ingresado: **{telefono_filtrado}**")
+    if tel_raw != tel_filtrado:
+        st.session_state["tel_input"] = tel_filtrado
 
+    # ------------------------
+    # BOTÓN DE REGISTRO
+    # ------------------------
 
-    # ----------------------------
-    # BOTÓN REGISTRAR
-    # ----------------------------
     if st.button("Registrar socia"):
 
         if nombre.strip() == "":
-            st.error("❌ Debe ingresar un nombre.")
-            st.stop()
+            st.warning("Debe ingresar un nombre.")
+            return
 
-        if len(dui_numerico) != 9:
-            st.error("❌ El DUI debe tener **9 dígitos numéricos**.")
-            st.stop()
+        if len(dui_filtrado) != 9:
+            st.error("El DUI debe tener exactamente 9 dígitos.")
+            return
 
-        if len(telefono_filtrado) != 8:
-            st.error("❌ El teléfono debe tener **8 dígitos numéricos**.")
-            st.stop()
+        if len(tel_filtrado) != 8:
+            st.error("El teléfono debe tener 8 dígitos.")
+            return
 
-        # Guardar en BD
-        cursor.execute(
-            "INSERT INTO Socia (Nombre, DUI, Telefono, Sexo) VALUES (%s, %s, %s, 'F')",
-            (nombre, dui_formateado, telefono_filtrado)
-        )
+        # Guardar en formato final con guion
+        dui_final = f"{dui_filtrado[:8]}-{dui_filtrado[8]}"
+
+        cursor.execute("""
+            INSERT INTO Socia(Nombre, DUI, Telefono, Sexo)
+            VALUES (%s, %s, %s, 'F')
+        """, (nombre, dui_final, tel_filtrado))
+
         con.commit()
-
-        st.success("✔ Socia registrada correctamente.")
+        st.success("Socia registrada correctamente.")
         st.rerun()
 
+    # ------------------------
+    # MOSTRAR SOCIAS REGISTRADAS
+    # ------------------------
 
-    # ----------------------------
-    # MOSTRAR SOCIAS
-    # ----------------------------
-    cursor.execute("SELECT Id_Socia, Nombre, DUI, Telefono FROM Socia ORDER BY Id_Socia ASC")
+    cursor.execute("SELECT Nombre, DUI, Telefono FROM Socia ORDER BY Id_Socia ASC")
     datos = cursor.fetchall()
 
     if datos:
-        df = pd.DataFrame(datos, columns=["ID", "Nombre", "DUI", "Teléfono"])
-        st.dataframe(df)
+        df = pd.DataFrame(datos, columns=["Nombre", "DUI", "Teléfono"])
+        st.dataframe(df, hide_index=True)
