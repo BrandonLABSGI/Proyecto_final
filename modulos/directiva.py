@@ -10,14 +10,17 @@ from modulos.pago_prestamo import pago_prestamo
 from modulos.ahorro import ahorro
 from modulos.reporte_caja import reporte_caja
 
-# CAJA POR REUNIÓN (Opción A)
+# CAJA POR REUNIÓN
 from modulos.caja import obtener_o_crear_reunion, registrar_movimiento, obtener_saldo_por_fecha
 
-# NUEVO MÓDULO: OTROS GASTOS DEL GRUPO
+# OTROS GASTOS
 from modulos.gastos_grupo import gastos_grupo
 
-# 🔵 AGREGADO: CIERRE DE CICLO
+# CIERRE DE CICLO
 from modulos.cierre_ciclo import cierre_ciclo
+
+# REGLAS INTERNAS
+from modulos.reglas import gestionar_reglas
 
 
 
@@ -47,7 +50,6 @@ def interfaz_directiva():
 
     st.session_state["fecha_global"] = fecha_sel
 
-    # MOSTRAR SALDO ACTUAL DE CAJA
     try:
         saldo = obtener_saldo_por_fecha(fecha_sel)
         st.info(f"💰 Saldo de caja para {fecha_sel}: **${saldo:.2f}**")
@@ -58,7 +60,6 @@ def interfaz_directiva():
         st.session_state.clear()
         st.rerun()
 
-    # MENÚ
     menu = st.sidebar.radio(
         "Selección rápida:",
         [
@@ -70,7 +71,8 @@ def interfaz_directiva():
             "Registrar ahorro",
             "Registrar otros gastos",
             "Cierre de ciclo",
-            "Reporte de caja"
+            "Reporte de caja",
+            "Reglas internas"
         ]
     )
 
@@ -92,6 +94,8 @@ def interfaz_directiva():
         cierre_ciclo()
     elif menu == "Reporte de caja":
         reporte_caja()
+    elif menu == "Reglas internas":
+        gestionar_reglas()
 
 
 
@@ -122,7 +126,6 @@ def pagina_asistencia():
         id_reunion = cursor.lastrowid
         st.success(f"Reunión creada (ID {id_reunion}).")
 
-    # LISTA DE SOCIAS
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
 
@@ -142,15 +145,14 @@ def pagina_asistencia():
             est = "Presente" if valor == "SI" else "Ausente"
 
             cursor.execute("""
-                SELECT Id_Asistencia
-                FROM Asistencia
+                SELECT Id_Asistencia FROM Asistencia
                 WHERE Id_Reunion=%s AND Id_Socia=%s
             """, (id_reunion, id_socia))
             existe = cursor.fetchone()
 
             if existe:
                 cursor.execute("""
-                    UPDATE Asistencia 
+                    UPDATE Asistencia
                     SET Estado_asistencia=%s, Fecha=%s
                     WHERE Id_Reunion=%s AND Id_Socia=%s
                 """, (est, fecha, id_reunion, id_socia))
@@ -163,7 +165,6 @@ def pagina_asistencia():
         con.commit()
         st.success("Asistencia registrada.")
 
-    # MOSTRAR ASISTENCIA
     cursor.execute("""
         SELECT S.Nombre, A.Estado_asistencia
         FROM Asistencia A
@@ -173,21 +174,22 @@ def pagina_asistencia():
     datos = cursor.fetchall()
 
     if datos:
-        df = pd.DataFrame(datos, columns=["Socia", "Estado"])
+        df = pd.DataFrame(datos, columns=["Socia", "Asistencia"])
         st.dataframe(df)
 
-        # ================================
-        # RESUMEN DE ASISTENCIA (NUEVO)
-        # ================================
-        total_presentes = df[df["Estado"] == "Presente"].shape[0]
-        total_ausentes = df[df["Estado"] == "Ausente"].shape[0]
-        total_socias = len(df)
+        # =====================================================
+        # 🔵 CONTADOR DE SOCIAS — AGREGADO AQUÍ
+        # =====================================================
+        total_socias = len(datos)
+        presentes = sum(1 for _, est in datos if est == "Presente")
+        ausentes = total_socias - presentes
 
         st.markdown("### 📊 Resumen de asistencia")
+
         c1, c2, c3 = st.columns(3)
-        c1.metric("Presentes", total_presentes)
-        c2.metric("Ausentes", total_ausentes)
-        c3.metric("Total socias", total_socias)
+        c1.metric("Total de socias", total_socias)
+        c2.metric("Presentes", presentes)
+        c3.metric("Ausentes", ausentes)
 
     st.markdown("---")
 
@@ -267,7 +269,7 @@ def pagina_multas():
     st.subheader("📋 Multas registradas")
 
     cursor.execute("""
-        SELECT M.Id_Multa, S.Nombre, T.`Tipo de multa`, 
+        SELECT M.Id_Multa, S.Nombre, T.`Tipo de multa`,
                M.Monto, M.Estado, M.Fecha_aplicacion
         FROM Multa M
         JOIN Socia S ON S.Id_Socia=M.Id_Socia
