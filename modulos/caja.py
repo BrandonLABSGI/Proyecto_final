@@ -1,5 +1,3 @@
-import streamlit as st
-from datetime import date
 from modulos.conexion import obtener_conexion
 
 
@@ -36,18 +34,22 @@ def obtener_o_crear_reunion(fecha):
     """, (fecha, saldo_anterior, saldo_anterior))
 
     con.commit()
-    return cursor.lastrowid
 
+    # Obtener el ID insertado SIEMPRE
+    cursor.execute("SELECT LAST_INSERT_ID() AS id_caja")
+    nuevo = cursor.fetchone()
+
+    return nuevo["id_caja"]
 
 
 # ============================================================
-# 2. FUNCIÓN GENERAL PARA REGISTRAR MOVIMIENTOS
+# 2. REGISTRAR MOVIMIENTO (Ingreso / Egreso)
 # ============================================================
 def registrar_movimiento(id_caja, tipo, descripcion, monto):
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    # Insertar en tabla movimientos
+    # Guardar movimiento en la tabla movimientos
     cursor.execute("""
         INSERT INTO caja_movimientos (id_caja, tipo, descripcion, monto)
         VALUES (%s, %s, %s, %s)
@@ -73,7 +75,7 @@ def registrar_movimiento(id_caja, tipo, descripcion, monto):
 
     saldo_final = saldo_inicial + ingresos - egresos
 
-    # Guardar cambios
+    # Actualizar reunión
     cursor.execute("""
         UPDATE caja_reunion
         SET ingresos = %s,
@@ -85,15 +87,14 @@ def registrar_movimiento(id_caja, tipo, descripcion, monto):
     con.commit()
 
 
-
 # ============================================================
-# 3. CONSULTA DE SALDO POR FECHA — CORREGIDA
+# 3. OBTENER SALDO POR FECHA
 # ============================================================
 def obtener_saldo_por_fecha(fecha):
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    # Reunión exacta
+    # Buscar reunión exacta
     cursor.execute("""
         SELECT saldo_final 
         FROM caja_reunion
@@ -104,7 +105,7 @@ def obtener_saldo_por_fecha(fecha):
     if reunion:
         return reunion["saldo_final"]
 
-    # Última reunión previa
+    # Buscar reunión previa
     cursor.execute("""
         SELECT saldo_final
         FROM caja_reunion
