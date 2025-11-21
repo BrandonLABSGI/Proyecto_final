@@ -16,8 +16,11 @@ from modulos.caja import obtener_o_crear_reunion, registrar_movimiento, obtener_
 # NUEVO MÓDULO: OTROS GASTOS DEL GRUPO
 from modulos.gastos_grupo import gastos_grupo
 
-# 🔵 AGREGADO: CIERRE DE CICLO
+# NUEVO: CIERRE DE CICLO
 from modulos.cierre_ciclo import cierre_ciclo
+
+# NUEVO: REGLAS INTERNAS
+from modulos.reglas import gestionar_reglas
 
 
 
@@ -76,8 +79,9 @@ def interfaz_directiva():
             "Registrar pago de préstamo",
             "Registrar ahorro",
             "Registrar otros gastos",
-            "Cierre de ciclo",      # ← AGREGADO
-            "Reporte de caja"
+            "Cierre de ciclo",
+            "Reporte de caja",
+            "Reglas internas"      # ← AGREGADO
         ]
     )
 
@@ -107,6 +111,10 @@ def interfaz_directiva():
 
     elif menu == "Reporte de caja":
         reporte_caja()
+
+    elif menu == "Reglas internas":
+        gestionar_reglas()
+
 
 
 
@@ -225,6 +233,7 @@ def pagina_asistencia():
 
         st.success("Ingreso extraordinario registrado y sumado a caja.")
         st.rerun()
+
 
 
 
