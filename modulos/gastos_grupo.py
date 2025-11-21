@@ -1,97 +1,130 @@
 import streamlit as st
 from datetime import date
+from reportlab.platypus import SimpleDocTemplate, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import letter
 from modulos.conexion import obtener_conexion
-from modulos.caja import obtener_o_crear_reunion, registrar_movimiento, obtener_saldo_por_fecha
+from modulos.caja import obtener_saldo_por_fecha, obtener_o_crear_reunion, registrar_movimiento
 
 
 # ============================================================
-# REGISTRAR GASTOS DEL GRUPO
+# MÓDULO DE GASTOS DEL GRUPO
 # ============================================================
 def gastos_grupo():
 
     st.title("💸 Registrar gastos del grupo")
 
-    # Fecha del gasto
+    con = obtener_conexion()
+    cursor = con.cursor()
+
+    # Fecha
     fecha_raw = st.date_input("Fecha del gasto", date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
-    # Nombre de la persona responsable
+    # Nombre responsable
     responsable = st.text_input("👤 Nombre de la persona responsable del gasto")
 
-    # DUI (solo números, 9 dígitos)
-    dui_input = st.text_input("DUI (9 dígitos)", max_chars=9)
+    # DUI (9 dígitos)
+    dui_input = st.text_input(
+        "DUI (9 dígitos)",
+        max_chars=9,
+        placeholder="000000000"
+    )
 
-    # Validación: DUI solo números
+    # Validar DUI — solo números
     if dui_input and not dui_input.isdigit():
-        st.error("⚠️ El DUI solo debe contener números (9 dígitos).")
+        st.warning("⚠ El DUI debe contener solo números.")
+        return
 
-    # DUI formateado automáticamente
+    # Formatear DUI para guardarlo (00000000-0)
     dui_formateado = ""
     if len(dui_input) == 9:
         dui_formateado = f"{dui_input[:8]}-{dui_input[8]}"
 
-    # Descripción del gasto
+    # Descripción
     descripcion = st.text_input("Descripción del gasto")
 
     # Monto
     monto = st.number_input("Monto del gasto ($)", min_value=0.25, step=0.25)
 
-    # Mostrar saldo disponible en caja
-    try:
-        saldo = obtener_saldo_por_fecha(fecha)
-        st.info(f"💰 Saldo disponible en caja para {fecha}: **${saldo:.2f}**")
-    except:
-        st.warning("⚠ No se pudo obtener el saldo de caja.")
-        saldo = 0
+    # Obtener saldo actual
+    saldo = obtener_saldo_por_fecha(fecha)
+    st.info(f"💰 Saldo disponible en caja para {fecha}: **${saldo:.2f}**")
 
-    # ============================================================
-    # BOTÓN PARA REGISTRAR EL GASTO
-    # ============================================================
+    # Botón registrar gasto
     if st.button("💾 Registrar gasto"):
 
-        # Validaciones generales
-        if responsable.strip() == "":
-            st.warning("⚠ Debe ingresar el nombre de la persona responsable.")
+        # Validar campos
+        if responsable.strip() == "" or descripcion.strip() == "" or len(dui_input) != 9:
+            st.error("⚠ Debe completar todos los campos y el DUI debe tener 9 dígitos.")
             return
 
-        if dui_input.strip() == "" or len(dui_input) != 9:
-            st.warning("⚠ El DUI debe tener exactamente 9 dígitos.")
-            return
-
-        if descripcion.strip() == "":
-            st.warning("⚠ Debe ingresar una descripción del gasto.")
-            return
-
-        # Validación de fondos suficientes
+        # Validar saldo suficiente
         if monto > saldo:
-            st.error(f"❌ No se puede registrar el gasto. El monto (${monto:.2f}) "
-                     f"es mayor que el saldo disponible en caja (${saldo:.2f}).")
+            st.error("❌ El monto del gasto NO puede ser mayor al saldo disponible.")
             return
 
-        # ===========================================
-        # GUARDAR GASTO EN BD
-        # ===========================================
-        con = obtener_conexion()
-        cursor = con.cursor()
+        # Registrar gasto
+        id_caja = obtener_o_crear_reunion(fecha)
 
         cursor.execute("""
-            INSERT INTO Gastos_grupo(Fecha_gasto, Descripcion, Monto, Responsable, DUI)
-            VALUES(%s, %s, %s, %s, %s)
-        """, (fecha, descripcion, monto, responsable, dui_formateado))
+            INSERT INTO Gastos_grupo(Fecha_gasto, Descripcion, Monto, Responsable, DUI, Id_Caja)
+            VALUES(%s, %s, %s, %s, %s, %s)
+        """, (fecha, descripcion, monto, responsable, dui_formateado, id_caja))
 
         con.commit()
 
-        # ===========================================
-        # RESTAR AUTOMÁTICAMENTE DE CAJA
-        # ===========================================
-        id_caja = obtener_o_crear_reunion(fecha)
+        # Registrar movimiento en caja (egreso)
+        registrar_movimiento(id_caja, "Egreso", f"Gasto del grupo – {descripcion}", monto)
 
-        registrar_movimiento(
-            id_caja,
-            "Egreso",
-            f"Gasto – {descripcion} (Responsable: {responsable}, DUI: {dui_formateado})",
-            monto
+        st.success("✔ Gasto registrado correctamente.")
+
+        # Recuperar ID del gasto
+        cursor.execute("SELECT LAST_INSERT_ID()")
+        id_gasto = cursor.fetchone()[0]
+
+        # Mostrar botón para descargar comprobante PDF
+        generar_pdf_comprobante(id_gasto, fecha, responsable, dui_formateado, descripcion, monto, saldo - monto)
+
+        st.stop()
+
+
+# ============================================================
+# FUNCIÓN PARA GENERAR COMPROBANTE PDF
+# ============================================================
+def generar_pdf_comprobante(id_gasto, fecha, responsable, dui, descripcion, monto, saldo_final):
+
+    st.subheader("📄 Descargar comprobante del gasto")
+
+    archivo_pdf = f"comprobante_gasto_{id_gasto}.pdf"
+
+    styles = getSampleStyleSheet()
+    normal = styles["Normal"]
+    titulo = styles["Title"]
+
+    doc = SimpleDocTemplate(archivo_pdf, pagesize=letter)
+    contenido = []
+
+    contenido.append(Paragraph("COMPROBANTE DE GASTO DEL GRUPO", titulo))
+    contenido.append(Paragraph("<br/>", normal))
+
+    contenido.append(Paragraph(f"<b>ID del Gasto:</b> {id_gasto}", normal))
+    contenido.append(Paragraph(f"<b>Fecha:</b> {fecha}", normal))
+    contenido.append(Paragraph(f"<b>Responsable:</b> {responsable}", normal))
+    contenido.append(Paragraph(f"<b>DUI:</b> {dui}", normal))
+    contenido.append(Paragraph(f"<b>Descripción:</b> {descripcion}", normal))
+    contenido.append(Paragraph(f"<b>Monto gastado:</b> ${monto:.2f}", normal))
+    contenido.append(Paragraph(f"<b>Saldo restante en caja:</b> ${saldo_final:.2f}", normal))
+    contenido.append(Paragraph("<br/><br/>__________________________", normal))
+    contenido.append(Paragraph("Firma del responsable", normal))
+
+    doc.build(contenido)
+
+    # Descargar PDF
+    with open(archivo_pdf, "rb") as f:
+        st.download_button(
+            "📥 Descargar comprobante PDF",
+            data=f,
+            file_name=archivo_pdf,
+            mime="application/pdf"
         )
-
-        st.success("✅ Gasto registrado y descontado de la caja correctamente.")
-        st.rerun()
