@@ -8,57 +8,59 @@ def obtener_o_crear_reunion(fecha):
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    # Buscar si ya existe reunión para la fecha
-    cursor.execute("SELECT * FROM caja_reunion WHERE fecha = %s", (fecha,))
+    # 1) Buscar si ya existe reunión
+    cursor.execute("SELECT id_caja FROM caja_reunion WHERE fecha = %s", (fecha,))
     reunion = cursor.fetchone()
 
     if reunion:
         return reunion["id_caja"]
 
-    # Obtener último saldo final previo
+    # 2) Obtener último saldo previo
     cursor.execute("""
-        SELECT saldo_final 
-        FROM caja_reunion 
-        WHERE fecha < %s 
-        ORDER BY fecha DESC 
+        SELECT saldo_final
+        FROM caja_reunion
+        WHERE fecha < %s
+        ORDER BY fecha DESC
         LIMIT 1
     """, (fecha,))
     ultimo = cursor.fetchone()
-
     saldo_anterior = ultimo["saldo_final"] if ultimo else 0
 
-    # Crear reunión nueva
+    # 3) Crear reunión nueva
     cursor.execute("""
         INSERT INTO caja_reunion (fecha, saldo_inicial, ingresos, egresos, saldo_final)
         VALUES (%s, %s, 0, 0, %s)
     """, (fecha, saldo_anterior, saldo_anterior))
-
     con.commit()
 
-    # Obtener el ID insertado SIEMPRE
-    cursor.execute("SELECT LAST_INSERT_ID() AS id_caja")
-    nuevo = cursor.fetchone()
+    # 4) Recuperar ID insertado correctamente (Streamlit Cloud compatible)
+    cursor.execute("SELECT id_caja FROM caja_reunion WHERE fecha = %s", (fecha,))
+    nueva = cursor.fetchone()
 
-    return nuevo["id_caja"]
+    return nueva["id_caja"]
 
 
 # ============================================================
-# 2. REGISTRAR MOVIMIENTO (Ingreso / Egreso)
+# 2. REGISTRAR MOVIMIENTO
 # ============================================================
 def registrar_movimiento(id_caja, tipo, descripcion, monto):
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    # Guardar movimiento en la tabla movimientos
+    # Asegurarnos de que id_caja NO sea None
+    if id_caja is None:
+        raise ValueError("id_caja no puede ser None")
+
+    # Registrar movimiento
     cursor.execute("""
         INSERT INTO caja_movimientos (id_caja, tipo, descripcion, monto)
         VALUES (%s, %s, %s, %s)
     """, (id_caja, tipo, descripcion, monto))
 
-    # Obtener saldos actuales
+    # Obtener los valores actuales
     cursor.execute("""
-        SELECT ingresos, egresos, saldo_inicial 
-        FROM caja_reunion 
+        SELECT ingresos, egresos, saldo_inicial
+        FROM caja_reunion
         WHERE id_caja = %s
     """, (id_caja,))
     reunion = cursor.fetchone()
@@ -75,12 +77,9 @@ def registrar_movimiento(id_caja, tipo, descripcion, monto):
 
     saldo_final = saldo_inicial + ingresos - egresos
 
-    # Actualizar reunión
     cursor.execute("""
         UPDATE caja_reunion
-        SET ingresos = %s,
-            egresos = %s,
-            saldo_final = %s
+        SET ingresos = %s, egresos = %s, saldo_final = %s
         WHERE id_caja = %s
     """, (ingresos, egresos, saldo_final, id_caja))
 
@@ -96,7 +95,7 @@ def obtener_saldo_por_fecha(fecha):
 
     # Buscar reunión exacta
     cursor.execute("""
-        SELECT saldo_final 
+        SELECT saldo_final
         FROM caja_reunion
         WHERE fecha = %s
     """, (fecha,))
@@ -105,7 +104,7 @@ def obtener_saldo_por_fecha(fecha):
     if reunion:
         return reunion["saldo_final"]
 
-    # Buscar reunión previa
+    # Buscar la última previa
     cursor.execute("""
         SELECT saldo_final
         FROM caja_reunion
