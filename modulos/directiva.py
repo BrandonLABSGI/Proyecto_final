@@ -13,14 +13,8 @@ from modulos.reporte_caja import reporte_caja
 # CAJA POR REUNIÓN (Opción A)
 from modulos.caja import obtener_o_crear_reunion, registrar_movimiento, obtener_saldo_por_fecha
 
-# OTROS GASTOS
+# NUEVO MÓDULO: OTROS GASTOS DEL GRUPO
 from modulos.gastos_grupo import gastos_grupo
-
-# CIERRE DE CICLO
-from modulos.cierre_ciclo import cierre_ciclo
-
-# REGLAS INTERNAS (NUEVO)
-from modulos.reglas import gestionar_reglas
 
 
 
@@ -68,9 +62,7 @@ def interfaz_directiva():
         st.session_state.clear()
         st.rerun()
 
-    # ============================================================
-    # MENÚ LATERAL (AQUÍ SE AGREGA LA OPCIÓN NUEVA)
-    # ============================================================
+    # Menú lateral
     menu = st.sidebar.radio(
         "Selección rápida:",
         [
@@ -80,16 +72,10 @@ def interfaz_directiva():
             "Autorizar préstamo",
             "Registrar pago de préstamo",
             "Registrar ahorro",
-            "Registrar otros gastos",
-            "Cierre de ciclo",
-            "Reporte de caja",
-            "Reglas internas"      # ← OPCIÓN AGREGADA
+            "Registrar otros gastos",   # ← AGREGADO
+            "Reporte de caja"
         ]
     )
-
-    # ============================================================
-    # NAVEGACIÓN ENTRE PÁGINAS
-    # ============================================================
 
     if menu == "Registro de asistencia":
         pagina_asistencia()
@@ -109,17 +95,11 @@ def interfaz_directiva():
     elif menu == "Registrar ahorro":
         ahorro()
 
-    elif menu == "Registrar otros gastos":
+    elif menu == "Registrar otros gastos":   # ← AGREGADO
         gastos_grupo()
-
-    elif menu == "Cierre de ciclo":
-        cierre_ciclo()
 
     elif menu == "Reporte de caja":
         reporte_caja()
-
-    elif menu == "Reglas internas":
-        gestionar_reglas()
 
 
 
@@ -136,6 +116,7 @@ def pagina_asistencia():
     fecha_raw = st.date_input("📅 Fecha de la reunión", date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
+    # Verificar si existe la reunión
     cursor.execute("SELECT Id_Reunion FROM Reunion WHERE Fecha_reunion=%s", (fecha,))
     row = cursor.fetchone()
 
@@ -150,6 +131,7 @@ def pagina_asistencia():
         id_reunion = cursor.lastrowid
         st.success(f"Reunión creada (ID {id_reunion}).")
 
+    # Lista de socias
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
 
@@ -160,7 +142,7 @@ def pagina_asistencia():
         estado = st.selectbox(
             f"{id_socia} - {nombre}",
             ["SI", "NO"],
-            key=f"as_{id_socia}"
+            key=f"asis_{id_socia}"
         )
         registro[id_socia] = estado
 
@@ -190,6 +172,7 @@ def pagina_asistencia():
         con.commit()
         st.success("Asistencia registrada.")
 
+    # Mostrar asistencia
     cursor.execute("""
         SELECT S.Nombre, A.Estado_asistencia
         FROM Asistencia A
@@ -204,10 +187,9 @@ def pagina_asistencia():
 
     st.markdown("---")
 
-    # -----------------------------------------------------------
+    # ============================================================
     # INGRESOS EXTRAORDINARIOS
-    # -----------------------------------------------------------
-
+    # ============================================================
     st.header("💰 Ingresos extraordinarios")
 
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
@@ -230,6 +212,7 @@ def pagina_asistencia():
 
         con.commit()
 
+        # Registrar movimiento en caja_reunion
         id_caja = obtener_o_crear_reunion(fecha)
         registrar_movimiento(id_caja, "Ingreso", f"Ingreso Extra – {tipo}", monto)
 
@@ -277,10 +260,60 @@ def pagina_multas():
         st.success("Multa registrada.")
         st.rerun()
 
+    st.markdown("---")
+    st.subheader("📋 Multas registradas")
+
+    cursor.execute("""
+        SELECT M.Id_Multa, S.Nombre, T.`Tipo de multa`, 
+               M.Monto, M.Estado, M.Fecha_aplicacion
+        FROM Multa M
+        JOIN Socia S ON S.Id_Socia=M.Id_Socia
+        JOIN `Tipo de multa` T ON T.Id_Tipo_multa=M.Id_Tipo_multa
+        ORDER BY M.Id_Multa DESC
+    """)
+    multas = cursor.fetchall()
+
+    for mid, nombre, tipo, monto, estado_actual, fecha_m in multas:
+
+        c1, c2, c3, c4, c5, c6 = st.columns([1,3,3,2,2,2])
+
+        c1.write(mid)
+        c2.write(nombre)
+        c3.write(tipo)
+        c4.write(f"${monto}")
+
+        nuevo_estado = c5.selectbox(
+            " ",
+            ["A pagar", "Pagada"],
+            index=0 if estado_actual == "A pagar" else 1,
+            key=f"upd{mid}"
+        )
+
+        if c6.button("Actualizar", key=f"btn{mid}"):
+
+            # Si pasa de A pagar → Pagada → SE SUMA A CAJA
+            if estado_actual == "A pagar" and nuevo_estado == "Pagada":
+
+                id_caja = obtener_o_crear_reunion(fecha_m)
+                registrar_movimiento(
+                    id_caja,
+                    "Ingreso",
+                    f"Pago de multa – {nombre}",
+                    monto
+                )
+
+            cursor.execute("""
+                UPDATE Multa SET Estado=%s WHERE Id_Multa=%s
+            """, (nuevo_estado, mid))
+
+            con.commit()
+            st.success(f"Multa {mid} actualizada.")
+            st.rerun()
+
 
 
 # ============================================================
-# SOCIAS
+# REGISTRO DE SOCIAS
 # ============================================================
 def pagina_registro_socias():
 
