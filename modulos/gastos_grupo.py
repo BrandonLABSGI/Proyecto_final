@@ -30,11 +30,21 @@ def gastos_grupo():
     # --------------------------------------------------------
     dui_input = st.text_input("DUI (9 dígitos)", max_chars=9)
 
-    if dui_input and (not dui_input.isdigit() or len(dui_input) > 9):
-        st.warning("⚠️ El DUI debe contener solo números y un máximo de 9 dígitos.")
-        return
+    if dui_input:
+        if not dui_input.isdigit():
+            st.warning("⚠️ El DUI debe contener solo números.")
+            return
 
-    dui_formateado = dui_input[:8] + "-" + dui_input[8:] if len(dui_input) == 9 else None
+        if len(dui_input) != 9:
+            st.warning("⚠️ El DUI debe tener exactamente 9 dígitos.")
+            return
+
+        # DUI válido
+        dui_formateado = dui_input[:8] + "-" + dui_input[8:]
+
+    else:
+        st.warning("⚠️ Debe ingresar el DUI.")
+        return
 
     # --------------------------------------------------------
     # DESCRIPCIÓN
@@ -57,22 +67,31 @@ def gastos_grupo():
     # --------------------------------------------------------
     if st.button("💳 Registrar gasto"):
 
-        # Validación de monto mayor al saldo
+        # Validación de saldo
         if monto > saldo:
-            st.error("❌ El monto del gasto NO puede ser mayor al saldo disponible en caja.")
+            st.error("❌ El monto del gasto NO puede ser mayor al saldo disponible.")
             return
 
-        # Obtener ID de la caja asociada a esa fecha
+        # Validación extra de campos obligatorios
+        if not responsable.strip():
+            st.error("❌ Debe ingresar el nombre del responsable.")
+            return
+
+        if not descripcion.strip():
+            st.error("❌ Debe ingresar la descripción del gasto.")
+            return
+
+        # Obtener reunión
         id_caja = obtener_o_crear_reunion(fecha)
 
-        # Registrar gasto
+        # Registrar gasto en tabla Gastos_grupo
         cursor.execute("""
             INSERT INTO Gastos_grupo(Fecha_gasto, Descripcion, Monto, Responsable, DUI, Id_Caja)
             VALUES (%s, %s, %s, %s, %s, %s)
         """, (fecha, descripcion, monto, responsable, dui_formateado, id_caja))
         con.commit()
 
-        # Registrar EGRESO en caja
+        # Registrar salida de caja
         registrar_movimiento(id_caja, "Egreso", f"Gasto – {descripcion}", monto)
 
         st.success("✔ Gasto registrado exitosamente.")
