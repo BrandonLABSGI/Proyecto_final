@@ -37,8 +37,7 @@ def gestionar_reglas():
 
 
 # ===========================================================
-# SECCIÓN 1: REGLAS DEL GRUPO
-# Tabla: reglas_grupo
+# SECCIÓN 1: REGLAS INTERNAS (usas: otras_reglas)
 # ===========================================================
 def mostrar_reglas():
 
@@ -47,35 +46,32 @@ def mostrar_reglas():
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    nueva = st.text_input("Agregar nueva regla:")
+    nueva = st.text_area("Agregar nueva regla:")
 
     if st.button("➕ Añadir regla"):
         if nueva.strip() != "":
             cursor.execute("""
-                INSERT INTO reglas_grupo (descripcion, id_grupo)
-                VALUES (%s, 1)
+                UPDATE reglas_grupo 
+                SET otras_reglas = CONCAT(
+                    IFNULL(otras_reglas, ''), 
+                    '\n• ', %s
+                )
+                WHERE id_regla = 1
             """, (nueva,))
             con.commit()
-            st.success("Regla agregada correctamente.")
+            st.success("Regla añadida correctamente.")
             st.rerun()
 
-    cursor.execute("SELECT id_regla, descripcion FROM reglas_grupo ORDER BY id_regla ASC")
-    reglas = cursor.fetchall()
+    # Mostrar reglas
+    cursor.execute("SELECT otras_reglas FROM reglas_grupo WHERE id_regla = 1")
+    fila = cursor.fetchone()
 
-    st.markdown("### 📋 Lista de reglas")
-    for r in reglas:
-        col1, col2, col3 = st.columns([7, 1, 1])
-        col1.write(r["descripcion"])
+    st.markdown("### 📋 Reglas actuales:")
 
-        if col2.button("✏️", key=f"edit_r{r['id_regla']}"):
-            editar_regla(r["id_regla"], r["descripcion"])
-            st.rerun()
-
-        if col3.button("🗑️", key=f"del_r{r['id_regla']}"):
-            cursor.execute("DELETE FROM reglas_grupo WHERE id_regla=%s", (r["id_regla"],))
-            con.commit()
-            st.success("Regla eliminada.")
-            st.rerun()
+    if fila and fila["otras_reglas"]:
+        st.text(fila["otras_reglas"])
+    else:
+        st.info("No hay reglas registradas.")
 
     cursor.close()
     con.close()
@@ -83,31 +79,7 @@ def mostrar_reglas():
 
 
 # ===========================================================
-# Editar regla interna
-# ===========================================================
-def editar_regla(id_regla, texto_actual):
-    st.markdown("### ✏️ Editar regla")
-    nuevo = st.text_area("Nueva descripción:", texto_actual)
-
-    if st.button("💾 Guardar cambios", key=f"save_edit_{id_regla}"):
-        con = obtener_conexion()
-        cursor = con.cursor()
-        cursor.execute("""
-            UPDATE reglas_grupo 
-            SET descripcion=%s
-            WHERE id_regla=%s
-        """, (nuevo, id_regla))
-        con.commit()
-        cursor.close()
-        con.close()
-        st.success("Regla actualizada.")
-        st.rerun()
-
-
-
-# ===========================================================
-# SECCIÓN 2: COMITÉ DIRECTIVO
-# Tabla: comite_directiva
+# SECCIÓN 2: COMITÉ DIRECTIVO (usa: comite_directiva)
 # ===========================================================
 def mostrar_comite():
     st.subheader("👥 Comité directivo")
@@ -136,9 +108,9 @@ def mostrar_comite():
     """)
     miembros = cursor.fetchall()
 
-    st.markdown("### 📋 Miembros del comité")
+    st.markdown("### 📋 Miembros registrados:")
     for m in miembros:
-        col1, col2, col3 = st.columns([5, 3, 1])
+        col1, col2, col3 = st.columns([5, 4, 1])
         col1.write(f"**{m['cargo']}**")
         col2.write(m["nombre_socia"])
 
@@ -154,8 +126,7 @@ def mostrar_comite():
 
 
 # ===========================================================
-# SECCIÓN 3: PERMISOS VÁLIDOS DE INASISTENCIA
-# Tabla: regla_permisos_inasistencia
+# SECCIÓN 3: PERMISOS DE INASISTENCIA (usa: regla_permisos_inasistencia)
 # ===========================================================
 def mostrar_permisos():
 
@@ -182,7 +153,7 @@ def mostrar_permisos():
     """)
     lista = cursor.fetchall()
 
-    st.markdown("### 📋 Lista de permisos")
+    st.markdown("### 📋 Permisos registrados:")
     for p in lista:
         col1, col2 = st.columns([8, 1])
         col1.write(p["descripcion"])
@@ -199,7 +170,7 @@ def mostrar_permisos():
 
 
 # ===========================================================
-# SECCIÓN 4: EXPORTAR PDF (FUNCIONA EN STREAMLIT CLOUD)
+# SECCIÓN 4: EXPORTAR PDF (usa: otras_reglas)
 # ===========================================================
 def exportar_pdf():
 
@@ -208,30 +179,27 @@ def exportar_pdf():
     con = obtener_conexion()
     cursor = con.cursor()
 
-    cursor.execute("SELECT descripcion FROM reglas_grupo ORDER BY id_regla ASC")
-    reglas = cursor.fetchall()
+    cursor.execute("SELECT otras_reglas FROM reglas_grupo WHERE id_regla = 1")
+    fila = cursor.fetchone()
 
     cursor.close()
     con.close()
 
-    if not reglas:
+    if not fila or fila[0] is None:
         st.warning("No hay reglas para exportar.")
         return
 
+    reglas_texto = fila[0].replace("\n", "<br/>")
+
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer)
-    styles = getSampleStyleSheet()
+    estilos = getSampleStyleSheet()
 
     contenido = []
-
-    contenido.append(Paragraph("<b>REGLAS INTERNAS DEL GRUPO</b>", styles["Title"]))
-    contenido.append(Paragraph("<br/><br/>", styles["Normal"]))
-
-    for r in reglas:
-        contenido.append(Paragraph(f"• {r[0]}", styles["Normal"]))
+    contenido.append(Paragraph("<b>REGLAS INTERNAS DEL GRUPO</b><br/><br/>", estilos["Title"]))
+    contenido.append(Paragraph(reglas_texto, estilos["Normal"]))
 
     doc.build(contenido)
-
     buffer.seek(0)
 
     st.success("PDF generado correctamente.")
@@ -242,5 +210,3 @@ def exportar_pdf():
         file_name="Reglas_internas.pdf",
         mime="application/pdf"
     )
-
-
