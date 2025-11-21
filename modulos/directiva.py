@@ -23,7 +23,6 @@ from modulos.cierre_ciclo import cierre_ciclo
 from modulos.reglas import gestionar_reglas
 
 
-
 # ============================================================
 # PANEL PRINCIPAL
 # ============================================================
@@ -72,7 +71,7 @@ def interfaz_directiva():
             "Registrar otros gastos",
             "Cierre de ciclo",
             "Reporte de caja",
-            "Reglas internas"
+            "Reglas internas"     # ← AGREGADO
         ]
     )
 
@@ -178,7 +177,7 @@ def pagina_asistencia():
         st.dataframe(df)
 
         # =====================================================
-        # 🔵 CONTADOR DE SOCIAS — AGREGADO AQUÍ
+        # 🔵 CONTADOR DE SOCIAS — YA INTEGRADO
         # =====================================================
         total_socias = len(datos)
         presentes = sum(1 for _, est in datos if est == "Presente")
@@ -210,7 +209,6 @@ def pagina_asistencia():
     monto = st.number_input("Monto ($)", min_value=0.25, step=0.25)
 
     if st.button("➕ Registrar ingreso extraordinario"):
-
         cursor.execute("""
             INSERT INTO IngresosExtra(Id_Reunion,Id_Socia,Tipo,Descripcion,Monto,Fecha)
             VALUES(%s,%s,%s,%s,%s,%s)
