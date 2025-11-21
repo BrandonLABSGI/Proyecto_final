@@ -314,65 +314,91 @@ def pagina_multas():
 
 
 
-# ==========================
-# CAMPOS DE DUI Y TELÉFONO
-# ==========================
+# ============================================================
+# REGISTRO DE SOCIAS  (CORREGIDO COMPLETO)
+# ============================================================
+def pagina_registro_socias():
 
-st.subheader("Datos de identificación")
+    st.header("👩‍🦰 Registro de nuevas socias")
 
-# -------------- DUI --------------
-dui_input = st.text_input(
-    "DUI – Número de DUI (solo 9 números)",
-    max_chars=9,
-    key="dui_raw"
-)
-
-# Solo números
-dui_numerico = "".join([c for c in dui_input if c.isdigit()])[:9]
-
-# Formato automático: 8 dígitos + guion + 1
-dui_formateado = ""
-if len(dui_numerico) > 8:
-    dui_formateado = f"{dui_numerico[:8]}-{dui_numerico[8]}"
-else:
-    dui_formateado = dui_numerico
-
-# Mostrar formato bajo el input
-st.caption(f"Formato DUI: **{dui_formateado}**")
-
-
-# -------------- TELÉFONO --------------
-telefono_input = st.text_input(
-    "Teléfono (8 dígitos – solo números)",
-    max_chars=8,
-    key="telefono_raw"
-)
-
-# Filtrar solo números
-telefono_filtrado = "".join([c for c in telefono_input if c.isdigit()])[:8]
-
-# Mostrar número limpio
-st.caption(f"Teléfono ingresado: **{telefono_filtrado}**")
-
-
-# -------------- BOTÓN DE REGISTRO --------------
-if st.button("Registrar socia"):
-
-    if len(dui_numerico) != 9:
-        st.error("❌ El DUI debe tener **9 dígitos numéricos**.")
-        st.stop()
-
-    if len(telefono_filtrado) != 8:
-        st.error("❌ El teléfono debe tener **8 dígitos numéricos**.")
-        st.stop()
-
-    # Guardar en BD
+    con = obtener_conexion()
     cursor = con.cursor()
-    cursor.execute(
-        "INSERT INTO Socia (Nombre, DUI, Telefono, Sexo) VALUES (%s, %s, %s, 'F')",
-        (nombre, dui_formateado, telefono_filtrado)
-    )
-    con.commit()
 
-    st.success("✔ Socia registrada correctamente.")
-    st.rerun()
+    # ----------------------------
+    # NOMBRE
+    # ----------------------------
+    nombre = st.text_input("Nombre completo")
+
+    st.subheader("Datos de identificación")
+
+    # ----------------------------
+    # DUI (9 dígitos, solo números)
+    # ----------------------------
+    dui_input = st.text_input(
+        "DUI – Número de DUI (solo números, 9 dígitos)",
+        max_chars=9,
+        key="dui_raw"
+    )
+
+    dui_numerico = "".join([c for c in dui_input if c.isdigit()])[:9]
+
+    # Formateo visual: 00000000-0
+    if len(dui_numerico) == 9:
+        dui_formateado = f"{dui_numerico[:8]}-{dui_numerico[8]}"
+    else:
+        dui_formateado = dui_numerico
+
+    st.caption(f"Formato DUI: **{dui_formateado}**")
+
+
+    # ----------------------------
+    # TELÉFONO (solo 8 números)
+    # ----------------------------
+    telefono_input = st.text_input(
+        "Teléfono (8 dígitos – solo números)",
+        max_chars=8,
+        key="telefono_raw"
+    )
+
+    telefono_filtrado = "".join([c for c in telefono_input if c.isdigit()])[:8]
+
+    st.caption(f"Teléfono ingresado: **{telefono_filtrado}**")
+
+
+    # ----------------------------
+    # BOTÓN REGISTRAR
+    # ----------------------------
+    if st.button("Registrar socia"):
+
+        if nombre.strip() == "":
+            st.error("❌ Debe ingresar un nombre.")
+            st.stop()
+
+        if len(dui_numerico) != 9:
+            st.error("❌ El DUI debe tener **9 dígitos numéricos**.")
+            st.stop()
+
+        if len(telefono_filtrado) != 8:
+            st.error("❌ El teléfono debe tener **8 dígitos numéricos**.")
+            st.stop()
+
+        # Guardar en BD
+        cursor.execute(
+            "INSERT INTO Socia (Nombre, DUI, Telefono, Sexo) VALUES (%s, %s, %s, 'F')",
+            (nombre, dui_formateado, telefono_filtrado)
+        )
+        con.commit()
+
+        st.success("✔ Socia registrada correctamente.")
+        st.rerun()
+
+
+    # ----------------------------
+    # MOSTRAR SOCIAS
+    # ----------------------------
+    cursor.execute("SELECT Id_Socia, Nombre, DUI, Telefono FROM Socia ORDER BY Id_Socia ASC")
+    datos = cursor.fetchall()
+
+    if datos:
+        df = pd.DataFrame(datos, columns=["ID", "Nombre", "DUI", "Teléfono"])
+        st.dataframe(df)
