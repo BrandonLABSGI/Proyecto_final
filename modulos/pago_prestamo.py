@@ -6,7 +6,7 @@ from modulos.caja import obtener_o_crear_reunion, registrar_movimiento
 
 
 # ============================================================
-# PAGO DE PRÉSTAMO – SISTEMA CVX
+#  PAGO DE PRÉSTAMO — SISTEMA CVX
 # ============================================================
 def pago_prestamo():
 
@@ -15,19 +15,23 @@ def pago_prestamo():
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    # ======================================================
-    # SOCIAS
-    # ======================================================
+    # ***************************************************************************
+    # 1) SOCIA
+    # ***************************************************************************
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
+
+    if not socias:
+        st.warning("No hay socias registradas.")
+        return
 
     opciones = {f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] for s in socias}
     socia_sel = st.selectbox("👩 Seleccione una socia", list(opciones.keys()))
     id_socia = opciones[socia_sel]
 
-    # ======================================================
-    # PRÉSTAMO ACTIVO
-    # ======================================================
+    # ***************************************************************************
+    # 2) OBTENER PRÉSTAMO ACTIVO
+    # ***************************************************************************
     cursor.execute("""
         SELECT *
         FROM Prestamo
@@ -36,7 +40,7 @@ def pago_prestamo():
     prestamo = cursor.fetchone()
 
     if not prestamo:
-        st.info("ℹ La socia no tiene un préstamo activo.")
+        st.info("ℹ La socia no tiene ningún préstamo activo.")
         return
 
     # Datos del préstamo
@@ -50,53 +54,55 @@ def pago_prestamo():
     cuota_fija = round(total_a_pagar / cuotas, 2)
     interes_por_cuota = round(interes_total / cuotas, 2)
 
-    # ======================================================
-    # MOSTRAR DETALLE
-    # ======================================================
+    # ***************************************************************************
+    # 3) MOSTRAR DETALLE DEL PRÉSTAMO
+    # ***************************************************************************
     st.subheader("📄 Detalle del préstamo")
 
-    info = {
+    detalle = {
         "ID Préstamo": id_prestamo,
         "Monto prestado": f"${monto:.2f}",
         "Interés total": f"${interes_total:.2f}",
         "Total a pagar": f"${total_a_pagar:.2f}",
         "Cuotas quincenales": cuotas,
-        "Cuota fija": f"${cuota_fija:.2f}",
+        "Cuota por pago": f"${cuota_fija:.2f}",
         "Interés por cuota": f"${interes_por_cuota:.2f}",
-        "Saldo pendiente": f"${saldo_pendiente:.2f}"
+        "Saldo pendiente actual": f"${saldo_pendiente:.2f}"
     }
 
-    st.table(pd.DataFrame(info.items(), columns=["Detalle", "Valor"]))
+    st.table(pd.DataFrame(detalle.items(), columns=["Detalle", "Valor"]))
 
-    # ======================================================
-    # FORMULARIO DE PAGO
-    # ======================================================
+    # ***************************************************************************
+    # 4) FORMULARIO DE PAGO
+    # ***************************************************************************
     fecha_pago_raw = st.date_input("📅 Fecha del pago", date.today())
     fecha_pago = fecha_pago_raw.strftime("%Y-%m-%d")
 
     if st.button("💵 Registrar pago"):
 
+        # 1) CALCULAR CAPITAL PAGADO
         capital_pagado = round(cuota_fija - interes_por_cuota, 2)
 
+        # 2) NUEVO SALDO
         nuevo_saldo = round(saldo_pendiente - cuota_fija, 2)
         if nuevo_saldo < 0:
             nuevo_saldo = 0
 
-        # ======================================================
-        # REGISTRO EN CAJA
-        # ======================================================
+        # ***************************************************************************
+        # 3) REGISTRAR INGRESO EN CAJA
+        # ***************************************************************************
         id_caja = obtener_o_crear_reunion(fecha_pago)
 
         registrar_movimiento(
             id_caja,
             "Ingreso",
-            f"Pago de préstamo – {socia_sel}",
+            f"Pago préstamo – {socia_sel}",
             float(cuota_fija)
         )
 
-        # ======================================================
-        # GUARDAR PAGO EN LA TABLA CORRECTA
-        # ======================================================
+        # ***************************************************************************
+        # 4) REGISTRAR EN TABLA Pago_del_prestamo
+        # ***************************************************************************
         cursor.execute("""
             INSERT INTO Pago_del_prestamo(
                 `Fecha_de_pago`,
@@ -118,9 +124,9 @@ def pago_prestamo():
             id_caja
         ))
 
-        # ======================================================
-        # ACTUALIZAR PRÉSTAMO
-        # ======================================================
+        # ***************************************************************************
+        # 5) ACTUALIZAR PRÉSTAMO
+        # ***************************************************************************
         if nuevo_saldo == 0:
             cursor.execute("""
                 UPDATE Prestamo
@@ -136,15 +142,21 @@ def pago_prestamo():
             """, (nuevo_saldo, id_prestamo))
 
         con.commit()
+
         st.success("✔ Pago registrado correctamente.")
         st.info(f"💵 Nuevo saldo pendiente: **${nuevo_saldo:.2f}**")
-
         st.rerun()
 
-    # ======================================================
-    # HISTORIAL DE PAGOS — TABLA CORRECTA
-    # ======================================================
+    # ***************************************************************************
+    # 6) HISTORIAL DE PAGOS — CORREGIDO 100%
+    # ***************************************************************************
     st.subheader("📜 Historial de pagos")
+
+    # LIMPIA RESULTADOS PENDIENTES (EVITA EL ERROR)
+    try:
+        cursor.fetchall()
+    except:
+        pass
 
     cursor.execute("""
         SELECT *
