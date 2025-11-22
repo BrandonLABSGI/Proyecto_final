@@ -31,6 +31,10 @@ def ahorro():
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
 
+    if not socias:
+        st.warning("⚠ No hay socias registradas.")
+        return
+
     dict_socias = {f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] for s in socias}
 
     socia_sel = st.selectbox("👩 Seleccione la socia:", dict_socias.keys())
@@ -80,10 +84,11 @@ def ahorro():
     # 🔗 APLICAR AHORRO MÍNIMO
     monto = st.number_input(
         "💵 Monto del aporte ($)",
-        min_value=ahorro_minimo,         # ← valor desde reglas
+        min_value=ahorro_minimo,
         value=ahorro_minimo,
         step=0.25
     )
+    st.info(f"🔒 Aporte mínimo según reglamento: **${ahorro_minimo}**")
 
     tipo = st.selectbox("📌 Tipo de aporte", ["Ordinario", "Extraordinario"])
     comprobante = st.text_input("📎 Comprobante digital")
@@ -93,7 +98,7 @@ def ahorro():
         try:
 
             # ---------------------------------------------------------
-            # 4️⃣ OBTENER SALDO ANTERIOR (CORREGIDO)
+            # 4️⃣ OBTENER SALDO ANTERIOR
             # ---------------------------------------------------------
             cursor.execute("""
                 SELECT `Saldo acumulado`
