@@ -6,7 +6,7 @@ from modulos.caja import obtener_o_crear_reunion, registrar_movimiento
 
 
 # ============================================================
-# PAGO DE PRÉSTAMO – SISTEMA CVX (ADAPTADO A TU TABLA REAL)
+# PAGO DE PRÉSTAMO – SISTEMA CVX (TABLAS CON ESPACIOS)
 # ============================================================
 def pago_prestamo():
 
@@ -93,10 +93,10 @@ def pago_prestamo():
         )
 
         # ======================================================
-        # 2️⃣ INSERTAR REGISTRO EN Pago_del_prestamo (CON ESPACIOS)
+        # 2️⃣ REGISTRO EN TABLA “Pago del prestamo”
         # ======================================================
         cursor.execute("""
-            INSERT INTO Pago_del_prestamo(
+            INSERT INTO `Pago del prestamo`(
                 `Fecha de pago`,
                 `Monto abonado`,
                 `Interés pagado`,
@@ -117,7 +117,7 @@ def pago_prestamo():
         ))
 
         # ======================================================
-        # 3️⃣ ACTUALIZAR ESTADO DEL PRÉSTAMO
+        # 3️⃣ ACTUALIZAR PRÉSTAMO
         # ======================================================
         if nuevo_saldo == 0:
             cursor.execute("""
@@ -153,7 +153,7 @@ def pago_prestamo():
             `Capital pagado`,
             `Saldo restante`,
             `Id_Caja`
-        FROM Pago_del_prestamo
+        FROM `Pago del prestamo`
         WHERE Id_Prestamo=%s
         ORDER BY Id_Pago ASC
     """, (id_prestamo,))
@@ -161,8 +161,7 @@ def pago_prestamo():
     pagos = cursor.fetchall()
 
     if pagos:
-        df = pd.DataFrame(pagos)
-        st.dataframe(df, hide_index=True)
+        st.dataframe(pd.DataFrame(pagos), hide_index=True)
     else:
         st.info("La socia aún no tiene pagos registrados.")
 
