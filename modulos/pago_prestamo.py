@@ -36,12 +36,14 @@ def pago_prestamo():
         FROM Prestamo
         WHERE Id_Socia=%s AND Estado_del_prestamo='activo'
     """, (id_socia,))
-    prestamo = cur2.fetchone()
+    prestamos = cur2.fetchall()  # ← CORREGIDO (ANTES HACÍAS fetchone)
     cur2.close()
 
-    if not prestamo:
-        st.info("La socia no tiene préstamos activos.")
+    if len(prestamos) == 0:
+        st.info("La socia no tiene préstamo activo.")
         return
+
+    prestamo = prestamos[0]  # tomar el primero
 
     id_prestamo = prestamo["Id_Préstamo"]
     monto = prestamo["Monto prestado"]
@@ -84,7 +86,7 @@ def pago_prestamo():
             nuevo_saldo = 0
 
         # ======================================================
-        # 5️⃣ MOVIMIENTO EN CAJA
+        # 5️⃣ REGISTRAR INGRESO EN CAJA
         # ======================================================
         id_caja = obtener_o_crear_reunion(fecha_pago)
 
@@ -96,7 +98,7 @@ def pago_prestamo():
         )
 
         # ======================================================
-        # 6️⃣ REGISTRAR EN TABLA Pago_del_prestamo
+        # 6️⃣ GUARDAR PAGO
         # ======================================================
         cur3 = con.cursor()
         cur3.execute("""
@@ -128,7 +130,7 @@ def pago_prestamo():
         cur4.execute("""
             UPDATE Prestamo
             SET `Saldo pendiente`=%s,
-                Estado_del_prestamo = CASE 
+                Estado_del_prestamo = CASE
                     WHEN %s = 0 THEN 'cancelado'
                     ELSE 'activo'
                 END
@@ -141,7 +143,7 @@ def pago_prestamo():
         st.rerun()
 
     # ======================================================
-    # 8️⃣ HISTORIAL (USANDO OTRO CURSOR)
+    # 8️⃣ HISTORIAL
     # ======================================================
     st.subheader("📜 Historial de pagos")
 
@@ -158,6 +160,6 @@ def pago_prestamo():
     if pagos:
         st.dataframe(pd.DataFrame(pagos), hide_index=True)
     else:
-        st.info("La socia aún no tiene pagos registrados.")
+        st.info("Aún no hay pagos registrados.")
 
     con.close()
