@@ -19,7 +19,6 @@ def autorizar_prestamo():
     # ======================================================
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
-
     lista_socias = {f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] for s in socias}
 
     # ======================================================
@@ -45,10 +44,8 @@ def autorizar_prestamo():
         return
 
     # ======================================================
-    # VALIDACIONES
+    # VALIDACIÓN 1 — PRÉSTAMO ACTIVO
     # ======================================================
-
-    # 1. Préstamo activo
     cursor.execute("""
         SELECT COUNT(*) AS activos
         FROM Prestamo
@@ -58,7 +55,9 @@ def autorizar_prestamo():
         st.error("❌ La socia ya tiene un préstamo activo.")
         return
 
-    # 2. Ahorro
+    # ======================================================
+    # VALIDACIÓN 2 — AHORRO TOTAL
+    # ======================================================
     cursor.execute("""
         SELECT `Saldo acumulado`
         FROM Ahorro
@@ -70,10 +69,12 @@ def autorizar_prestamo():
     ahorro = Decimal(str(row["Saldo acumulado"])) if row else Decimal("0.00")
 
     if ahorro < monto:
-        st.error(f"❌ Ahorro insuficiente: solo tiene ${ahorro:.2f}")
+        st.error(f"❌ La socia solo tiene ${ahorro:.2f}. No puede solicitar un préstamo de ${monto:.2f}.")
         return
 
-    # 3. Caja
+    # ======================================================
+    # VALIDACIÓN 3 — SALDO DE CAJA
+    # ======================================================
     id_caja = obtener_o_crear_reunion(fecha_prestamo)
     cursor.execute("SELECT saldo_final FROM caja_reunion WHERE id_caja=%s", (id_caja,))
     saldo_caja = Decimal(str(cursor.fetchone()["saldo_final"]))
@@ -85,19 +86,17 @@ def autorizar_prestamo():
     # ======================================================
     # CÁLCULOS
     # ======================================================
-
     interes_total = monto * (tasa / 100)
     total_a_pagar = monto + interes_total
     cuota_fija = (total_a_pagar / cuotas).quantize(Decimal("0.01"))
 
-    # Fechas de pago
     fechas = [
         (fecha_raw + timedelta(days=15 * (i + 1))).strftime("%Y-%m-%d")
         for i in range(cuotas)
     ]
 
     # ======================================================
-    # INSERTAR PRÉSTAMO
+    # REGISTRAR PRÉSTAMO
     # ======================================================
     cursor.execute("""
         INSERT INTO Prestamo(
@@ -126,7 +125,24 @@ def autorizar_prestamo():
         id_caja
     ))
 
+    # ======================================================
+    # DESCONTAR AHORRO DE LA SOCIA (NUEVO)
+    # ======================================================
+    nuevo_ahorro = ahorro - monto
+
+    cursor.execute("""
+        INSERT INTO Ahorro (Fecha, Monto, `Saldo acumulado`, Id_Socia)
+        VALUES (%s, %s, %s, %s)
+    """, (
+        fecha_prestamo,
+        -float(monto),       # monto negativo
+        float(nuevo_ahorro), 
+        id_socia
+    ))
+
+    # ======================================================
     # EGRESO DE CAJA
+    # ======================================================
     registrar_movimiento(
         id_caja=id_caja,
         tipo="Egreso",
@@ -136,39 +152,25 @@ def autorizar_prestamo():
 
     con.commit()
 
-    st.success("✔ Préstamo autorizado correctamente y descontado de caja.")
+    st.success("✔ Préstamo autorizado correctamente, descontado de Ahorro y de Caja.")
 
     # ======================================================
-    # RESUMEN PROFESIONAL
+    # RESUMEN
     # ======================================================
-
     st.subheader("📄 Resumen del préstamo")
-
     st.table({
         "Dato": [
-            "Fecha del préstamo",
-            "Socia",
-            "Monto prestado",
-            "Interés total",
-            "Total a pagar",
-            "Plazo (meses)",
-            "Número de cuotas",
-            "Cuota fija"
+            "Fecha del préstamo", "Socia", "Monto prestado", "Interés total",
+            "Total a pagar", "Plazo (meses)", "Número de cuotas", "Cuota fija"
         ],
         "Valor": [
-            fecha_prestamo,
-            socia_sel,
-            f"${monto:.2f}",
-            f"${interes_total:.2f}",
-            f"${total_a_pagar:.2f}",
-            plazo,
-            cuotas,
-            f"${cuota_fija:.2f}",
+            fecha_prestamo, socia_sel, f"${monto:.2f}",
+            f"${interes_total:.2f}", f"${total_a_pagar:.2f}",
+            plazo, cuotas, f"${cuota_fija:.2f}"
         ]
     })
 
     st.subheader("📅 Calendario de pagos")
-
     st.table({
         "Cuota Nº": list(range(1, cuotas + 1)),
         "Fecha de pago": fechas,
