@@ -131,7 +131,7 @@ def interfaz_directiva():
 
 
 # ============================================================
-# MULTAS — REGISTRO + FILTROS + PENDIENTES
+# MULTAS — REGISTRO + FILTROS + PENDIENTES (CORREGIDO)
 # ============================================================
 def pagina_multas():
 
@@ -160,43 +160,38 @@ def pagina_multas():
     dict_socias = {f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] for s in socias}
 
     # ---------------------------------------------
-    # FORMULARIO
+    # TIPOS DE MULTA
+    # ---------------------------------------------
+    tipos_multa = {
+        "Inasistencia": 1,   # tipo fijo desde reglas
+        "Otra multa": 2      # ajusta según tu tabla
+    }
+
+    # ---------------------------------------------
+    # FORMULARIO DE NUEVA MULTA
     # ---------------------------------------------
     st.subheader("➕ Registrar nueva multa")
 
     socia_sel = st.selectbox("👩 Socia:", dict_socias.keys())
     id_socia = dict_socias[socia_sel]
 
-    tipo_multa = st.selectbox(
-        "Tipo de multa",
-        ["Inasistencia", "Otra multa"]
-    )
+    tipo_sel = st.selectbox("Tipo de multa:", tipos_multa.keys())
+    id_tipo = tipos_multa[tipo_sel]
 
-    # Monto automático si es inasistencia
-    if tipo_multa == "Inasistencia":
+    # Monto automático (si es inasistencia)
+    if tipo_sel == "Inasistencia":
         monto = multa_inasistencia
         st.info(f"💲 Multa automática según reglamento: **${multa_inasistencia}**")
     else:
-       from modulos.reglas_utils import obtener_reglas
-reglas = obtener_reglas()
-
-multa_inasistencia = float(reglas["multa_inasistencia"])
-
-if tipo_sel.lower() == "inasistencia":
-    st.info(f"Monto definido por reglamento: **${multa_inasistencia:.2f}**")
-    monto = multa_inasistencia
-else:
-    monto = st.number_input("Monto ($)", min_value=0.25, step=0.25)
-
+        monto = st.number_input("Monto ($)", min_value=0.25, step=0.25)
 
     fecha_raw = st.date_input("📅 Fecha", date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
-    # Estado inicial siempre “A pagar”
     estado = "A pagar"
 
     # ---------------------------------------------
-    # VALIDACIÓN PERMISO (NO REGISTRAR MULTA)
+    # VALIDACIÓN PERMISO (NO SE APLICA MULTA)
     # ---------------------------------------------
     cursor.execute("""
         SELECT Estado_asistencia
@@ -216,21 +211,14 @@ else:
     # ---------------------------------------------
     if st.button("💾 Registrar multa"):
 
-    # Si es inasistencia → usar monto de reglas internas
-    if tipo_sel.lower() == "inasistencia":
-        monto_final = multa_inasistencia
-    else:
-        monto_final = monto
+        cursor.execute("""
+            INSERT INTO Multa(Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (monto, fecha, estado, id_tipo, id_socia))
 
-    cursor.execute("""
-        INSERT INTO Multa(Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
-        VALUES (%s,%s,%s,%s,%s)
-    """, (monto_final, fecha, estado_sel, id_tipo, id_socia))
-
-    con.commit()
-    st.success("✔ Multa registrada correctamente.")
-    st.rerun()
-
+        con.commit()
+        st.success("✔ Multa registrada correctamente.")
+        st.rerun()
 
     # ---------------------------------------------
     # LISTADO DE MULTAS
@@ -259,7 +247,6 @@ else:
             c3.write(f"${m['Monto']}")
             c4.write(m["Estado"])
 
-            # Botón pagar
             if m["Estado"] == "A pagar":
                 if c5.button("Pagar", key=f"pay_{m['Id_Multa']}"):
 
@@ -284,6 +271,7 @@ else:
 
     cursor.close()
     con.close()
+
 
     # --------------------------
     # REGISTRO DE MULTA
