@@ -474,56 +474,67 @@ def pagina_asistencia():
         )
         registro[s["Id_Socia"]] = estado
 
-    # ---------------------------------------------
-    # GUARDAR ASISTENCIA
-    # ---------------------------------------------
-    if st.button("💾 Guardar asistencia"):
+    # ------------------------------------------
+# GUARDAR ASISTENCIA (NUEVA LÓGICA)
+# ------------------------------------------
+from modulos.reglas_utils import obtener_reglas
 
-        for id_socia, estado in registro.items():
+if st.button("💾 Guardar asistencia"):
 
-            # -----------------------------------
-            # DEFINIR ESTADO A GUARDAR
-            # -----------------------------------
-            if estado == "Presente":
-                est = "Presente"
+    reglas = obtener_reglas()
 
-            elif estado == "Permiso":
-                est = "Permiso"
+    # Valores desde reglas, con fallback seguro
+    multa_inasistencia = float(reglas.get("multa_inasistencia", 0))
+    permisos_validos = reglas.get("permisos_validos", "enfermedad, trabajo, maternidad")
 
-            else:
-                # AUSENTE → multa automática
-                est = "Ausente"
+    lista_permisos = [p.strip().lower() for p in permisos_validos.split(",")]
 
-                cursor.execute("""
-                    INSERT INTO Multa(Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
-                    VALUES (%s, %s, 'A pagar', 1, %s)
-                """, (multa_inasistencia, fecha, id_socia))
+    for id_socia, estado in registro.items():
 
-            # -----------------------------------
-            # INSERTAR O ACTUALIZAR ASISTENCIA
-            # -----------------------------------
+        # -----------------------------------
+        # Determinar estado a guardar
+        # -----------------------------------
+        if estado == "Presente":
+            est = "Presente"
+
+        elif estado == "Permiso":
+            est = "Permiso"
+
+        else:   # Ausente SIN permiso
+            est = "Ausente"
+
+            # Aplicar multa auto
             cursor.execute("""
-                SELECT Id_Asistencia FROM Asistencia
-                WHERE Id_Reunion=%s AND Id_Socia=%s
-            """, (id_reunion, id_socia))
+                INSERT INTO Multa(Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
+                VALUES (%s, %s, 'A pagar', 1, %s)
+            """, (multa_inasistencia, fecha, id_socia))
 
-            existe = cursor.fetchone()
+        # -----------------------------------
+        # Insert/update asistencia
+        # -----------------------------------
+        cursor.execute("""
+            SELECT Id_Asistencia FROM Asistencia
+            WHERE Id_Reunion=%s AND Id_Socia=%s
+        """, (id_reunion, id_socia))
 
-            if existe:
-                cursor.execute("""
-                    UPDATE Asistencia
-                    SET Estado_asistencia=%s, Fecha=%s
-                    WHERE Id_Asistencia=%s
-                """, (est, fecha, existe["Id_Asistencia"]))
-            else:
-                cursor.execute("""
-                    INSERT INTO Asistencia(Id_Reunion, Id_Socia, Estado_asistencia, Fecha)
-                    VALUES(%s,%s,%s,%s)
-                """, (id_reunion, id_socia, est, fecha))
+        existe = cursor.fetchone()
 
-        con.commit()
-        st.success("✔ Asistencia registrada correctamente con reglas aplicadas.")
-        st.rerun()
+        if existe:
+            cursor.execute("""
+                UPDATE Asistencia
+                SET Estado_asistencia=%s, Fecha=%s
+                WHERE Id_Asistencia=%s
+            """, (est, fecha, existe["Id_Asistencia"]))
+        else:
+            cursor.execute("""
+                INSERT INTO Asistencia(Id_Reunion, Id_Socia, Estado_asistencia, Fecha)
+                VALUES(%s,%s,%s,%s)
+            """, (id_reunion, id_socia, est, fecha))
+
+    con.commit()
+    st.success("✔ Asistencia registrada correctamente (reglas aplicadas).")
+    st.rerun()
+
 
     # ---------------------------------------------
     # MOSTRAR ASISTENCIA
