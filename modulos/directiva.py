@@ -137,20 +137,142 @@ def pagina_multas():
 
     st.header("⚠️ Aplicación de multas")
 
+    # ---------------------------------------------
+    # LEER REGLAS INTERNAS
+    # ---------------------------------------------
+    from modulos.reglas_utils import obtener_reglas
+    reglas = obtener_reglas()
+
+    multa_inasistencia = float(reglas["multa_inasistencia"])
+
+    # ---------------------------------------------
+    # INICIAR BD
+    # ---------------------------------------------
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
+    # ---------------------------------------------
     # SOCIAS
+    # ---------------------------------------------
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
 
-    opciones_socias = {f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] for s in socias}
+    dict_socias = {f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] for s in socias}
 
-    # TIPOS DE MULTA
-    cursor.execute("SELECT Id_Tipo_multa, `Tipo de multa` FROM `Tipo de multa` ORDER BY Id_Tipo_multa ASC")
-    tipos = cursor.fetchall()
+    # ---------------------------------------------
+    # FORMULARIO
+    # ---------------------------------------------
+    st.subheader("➕ Registrar nueva multa")
 
-    opciones_tipos = {t["Tipo de multa"]: t["Id_Tipo_multa"] for t in tipos}
+    socia_sel = st.selectbox("👩 Socia:", dict_socias.keys())
+    id_socia = dict_socias[socia_sel]
+
+    tipo_multa = st.selectbox(
+        "Tipo de multa",
+        ["Inasistencia", "Otra multa"]
+    )
+
+    # Monto automático si es inasistencia
+    if tipo_multa == "Inasistencia":
+        monto = multa_inasistencia
+        st.info(f"💲 Multa automática según reglamento: **${multa_inasistencia}**")
+    else:
+        monto = st.number_input("Monto ($)", min_value=0.25, step=0.25)
+
+    fecha_raw = st.date_input("📅 Fecha", date.today())
+    fecha = fecha_raw.strftime("%Y-%m-%d")
+
+    # Estado inicial siempre “A pagar”
+    estado = "A pagar"
+
+    # ---------------------------------------------
+    # VALIDACIÓN PERMISO (NO REGISTRAR MULTA)
+    # ---------------------------------------------
+    cursor.execute("""
+        SELECT Estado_asistencia
+        FROM Asistencia
+        WHERE Id_Socia=%s AND Fecha=%s
+        LIMIT 1
+    """, (id_socia, fecha))
+
+    row_asistencia = cursor.fetchone()
+
+    if row_asistencia and row_asistencia["Estado_asistencia"] == "Permiso":
+        st.warning("✔ La socia tenía PERMISO. No se aplicará multa.")
+        return
+
+    # ---------------------------------------------
+    # GUARDAR MULTA
+    # ---------------------------------------------
+    if st.button("💾 Registrar multa"):
+
+        cursor.execute("""
+            INSERT INTO Multa(Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
+            VALUES(%s, %s, %s, %s, %s)
+        """, (
+            monto,
+            fecha,
+            estado,
+            1 if tipo_multa == "Inasistencia" else 2,
+            id_socia
+        ))
+
+        con.commit()
+        st.success("✔ Multa registrada correctamente.")
+        st.rerun()
+
+    # ---------------------------------------------
+    # LISTADO DE MULTAS
+    # ---------------------------------------------
+    st.markdown("---")
+    st.subheader("📋 Multas registradas")
+
+    cursor.execute("""
+        SELECT M.Id_Multa, S.Nombre, M.Monto, M.Estado, M.Fecha_aplicacion
+        FROM Multa M
+        JOIN Socia S ON S.Id_Socia = M.Id_Socia
+        ORDER BY M.Id_Multa DESC
+    """)
+
+    multas = cursor.fetchall()
+
+    if not multas:
+        st.info("No hay multas registradas.")
+    else:
+        for m in multas:
+
+            c1, c2, c3, c4, c5 = st.columns([1, 3, 2, 2, 2])
+
+            c1.write(f"#{m['Id_Multa']}")
+            c2.write(m["Nombre"])
+            c3.write(f"${m['Monto']}")
+            c4.write(m["Estado"])
+
+            # Botón pagar
+            if m["Estado"] == "A pagar":
+                if c5.button("Pagar", key=f"pay_{m['Id_Multa']}"):
+
+                    id_caja = obtener_o_crear_reunion(m["Fecha_aplicacion"])
+
+                    registrar_movimiento(
+                        id_caja=id_caja,
+                        tipo="Ingreso",
+                        categoria=f"Pago de multa – {m['Nombre']}",
+                        monto=float(m["Monto"])
+                    )
+
+                    cursor.execute("""
+                        UPDATE Multa 
+                        SET Estado='Pagada' 
+                        WHERE Id_Multa=%s
+                    """, (m["Id_Multa"],))
+
+                    con.commit()
+                    st.success("✔ Multa pagada.")
+                    st.rerun()
+
+    cursor.close()
+    con.close()
 
     # --------------------------
     # REGISTRO DE MULTA
