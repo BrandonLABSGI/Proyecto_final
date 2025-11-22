@@ -84,12 +84,7 @@ def interfaz_directiva():
     except Exception as e:
         st.error(f"⚠ Error al generar reporte diario: {e}")
 
-    # ============================================
-    # Cerrar sesión
-    # ============================================
-    if st.sidebar.button("🔒 Cerrar sesión"):
-        st.session_state.clear()
-        st.rerun()
+   
 
     # ============================================
     # MENÚ LATERAL
