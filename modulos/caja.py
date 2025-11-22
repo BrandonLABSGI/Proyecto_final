@@ -16,22 +16,27 @@ def obtener_o_crear_reunion(fecha):
     reunion = cursor.fetchone()
 
     if reunion:
+        cursor.close()
+        con.close()
         return reunion["id_caja"]
 
     # Obtener último saldo final existente
     cursor.execute("SELECT saldo_final FROM caja_reunion ORDER BY fecha DESC LIMIT 1")
     ultimo = cursor.fetchone()
-
-    saldo_anterior = ultimo["saldo_final"] if ultimo else Decimal("0.00")
+    saldo_anterior = Decimal(str(ultimo["saldo_final"])) if ultimo else Decimal("0.00")
 
     # Crear nueva reunión heredando saldo anterior
     cursor.execute("""
         INSERT INTO caja_reunion (fecha, saldo_inicial, ingresos, egresos, saldo_final)
         VALUES (%s, %s, 0, 0, %s)
     """, (fecha, saldo_anterior, saldo_anterior))
-    con.commit()
 
-    return cursor.lastrowid
+    con.commit()
+    nuevo_id = cursor.lastrowid
+
+    cursor.close()
+    con.close()
+    return nuevo_id
 
 
 # =====================================================
@@ -50,7 +55,10 @@ def obtener_saldo_por_fecha(fecha):
     reunion = cursor.fetchone()
 
     if reunion:
-        return Decimal(str(reunion["saldo_final"]))
+        saldo = Decimal(str(reunion["saldo_final"]))
+        cursor.close()
+        con.close()
+        return saldo
 
     # Si no existe, tomar última reunión anterior
     cursor.execute("""
@@ -62,6 +70,9 @@ def obtener_saldo_por_fecha(fecha):
     """, (fecha,))
     anterior = cursor.fetchone()
 
+    cursor.close()
+    con.close()
+
     return Decimal(str(anterior["saldo_final"])) if anterior else Decimal("0.00")
 
 
@@ -72,7 +83,6 @@ def registrar_movimiento(id_caja, tipo, categoria, monto):
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    # 🔥 Convertir monto a Decimal para evitar errores
     monto = Decimal(str(monto))
 
     # Obtener datos actuales de esa reunión
@@ -84,10 +94,12 @@ def registrar_movimiento(id_caja, tipo, categoria, monto):
     reunion = cursor.fetchone()
 
     if not reunion:
+        cursor.close()
+        con.close()
         return
 
     saldo_inicial = Decimal(str(reunion["saldo_inicial"]))
-    ingresos = Decimal(str(reunion["inversiones"])) if "inversiones" in reunion else Decimal(str(reunion["ingresos"]))
+    ingresos = Decimal(str(reunion["ingresos"]))
     egresos = Decimal(str(reunion["egresos"]))
 
     # Registrar movimiento
@@ -113,3 +125,6 @@ def registrar_movimiento(id_caja, tipo, categoria, monto):
     """, (ingresos, egresos, saldo_final, id_caja))
 
     con.commit()
+
+    cursor.close()
+    con.close()
