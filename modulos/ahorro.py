@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st 
 from datetime import date
 from modulos.conexion import obtener_conexion
 from modulos.caja import obtener_o_crear_reunion, registrar_movimiento
@@ -81,16 +81,28 @@ def ahorro():
     fecha_aporte_raw = st.date_input("📅 Fecha del aporte", value=date.today())
     fecha_aporte = fecha_aporte_raw.strftime("%Y-%m-%d")
 
-    # 🔗 APLICAR AHORRO MÍNIMO
-    monto = st.number_input(
-        "💵 Monto del aporte ($)",
-        min_value=ahorro_minimo,
-        value=ahorro_minimo,
-        step=0.25
-    )
-    st.info(f"🔒 Aporte mínimo según reglamento: **${ahorro_minimo}**")
-
+    # ---------------------------------------------------------
+    # 🔗 APLICAR AHORRO MÍNIMO SOLO A ORDINARIO
+    # ---------------------------------------------------------
     tipo = st.selectbox("📌 Tipo de aporte", ["Ordinario", "Extraordinario"])
+
+    if tipo == "Ordinario":
+        st.info(f"🔒 Aporte ordinario mínimo según reglamento: **${ahorro_minimo}**")
+        monto = st.number_input(
+            "💵 Monto del aporte ($)",
+            min_value=ahorro_minimo,
+            value=ahorro_minimo,
+            step=0.25
+        )
+    else:
+        monto = st.number_input(
+            "💵 Monto del aporte ($)",
+            min_value=0.25,
+            value=1.00,
+            step=0.25
+        )
+        st.caption("Los aportes extraordinarios no tienen un mínimo definido.")
+
     comprobante = st.text_input("📎 Comprobante digital")
 
     if st.button("💾 Registrar aporte"):
@@ -148,3 +160,4 @@ def ahorro():
 
         except Exception as e:
             st.error(f"❌ Error al registrar aporte: {e}")
+
