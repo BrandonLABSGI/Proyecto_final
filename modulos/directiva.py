@@ -443,5 +443,6 @@ def pagina_registro_socias():
             st.error("El DUI debe contener exactamente 9 dígitos.")
             return
 
-        if not (telefono_raw.isdigit() and len(telefono_raw) == 8):
-            st.error("El teléfono debe contener exactamente 8 díg
+       if not (telefono_raw.isdigit() and len(telefono_raw) == 8):
+    st.error("El teléfono debe contener exactamente 8 dígitos.")
+    return
