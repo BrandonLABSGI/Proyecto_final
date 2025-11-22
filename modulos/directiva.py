@@ -431,18 +431,27 @@ def pagina_registro_socias():
     telefono_raw = st.text_input("Teléfono (8 dígitos)", max_chars=8)
 
     if telefono_raw and not telefono_raw.isdigit():
-        st.error("El teléfono solo debe contener números.")
+    st.error("El teléfono solo debe contener números.")
 
-    if st.button("Registrar socia"):
+if st.button("Registrar socia"):
 
-        if nombre.strip() == "":
-            st.warning("Debe ingresar un nombre.")
-            return
+    if nombre.strip() == "":
+        st.warning("Debe ingresar un nombre.")
+        return
 
-        if not (dui_raw.isdigit() and len(dui_raw) == 9):
-            st.error("El DUI debe contener exactamente 9 dígitos.")
-            return
+    if not (dui_raw.isdigit() and len(dui_raw) == 9):
+        st.error("El DUI debe contener exactamente 9 dígitos.")
+        return
 
-       if not (telefono_raw.isdigit() and len(telefono_raw) == 8):
-    st.error("El teléfono debe contener exactamente 8 dígitos.")
-    return
+    if not (telefono_raw.isdigit() and len(telefono_raw) == 8):
+        st.error("El teléfono debe contener exactamente 8 dígitos.")
+        return
+
+    cursor.execute("""
+        INSERT INTO Socia(Nombre, DUI, Telefono, Sexo)
+        VALUES(%s,%s,%s,'F')
+    """, (nombre, dui_formateado, telefono_raw))
+
+    con.commit()
+    st.success("✔ Socia registrada correctamente.")
+    st.rerun()
