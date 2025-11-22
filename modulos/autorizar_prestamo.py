@@ -5,6 +5,9 @@ from decimal import Decimal
 from modulos.conexion import obtener_conexion
 from modulos.caja import obtener_o_crear_reunion, registrar_movimiento
 
+# 🔗 NUEVO
+from modulos.reglas_utils import obtener_reglas
+
 
 # ============================================================
 #     AUTORIZAR PRÉSTAMO — SISTEMA CVX (CAJA ÚNICA)
@@ -13,6 +16,20 @@ def autorizar_prestamo():
 
     st.title("💳 Autorizar préstamo")
     st.write("Complete la información para autorizar un nuevo préstamo.")
+
+    # ======================================================
+    # 🔗 LEER REGLAS INTERNAS
+    # ======================================================
+    reglas = obtener_reglas()
+
+    if not reglas:
+        st.error("⚠ No existen reglas internas registradas. Regístrelas primero.")
+        return
+
+    # Valores desde reglas internas
+    monto_maximo = float(reglas["prestamo_maximo"])
+    tasa_defecto = float(reglas["interes_por_10"])
+    plazo_maximo = int(reglas["plazo_maximo"])
 
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
@@ -42,9 +59,29 @@ def autorizar_prestamo():
         socia_sel = st.selectbox("👩 Socia que recibe el préstamo", list(lista_socias.keys()))
         id_socia = lista_socias[socia_sel]
 
-        monto = st.number_input("💵 Monto prestado ($):", min_value=1.0, step=1.0)
-        tasa = st.number_input("📈 Tasa de interés (%)", min_value=1.0, step=1.0)
-        plazo = st.number_input("🗓 Plazo (meses):", min_value=1)
+        # 🔗 Valores traídos desde reglas internas
+        monto = st.number_input(
+            "💵 Monto prestado ($):",
+            min_value=1.0,
+            max_value=monto_maximo,
+            value=1.0,
+            step=1.0
+        )
+
+        tasa = st.number_input(
+            "📈 Tasa de interés (%)",
+            min_value=0.1,
+            value=tasa_defecto,
+            step=0.5
+        )
+
+        plazo = st.number_input(
+            "🗓 Plazo (meses):",
+            min_value=1,
+            max_value=plazo_maximo,
+            value=1
+        )
+
         cuotas = st.number_input("📑 Número de cuotas:", min_value=1)
         firma = st.text_input("✍️ Firma del directivo que autoriza")
 
@@ -92,8 +129,6 @@ def autorizar_prestamo():
         # -----------------------------------------------
         id_caja = obtener_o_crear_reunion(fecha_prestamo)
 
-        # saldo_final de esa reunión NO determina saldo real,
-        # pero se usa como snapshot en la pantalla.
         cursor.execute("SELECT saldo_final FROM caja_reunion WHERE id_caja=%s", (id_caja,))
         saldo_caja = Decimal(cursor.fetchone()["saldo_final"])
 
@@ -140,7 +175,7 @@ def autorizar_prestamo():
         id_prestamo_generado = cursor.lastrowid
 
         # -----------------------------------------------
-        # 5️⃣ DESCONTAR AHORRO (CORREGIDO PARA TU TABLA)
+        # 5️⃣ DESCONTAR AHORRO
         # -----------------------------------------------
         nuevo_ahorro = ahorro_total - Decimal(monto)
 
