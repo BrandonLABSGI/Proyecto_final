@@ -22,10 +22,6 @@ def autorizar_prestamo():
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
 
-    if not socias:
-        st.warning("⚠ No hay socias registradas.")
-        return
-
     opciones_socias = {f"{s['Id_Socia']} - {s['Nombre']}": s['Id_Socia'] for s in socias}
 
     # ======================================================
@@ -40,7 +36,13 @@ def autorizar_prestamo():
         id_socia = opciones_socias[socia_sel]
 
         monto = st.number_input("💵 Monto prestado ($):", min_value=1, max_value=300, step=1)
-        plazo_meses = st.number_input("🗓 Plazo (meses, máximo 4):", min_value=1, max_value=4)
+
+        tasa = st.number_input("📈 Tasa de interés mensual (%):", min_value=1, max_value=20, step=1)
+
+        plazo_meses = st.number_input("🗓 Plazo (meses):", min_value=1, max_value=12)
+
+        cuotas = plazo_meses * 2
+
         firma = st.text_input("✍️ Firma del directivo que autoriza")
 
         enviar = st.form_submit_button("✅ Autorizar préstamo")
@@ -51,8 +53,6 @@ def autorizar_prestamo():
     # ======================================================
     # VALIDACIONES
     # ======================================================
-
-    # AHORRO
     cursor.execute("""
         SELECT `Saldo acumulado`
         FROM Ahorro
@@ -63,47 +63,37 @@ def autorizar_prestamo():
     ahorro = row["Saldo acumulado"] if row else 0
 
     if monto > ahorro:
-        st.error(f"""
-        ❌ Ahorro insuficiente.
-
-        Ahorro: ${ahorro:.2f}
-        Solicitado: ${monto:.2f}
-        """)
+        st.error(f"❌ La socia no puede recibir un préstamo mayor al ahorro disponible (${ahorro:.2f}).")
         return
 
-    # PRÉSTAMO ACTIVO
     cursor.execute("""
-        SELECT Id_Préstamo FROM Prestamo
+        SELECT Id_Préstamo
+        FROM Prestamo
         WHERE Id_Socia=%s AND Estado_del_prestamo='activo'
     """, (id_socia,))
     if cursor.fetchone():
         st.error("❌ La socia ya tiene un préstamo activo.")
         return
 
-    # CAJA
     cursor.execute("SELECT saldo_final FROM caja_reunion ORDER BY fecha DESC LIMIT 1")
     row = cursor.fetchone()
     saldo_caja = row["saldo_final"] if row else 0
-
     if monto > saldo_caja:
-        st.error(f"❌ Fondos insuficientes en caja. Disponible: ${saldo_caja}")
+        st.error("❌ Fondos insuficientes en caja.")
         return
 
     # ======================================================
-    # CÁLCULOS DEL PRÉSTAMO
+    # CÁLCULOS
     # ======================================================
-    tasa_mensual = 0.10  # 10%
-    interes_total = round(monto * tasa_mensual * plazo_meses, 2)
-    total_a_pagar = round(monto + interes_total, 2)
-
-    cuotas = plazo_meses * 2
+    tasa_decimal = tasa / 100
+    interes_total = round(monto * tasa_decimal * plazo_meses, 2)
+    total_a_pagar = monto + interes_total
     cuota_fija = round(total_a_pagar / cuotas, 2)
 
-    # GENERAR FECHAS
-    fechas_cuotas = []
-    for i in range(cuotas):
-        fecha_cuota = fecha_prestamo_raw + timedelta(days=15 * (i + 1))
-        fechas_cuotas.append(fecha_cuota.strftime("%Y-%m-%d"))
+    fechas_cuotas = [
+        (fecha_prestamo_raw + timedelta(days=15 * (i + 1))).strftime("%Y-%m-%d")
+        for i in range(cuotas)
+    ]
 
     # ======================================================
     # GUARDAR PRÉSTAMO
@@ -122,7 +112,10 @@ def autorizar_prestamo():
             Id_Socia
         )
         VALUES (%s,%s,%s,%s,%s,%s,%s,'activo',1,%s)
-    """, (fecha_prestamo, monto, interes_total, 10, plazo_meses, cuotas, total_a_pagar, id_socia))
+    """, (
+        fecha_prestamo, monto, interes_total, tasa, plazo_meses,
+        cuotas, total_a_pagar, id_socia
+    ))
 
     con.commit()
 
@@ -130,7 +123,6 @@ def autorizar_prestamo():
     # REGISTRAR EGRESO EN CAJA
     # ======================================================
     id_caja = obtener_o_crear_reunion(fecha_prestamo)
-
     registrar_movimiento(
         id_caja,
         "Egreso",
@@ -139,22 +131,22 @@ def autorizar_prestamo():
     )
 
     # ======================================================
-    # MOSTRAR RESUMEN
+    # RESUMEN PROFESIONAL
     # ======================================================
     st.success("✔ Préstamo autorizado correctamente.")
 
     st.subheader("📄 Resumen del préstamo")
 
     resumen = {
-        "ID Socia": id_socia,
-        "Nombre": socia_sel,
+        "Socia": socia_sel,
+        "Fecha del préstamo": fecha_prestamo,
         "Monto prestado": f"${monto:.2f}",
+        "Tasa de interés mensual": f"{tasa}%",
         "Interés total": f"${interes_total:.2f}",
         "Total a pagar": f"${total_a_pagar:.2f}",
-        "Plazo (meses)": plazo_meses,
-        "Cuotas quincenales": cuotas,
-        "Cuota fija": f"${cuota_fija:.2f}",
-        "Saldo pendiente inicial": f"${total_a_pagar:.2f}"
+        "Plazo": f"{plazo_meses} meses",
+        "Número de cuotas": cuotas,
+        "Cuota quincenal": f"${cuota_fija:.2f}"
     }
 
     st.table(pd.DataFrame(resumen.items(), columns=["Detalle", "Valor"]))
