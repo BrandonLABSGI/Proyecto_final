@@ -1,10 +1,10 @@
-import mysql.connector
 from modulos.conexion import obtener_conexion
 
 def obtener_reglas():
     """
-    Devuelve un diccionario con todas las reglas internas existentes.
-    Siempre toma la primera fila porque la tabla solo guarda una regla activa.
+    Obtiene la única fila existente de reglas internas.
+    La tabla debe tener solo un registro vigente.
+    Devuelve un diccionario con todas las columnas.
     """
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
@@ -15,4 +15,5 @@ def obtener_reglas():
     cursor.close()
     con.close()
     return reglas
+
 
