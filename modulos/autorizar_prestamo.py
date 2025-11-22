@@ -167,7 +167,7 @@ def autorizar_prestamo():
         )
 
         # -----------------------------------------------
-        # 7️⃣ GENERAR CUOTAS AUTOMÁTICAS
+        # 7️⃣ GENERAR CUOTAS AUTOMÁTICAS (CORREGIDO)
         # -----------------------------------------------
         valor_cuota = total_pagar / Decimal(cuotas)
         fecha_base = datetime.strptime(fecha_prestamo, "%Y-%m-%d")
@@ -177,8 +177,8 @@ def autorizar_prestamo():
 
             cursor.execute("""
                 INSERT INTO Cuotas_prestamo
-                (Id_Prestamo, Numero_cuota, Fecha_programada, Monto_cuota, Estado)
-                VALUES (%s, %s, %s, %s, 'pendiente')
+                (Id_Prestamo, Numero_cuota, Fecha_programada, Monto_cuota, Estado, Id_Caja)
+                VALUES (%s, %s, %s, %s, 'pendiente', NULL)
             """, (
                 id_prestamo_generado,
                 n,
