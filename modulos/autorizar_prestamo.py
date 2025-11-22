@@ -7,7 +7,7 @@ from modulos.caja import obtener_o_crear_reunion, registrar_movimiento
 
 
 # ============================================================
-#     AUTORIZAR PRÉSTAMO — SISTEMA CVX
+#     AUTORIZAR PRÉSTAMO — SISTEMA CVX (CAJA ÚNICA)
 # ============================================================
 def autorizar_prestamo():
 
@@ -30,7 +30,7 @@ def autorizar_prestamo():
     lista_socias = {f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] for s in socias}
 
     # ======================================================
-    # 2️⃣ FORMULARIO
+    # 2️⃣ FORMULARIO DE PRÉSTAMO
     # ======================================================
     with st.form("form_prestamo"):
 
@@ -51,7 +51,7 @@ def autorizar_prestamo():
         enviar = st.form_submit_button("✅ Autorizar préstamo")
 
     # ======================================================
-    # 3️⃣ PROCESAR
+    # 3️⃣ PROCESAR FORMULARIO
     # ======================================================
     if enviar:
 
@@ -80,6 +80,7 @@ def autorizar_prestamo():
             LIMIT 1
         """, (id_socia,))
         row = cursor.fetchone()
+
         ahorro_total = Decimal(row["Saldo acumulado"]) if row else Decimal("0.00")
 
         if ahorro_total < Decimal(monto):
@@ -87,10 +88,12 @@ def autorizar_prestamo():
             return
 
         # -----------------------------------------------
-        # VALIDACIÓN 3 — SALDO EN CAJA
+        # VALIDACIÓN 3 — SALDO EN CAJA ÚNICA
         # -----------------------------------------------
         id_caja = obtener_o_crear_reunion(fecha_prestamo)
 
+        # saldo_final de esa reunión NO determina saldo real,
+        # pero se usa como snapshot en la pantalla.
         cursor.execute("SELECT saldo_final FROM caja_reunion WHERE id_caja=%s", (id_caja,))
         saldo_caja = Decimal(cursor.fetchone()["saldo_final"])
 
@@ -99,7 +102,7 @@ def autorizar_prestamo():
             return
 
         # -----------------------------------------------
-        # CALCULO DEL INTERÉS
+        # CÁLCULO DEL INTERÉS
         # -----------------------------------------------
         interes_total = Decimal(monto) * (Decimal(tasa) / 100)
         total_pagar = Decimal(monto) + interes_total
@@ -137,7 +140,7 @@ def autorizar_prestamo():
         id_prestamo_generado = cursor.lastrowid
 
         # -----------------------------------------------
-        # 5️⃣ DESCONTAR AHORRO (CORREGIDO)
+        # 5️⃣ DESCONTAR AHORRO (CORREGIDO PARA TU TABLA)
         # -----------------------------------------------
         nuevo_ahorro = ahorro_total - Decimal(monto)
 
@@ -154,7 +157,7 @@ def autorizar_prestamo():
         ))
 
         # -----------------------------------------------
-        # 6️⃣ REGISTRAR EGRESO EN CAJA
+        # 6️⃣ REGISTRAR EGRESO EN CAJA ÚNICA
         # -----------------------------------------------
         registrar_movimiento(
             id_caja=id_caja,
@@ -164,7 +167,7 @@ def autorizar_prestamo():
         )
 
         # -----------------------------------------------
-        # 7️⃣ GENERAR CUOTAS AUTOMÁTICAS (CORREGIDO)
+        # 7️⃣ GENERAR CUOTAS AUTOMÁTICAS
         # -----------------------------------------------
         valor_cuota = total_pagar / Decimal(cuotas)
         fecha_base = datetime.strptime(fecha_prestamo, "%Y-%m-%d")
