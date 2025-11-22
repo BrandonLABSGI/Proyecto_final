@@ -1,6 +1,6 @@
 import streamlit as st
 from datetime import date
-from modulos.config.conexion import obtener_conexion
+from modulos.conexion import obtener_conexion
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import letter
