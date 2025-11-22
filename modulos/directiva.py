@@ -411,21 +411,38 @@ def pagina_multas():
 
 
 # ============================================================
-# ASISTENCIA (CORREGIDA + REGLAS INTERNAS)
+# ASISTENCIA — CONECTADA A REGLAS INTERNAS
 # ============================================================
 def pagina_asistencia():
 
+    from modulos.reglas_utils import obtener_reglas
+
     st.header("📝 Registro de asistencia")
 
+    # ---------------------------------------------
+    # LEER REGLAS INTERNAS
+    # ---------------------------------------------
+    reglas = obtener_reglas()
+
+    multa_inasistencia = float(reglas["multa_inasistencia"])
+    permisos_validos = reglas["permisos_validos"]
+    lista_permisos = [p.strip().lower() for p in permisos_validos.split(",")]
+
+    # ---------------------------------------------
+    # CONEXIÓN
+    # ---------------------------------------------
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    fecha_raw = st.date_input("Fecha de reunión", date.today())
+    # ---------------------------------------------
+    # FECHA DE LA REUNIÓN
+    # ---------------------------------------------
+    fecha_raw = st.date_input("📅 Fecha de reunión", date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
-    # ============================================================
-    # Crear o recuperar reunión del día
-    # ============================================================
+    # ---------------------------------------------
+    # OBTENER O CREAR REUNIÓN
+    # ---------------------------------------------
     cursor.execute("SELECT Id_Reunion FROM Reunion WHERE Fecha_reunion=%s", (fecha,))
     row = cursor.fetchone()
 
@@ -440,9 +457,9 @@ def pagina_asistencia():
         id_reunion = cursor.lastrowid
         st.success(f"Reunión creada (ID {id_reunion}).")
 
-    # ============================================================
-    # Obtener socias
-    # ============================================================
+    # ---------------------------------------------
+    # SOCIAS
+    # ---------------------------------------------
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
 
@@ -457,24 +474,16 @@ def pagina_asistencia():
         )
         registro[s["Id_Socia"]] = estado
 
-    # ============================================================
-    # GUARDAR ASISTENCIA + REGLAS INTERNAS
-    # ============================================================
-    from modulos.reglas_utils import obtener_reglas
-
+    # ---------------------------------------------
+    # GUARDAR ASISTENCIA
+    # ---------------------------------------------
     if st.button("💾 Guardar asistencia"):
-
-        reglas = obtener_reglas()
-
-        multa_inasistencia = float(reglas["multa_inasistencia"])
-        permisos_validos = reglas["permisos_validos"]
-        lista_permisos = [p.strip().lower() for p in permisos_validos.split(",")]
 
         for id_socia, estado in registro.items():
 
-            # ----------------------------------
-            # Determinar estado a guardar
-            # ----------------------------------
+            # -----------------------------------
+            # DEFINIR ESTADO A GUARDAR
+            # -----------------------------------
             if estado == "Presente":
                 est = "Presente"
 
@@ -482,19 +491,17 @@ def pagina_asistencia():
                 est = "Permiso"
 
             else:
+                # AUSENTE → multa automática
                 est = "Ausente"
 
-                # ===============================
-                # MULTA AUTOMÁTICA SI NO TIENE PERMISO
-                # ===============================
                 cursor.execute("""
                     INSERT INTO Multa(Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
                     VALUES (%s, %s, 'A pagar', 1, %s)
                 """, (multa_inasistencia, fecha, id_socia))
 
-            # ===============================
-            # Guardar asistencia en BD
-            # ===============================
+            # -----------------------------------
+            # INSERTAR O ACTUALIZAR ASISTENCIA
+            # -----------------------------------
             cursor.execute("""
                 SELECT Id_Asistencia FROM Asistencia
                 WHERE Id_Reunion=%s AND Id_Socia=%s
@@ -518,9 +525,9 @@ def pagina_asistencia():
         st.success("✔ Asistencia registrada correctamente con reglas aplicadas.")
         st.rerun()
 
-    # ============================================================
-    # MOSTRAR ASISTENCIA DEL DÍA
-    # ============================================================
+    # ---------------------------------------------
+    # MOSTRAR ASISTENCIA
+    # ---------------------------------------------
     cursor.execute("""
         SELECT S.Id_Socia, S.Nombre, A.Estado_asistencia
         FROM Asistencia A
@@ -528,64 +535,6 @@ def pagina_asistencia():
         WHERE A.Id_Reunion=%s
     """, (id_reunion,))
 
-    datos = cursor.fetchall()
-
-    if datos:
-        df = pd.DataFrame(datos)
-        st.dataframe(df, hide_index=True)
-
-    cursor.close()
-    con.close()
-
-# ============================================================
-# REGISTRO DE SOCIAS
-# ============================================================
-def pagina_registro_socias():
-
-    st.header("👩‍🦰 Registro de nuevas socias")
-
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    nombre = st.text_input("Nombre completo")
-    dui_raw = st.text_input("DUI (9 dígitos, sin guion)", max_chars=9)
-
-    dui_formateado = ""
-    if dui_raw.isdigit() and len(dui_raw) == 9:
-        dui_formateado = f"{dui_raw[:8]}-{dui_raw[8]}"
-        st.success(f"Formato DUI: {dui_formateado}")
-    else:
-        st.info("Formato esperado: 00000000-0")
-
-    telefono_raw = st.text_input("Teléfono (8 dígitos)", max_chars=8)
-
-    if telefono_raw and not telefono_raw.isdigit():
-        st.error("El teléfono solo debe contener números.")
-
-    if st.button("Registrar socia"):
-
-        if nombre.strip() == "":
-            st.warning("Debe ingresar un nombre.")
-            return
-
-        if not (dui_raw.isdigit() and len(dui_raw) == 9):
-            st.error("DUI incorrecto.")
-            return
-
-        if not (telefono_raw.isdigit() and len(telefono_raw) == 8):
-            st.error("Teléfono incorrecto.")
-            return
-
-        cursor.execute("""
-            INSERT INTO Socia(Nombre, DUI, Telefono, Sexo)
-            VALUES(%s,%s,%s,'F')
-        """, (nombre, dui_formateado, telefono_raw))
-
-        con.commit()
-        st.success("✔ Socia registrada.")
-        st.rerun()
-
-    cursor.execute("SELECT Id_Socia, Nombre, DUI, Telefono FROM Socia ORDER BY Id_Socia ASC")
     datos = cursor.fetchall()
 
     if datos:
