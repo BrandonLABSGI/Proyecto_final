@@ -11,7 +11,7 @@ from modulos.ahorro import ahorro
 from modulos.reporte_caja import reporte_caja
 
 # CAJA (ACTUALIZADO A CAJA ÚNICA)
-from modulos.caja import obtener_o_crear_reunion, registrar_movimiento, obtener_saldo_actual
+from modulos.caja import obtener_o_crear_reunion, registrar_movimiento, obtener_saldo_actual, obtener_reporte_reunion
 
 # OTROS GASTOS
 from modulos.gastos_grupo import gastos_grupo
@@ -37,7 +37,9 @@ def interfaz_directiva():
 
     st.title("👩‍💼 Panel de la Directiva del Grupo")
 
-    # Fecha global
+    # ============================================
+    # FECHA GLOBAL (USADA SOLO PARA REPORTES)
+    # ============================================
     if "fecha_global" not in st.session_state:
         st.session_state["fecha_global"] = date.today().strftime("%Y-%m-%d")
 
@@ -48,21 +50,52 @@ def interfaz_directiva():
 
     st.session_state["fecha_global"] = fecha_sel
 
-    # SALDO REAL DE CAJA (YA NO POR FECHA)
+    # ============================================
+    # SALDO GLOBAL (CAJA ÚNICA)
+    # ============================================
     try:
-        saldo = obtener_saldo_actual()
-        st.info(f"💰 Saldo real en caja: **${saldo:.2f}**")
+        saldo_global = obtener_saldo_actual()
+        st.success(f"💰 Saldo REAL en caja: **${saldo_global:.2f}**")
     except:
-        st.warning("⚠ Error al obtener el saldo de caja.")
+        st.error("⚠ No se pudo obtener el saldo actual.")
 
+    # ============================================
+    # REPORTE DEL DÍA SELECCIONADO
+    # ============================================
+    try:
+        reporte = obtener_reporte_reunion(fecha_sel)
+
+        ingresos = reporte["ingresos"]
+        egresos = reporte["egresos"]
+        balance = reporte["balance"]
+        saldo_final = reporte["saldo_final"]
+
+        st.subheader(f"📊 Reporte del día {fecha_sel}")
+
+        st.info(
+            f"""
+            📥 **Ingresos del día:** ${ingresos:.2f}  
+            📤 **Egresos del día:** ${egresos:.2f}  
+            📘 **Balance del día:** ${balance:.2f}  
+            🔚 **Saldo final registrado ese día:** ${saldo_final:.2f}
+            """
+        )
+
+    except Exception as e:
+        st.error(f"⚠ Error al generar reporte diario: {e}")
+
+    # ============================================
     # Cerrar sesión
+    # ============================================
     if st.sidebar.button("🔒 Cerrar sesión"):
         st.session_state.clear()
         st.rerun()
 
-    # Menú lateral
+    # ============================================
+    # MENÚ LATERAL
+    # ============================================
     menu = st.sidebar.radio(
-        "Selección rápida:",
+        "Menú rápido:",
         [
             "Registro de asistencia",
             "Aplicar multas",
@@ -123,7 +156,7 @@ def pagina_multas():
     opciones_tipos = {t["Tipo de multa"]: t["Id_Tipo_multa"] for t in tipos}
 
     # --------------------------
-    # REGISTRAR MULTA
+    # REGISTRO DE MULTA
     # --------------------------
     st.subheader("➕ Registrar nueva multa")
 
@@ -273,6 +306,7 @@ def pagina_asistencia():
     fecha_raw = st.date_input("Fecha de reunión", date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
+    # Reunión
     cursor.execute("SELECT Id_Reunion FROM Reunion WHERE Fecha_reunion=%s", (fecha,))
     row = cursor.fetchone()
 
@@ -287,6 +321,7 @@ def pagina_asistencia():
         id_reunion = cursor.lastrowid
         st.success(f"Reunión creada (ID {id_reunion}).")
 
+    # Socias
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
 
@@ -301,6 +336,7 @@ def pagina_asistencia():
         )
         registro[s["Id_Socia"]] = estado
 
+    # Guardar
     if st.button("💾 Guardar asistencia"):
         for id_socia, valor in registro.items():
             est = "Presente" if valor == "SI" else "Ausente"
@@ -333,6 +369,7 @@ def pagina_asistencia():
         JOIN Socia S ON S.Id_Socia=A.Id_Socia
         WHERE A.Id_Reunion=%s
     """, (id_reunion,))
+
     datos = cursor.fetchall()
 
     if datos:
