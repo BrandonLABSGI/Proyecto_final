@@ -279,7 +279,7 @@ def pagina_multas():
     id_socia = dict_socias[socia_sel]
 
     # -----------------------------------------------------------
-    # TIPOS DE MULTA (TABLA CORRECTA)
+    # TIPOS DE MULTA
     # -----------------------------------------------------------
     cur.execute("SELECT Id_Tipo_multa, `Tipo de multa` FROM `Tipo de multa`")
     tipos = cur.fetchall()
@@ -288,10 +288,8 @@ def pagina_multas():
     tipo_sel = st.selectbox("Tipo de multa:", dict_tipos.keys())
     id_tipo = dict_tipos[tipo_sel]
 
-    # -----------------------------------------------------------
-    # Monto según tipo
-    # -----------------------------------------------------------
     tipo_lower = tipo_sel.lower()
+
     if "inasistencia" in tipo_lower:
         monto_def = 1.00
     elif "mora" in tipo_lower:
@@ -310,8 +308,8 @@ def pagina_multas():
     if st.button("💾 Registrar multa"):
 
         cur.execute("""
-            INSERT INTO Multa(Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
-            VALUES(%s, %s, %s, %s, %s)
+            INSERT INTO Multa (Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
+            VALUES (%s, %s, %s, %s, %s)
         """, (monto_def, fecha, estado, id_tipo, id_socia))
 
         con.commit()
@@ -322,15 +320,15 @@ def pagina_multas():
     st.subheader("📋 Multas registradas")
 
     # -----------------------------------------------------------
-    # FILTROS – socia, estado, fecha ÚNICA
+    # FILTRO DE UNA SOLA FECHA
     # -----------------------------------------------------------
     filtro_socia = st.selectbox("Filtrar por socia:", ["Todas"] + list(dict_socias.keys()))
     filtro_estado = st.selectbox("Estado:", ["Todos", "A pagar", "Pagada"])
-    fecha_filtro = st.date_input("Filtrar por fecha:", date.today())
+    fecha_filtro = st.date_input("Fecha a consultar:", date.today())
     fecha_filtro_str = fecha_filtro.strftime("%Y-%m-%d")
 
     # -----------------------------------------------------------
-    # QUERY PRINCIPAL
+    # QUERY CORRECTA
     # -----------------------------------------------------------
     query = """
         SELECT 
@@ -344,7 +342,7 @@ def pagina_multas():
         FROM Multa M
         JOIN Socia S ON S.Id_Socia = M.Id_Socia
         JOIN `Tipo de multa` T ON T.Id_Tipo_multa = M.Id_Tipo_multa
-        WHERE DATE(M.Fecha_aplicacion) = %s
+        WHERE M.Fecha_aplicacion = %s
     """
 
     params = [fecha_filtro_str]
@@ -357,16 +355,14 @@ def pagina_multas():
         query += " AND M.Estado = %s"
         params.append(filtro_estado)
 
-    # ORDEN OFICIAL:
-    # 1. Id_Socia (orden de registro)
-    # 2. Id_Multa
-    query += " ORDER BY S.Id_Socia ASC, M.Id_Multa DESC"
+    # ORDEN EXACTO QUE NECESITAS:
+    query += " ORDER BY S.Id_Socia ASC, M.Id_Multa ASC"
 
     cur.execute(query, params)
     multas = cur.fetchall()
 
     # -----------------------------------------------------------
-    # MENSAJE SI NO HAY MULTAS
+    # SI NO HAY MULTAS
     # -----------------------------------------------------------
     if not multas:
         if filtro_socia != "Todas":
@@ -386,11 +382,9 @@ def pagina_multas():
         col2.write(m["Socia"])
         col3.write(m["Tipo de multa"])
 
-        # Monto correcto según tipo
-        tipo_m = m["Tipo de multa"].lower()
-        if "inasistencia" in tipo_m:
+        if "inasistencia" in m["Tipo de multa"].lower():
             monto_f = 1.00
-        elif "mora" in tipo_m:
+        elif "mora" in m["Tipo de multa"].lower():
             monto_f = 3.00
         else:
             monto_f = float(m["Monto"])
@@ -398,7 +392,7 @@ def pagina_multas():
         col4.write(f"${monto_f:.2f}")
 
         nuevo_estado = col5.selectbox(
-            "",
+            "", 
             ["A pagar", "Pagada"],
             index=0 if m["Estado"] == "A pagar" else 1,
             key=f"multa_{m['Id_Multa']}"
@@ -406,24 +400,18 @@ def pagina_multas():
 
         col6.write(str(m["Fecha_aplicacion"]))
 
-        # -----------------------------------------------------------
-        # ACTUALIZAR MULTA
-        # -----------------------------------------------------------
         if col7.button("Actualizar", key=f"u_{m['Id_Multa']}"):
 
             estado_anterior = m["Estado"]
 
-            # Si cambia de A pagar → Pagada → Registrar en caja
             if estado_anterior == "A pagar" and nuevo_estado == "Pagada":
 
                 cur.execute("SELECT id_caja FROM caja_reunion WHERE fecha = %s", (m["Fecha_aplicacion"],))
                 reunion = cur.fetchone()
 
                 if reunion:
-                    id_caja = reunion["id_caja"]
-
                     registrar_movimiento(
-                        id_caja=id_caja,
+                        id_caja=reunion["id_caja"],
                         tipo="Ingreso",
                         categoria=f"Pago multa ({m['Socia']})",
                         monto=monto_f
