@@ -93,7 +93,7 @@ def gastos_grupo():
     fila_saldo = cursor.fetchone()
     saldo_global = float(fila_saldo["saldo_final"]) if fila_saldo else 0.0
 
-    # *SE ELIMINÓ EL ST.INFO DE ABAJO POR TU SOLICITUD*
+    # (Saldo abajo eliminado por tu solicitud)
 
     # --------------------------------------------------------
     # VALIDACIÓN
@@ -115,13 +115,14 @@ def gastos_grupo():
     if st.button("💾 Registrar gasto"):
 
         try:
+            # 🔥 ÚNICA CORRECCIÓN NECESARIA
+            categoria_final = f"{descripcion} — Responsable: {responsable}"
+
             registrar_movimiento(
                 id_caja=id_reunion,
                 tipo="egreso",
-                monto=monto,
-                descripcion=descripcion,
-                responsable=responsable,
-                fecha=fecha
+                categoria=categoria_final,
+                monto=monto
             )
 
             # Nuevo saldo después del gasto
