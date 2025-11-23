@@ -208,7 +208,7 @@ def pagina_asistencia():
 
 
 # ============================================================
-# REGISTRO DE NUEVAS SOCIAS — 🎯 CORREGIDO
+# REGISTRO DE NUEVAS SOCIAS — DUI / TEL SOLO NÚMEROS
 # ============================================================
 def pagina_registro_socias():
 
@@ -219,39 +219,32 @@ def pagina_registro_socias():
 
     nombre = st.text_input("Nombre completo de la socia:")
 
-    # --- DUI Y TELÉFONO SIN LETRAS ---
-    dui_raw = st.text_input("Número de DUI (9 dígitos):", max_chars=9)
-    telefono_raw = st.text_input("Número de teléfono (8 dígitos):", max_chars=8)
+    # ⛔ number_input NO permite letras → SOLO números
+    dui = st.number_input("Número de DUI (9 dígitos):", min_value=0, max_value=999999999, step=1)
+    telefono = st.number_input("Número de teléfono (8 dígitos):", min_value=0, max_value=99999999, step=1)
 
-    # Filtro para permitir solo números mientras escribe
-    dui = "".join([c for c in dui_raw if c.isdigit()])[:9]
-    telefono = "".join([c for c in telefono_raw if c.isdigit()])[:8]
+    # Convertir a string para validar longitud exacta
+    dui_str = str(dui)
+    telefono_str = str(telefono)
 
-    # Mensajes si detecta letras
-    if dui != dui_raw:
-        st.warning("⚠ Solo se permiten números en el DUI.")
-    if telefono != telefono_raw:
-        st.warning("⚠ Solo se permiten números en el teléfono.")
-
-    # Botón registrar
     if st.button("Registrar socia"):
 
         if nombre.strip() == "":
             st.warning("Debe ingresar un nombre.")
             return
 
-        if len(dui) != 9:
+        if len(dui_str) != 9:
             st.warning("El DUI debe contener exactamente 9 dígitos.")
             return
 
-        if len(telefono) != 8:
+        if len(telefono_str) != 8:
             st.warning("El teléfono debe contener exactamente 8 dígitos.")
             return
 
         cur.execute("""
             INSERT INTO Socia(Nombre, DUI, Telefono)
             VALUES(%s, %s, %s)
-        """, (nombre, dui, telefono))
+        """, (nombre, dui_str, telefono_str))
         con.commit()
 
         st.success(f"Socia '{nombre}' registrada correctamente.")
@@ -265,6 +258,7 @@ def pagina_registro_socias():
         df = pd.DataFrame(data)
         st.subheader("📋 Lista de socias")
         st.dataframe(df, use_container_width=True)
+
 
 
 # ============================================================
