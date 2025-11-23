@@ -50,6 +50,14 @@ def autorizar_prestamo():
     if enviar:
 
         # ======================================================
+        # 🔒 REGLA INTERNA: MÁXIMO PERMITIDO = $100.00
+        # ======================================================
+        limite_regla_interna = 100.00
+        if monto > limite_regla_interna:
+            st.error(f"❌ No puede solicitar un préstamo mayor a ${limite_regla_interna} según las reglas internas.")
+            return
+
+        # ======================================================
         # VALIDAR AHORRO DE LA SOCIA
         # ======================================================
         cursor.execute("""
@@ -134,7 +142,7 @@ def autorizar_prestamo():
         """,
         (
             fecha_prestamo,
-            -monto,                      # Descuento del ahorro (correcto)
+            -monto,
             "Descuento préstamo",
             "---",
             nuevo_ahorro,
