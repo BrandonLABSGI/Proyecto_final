@@ -88,7 +88,7 @@ def interfaz_directiva():
 
    
 
-    # ============================================
+       # ============================================
     # MENÚ LATERAL
     # ============================================
     menu = st.sidebar.radio(
@@ -124,7 +124,10 @@ def interfaz_directiva():
     elif menu == "Cierre de ciclo":
         cierre_ciclo()
     elif menu == "Reporte de caja":
-    reporte_caja()
+        reporte_caja()
+    elif menu == "Reglas internas":
+        gestionar_reglas()
+
 
     # ============================================================
     # 🔵 RESUMEN DEL CICLO (Conectado a Reglas Internas)
@@ -169,9 +172,6 @@ def interfaz_directiva():
             st.info("⚠ No está definida la fecha de inicio del ciclo en Reglas Internas.")
     else:
         st.info("⚠ Debes registrar reglas internas primero.")
-
-    elif menu == "Reglas internas":
-        gestionar_reglas()
 
 
 
