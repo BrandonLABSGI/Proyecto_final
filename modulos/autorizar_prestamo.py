@@ -50,11 +50,25 @@ def autorizar_prestamo():
     if enviar:
 
         # ======================================================
-        # 🔒 REGLA INTERNA: MÁXIMO PERMITIDO = $100.00
+        # 🔒 REGLA INTERNA: MÁXIMO PRÉSTAMO = $100.00
         # ======================================================
         limite_regla_interna = 100.00
         if monto > limite_regla_interna:
             st.error(f"❌ No puede solicitar un préstamo mayor a ${limite_regla_interna} según las reglas internas.")
+            return
+
+        # ======================================================
+        # 🔒 REGLA NUEVA: TASA DE INTERÉS ≤ 6%
+        # ======================================================
+        if tasa_interes > 6:
+            st.error("❌ El interés no puede ser mayor al 6%.")
+            return
+
+        # ======================================================
+        # 🔒 REGLA NUEVA: PLAZO ≤ 4 MESES
+        # ======================================================
+        if plazo > 4:
+            st.error("❌ El plazo máximo permitido es 4 meses.")
             return
 
         # ======================================================
@@ -129,7 +143,7 @@ def autorizar_prestamo():
         )
 
         # ======================================================
-        # 🔥 DESCONTAR AHORRO DE LA SOCIA (CORRECTO)
+        # 🔥 DESCONTAR AHORRO DE LA SOCIA
         # ======================================================
         nuevo_ahorro = ahorro_total - monto
 
