@@ -7,15 +7,13 @@ from modulos.caja import obtener_o_crear_reunion, registrar_movimiento
 from modulos.reglas_utils import obtener_reglas
 
 
-# ============================================================
-# 🟩 AUTORIZAR PRÉSTAMO
-# ============================================================
 def autorizar_prestamo():
 
     st.title("💳 Autorizar préstamo")
+    st.write("Complete la información para autorizar un nuevo préstamo.")
 
     # ============================================================
-    # 🔹 Cargar reglas internas
+    # 🔗 REGLAS INTERNAS
     # ============================================================
     reglas = obtener_reglas()
     if not reglas:
@@ -23,17 +21,17 @@ def autorizar_prestamo():
         return
 
     prestamo_maximo = float(reglas["prestamo_maximo"])
-    interes_por_10 = float(reglas["interes_por_10"])
-    plazo_maximo = int(reglas["plazo_maximo"])
+    interes_por_10 = float(reglas["interes_por_10"])   # Ej: 6%
+    plazo_maximo = int(reglas["plazo_maximo"])         # Semanas
 
     # ============================================================
-    # 🔹 Conexión
+    # CONEXIÓN
     # ============================================================
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
     # ============================================================
-    # 🔹 Socias
+    # SOCIAS
     # ============================================================
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
@@ -44,55 +42,59 @@ def autorizar_prestamo():
     lista_socias = {f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] for s in socias}
 
     # ============================================================
-    # 🔹 Formulario
+    # FORMULARIO
     # ============================================================
     with st.form("form_prestamo"):
 
-        fecha_prestamo = st.date_input("📅 Fecha del préstamo", date.today()).strftime("%Y-%m-%d")
+        fecha_prestamo_raw = st.date_input("📅 Fecha del préstamo", date.today())
+        fecha_prestamo = fecha_prestamo_raw.strftime("%Y-%m-%d")
 
         socia_sel = st.selectbox("👩 Socia", list(lista_socias.keys()))
         id_socia = lista_socias[socia_sel]
 
         # ============================================================
-        # 🔥 BLOQUEO TOTAL DE LETRAS / SÍMBOLOS / MÁS DE 2 DECIMALES
+        # MONTO PRESTADO — BLOQUEO TOTAL (NO LETRAS, NO SÍMBOLOS)
         # ============================================================
-        monto_raw = st.text_input(
+        monto_str = st.text_input(
             "💵 Monto prestado ($):",
             placeholder=f"Máximo permitido: ${prestamo_maximo}"
         )
 
-        # Mantener solo números y punto
-        limpio = "".join([c for c in monto_raw if c.isdigit() or c == "."])
+        # Limpiar cualquier cosa que no sea número
+        if monto_str:
+            limpio = "".join(c for c in monto_str if c.isdigit())
+            if limpio != monto_str:
+                st.warning("⚠ Solo se permiten números. Se eliminaron caracteres inválidos.")
+                monto_str = limpio
 
-        # Solo un punto
-        if limpio.count(".") > 1:
-            partes = limpio.split(".")
-            limpio = partes[0] + "." + "".join(partes[1:])
-
-        # Máximo 2 decimales
-        if "." in limpio:
-            entero, decimal = limpio.split(".", 1)
-            limpio = entero + "." + decimal[:2]
-
-        # Reemplazo automático
-        if limpio != monto_raw:
-            st.warning("🔎 Se removieron caracteres no válidos.")
-            st.experimental_rerun()
-
-        try:
-            monto = float(limpio) if limpio else 0.0
-        except:
-            monto = 0.0
+        monto = float(monto_str) if monto_str.isdigit() else 0.0
 
         if monto > prestamo_maximo:
-            st.error(f"❌ El monto máximo permitido es: ${prestamo_maximo}.")
+            st.error(f"❌ El monto máximo permitido es: ${prestamo_maximo}")
             st.stop()
 
-        # Interés automático según reglas
-        tasa = interes_por_10
+        # ============================================================
+        # INTERÉS — Bloqueado, calculado automáticamente
+        # ============================================================
+        interes_calculado = (monto / 10) * interes_por_10
+        st.number_input("📈 Interés (%)", value=interes_calculado, disabled=True)
 
-        plazo = st.number_input("🗓 Plazo (meses):", min_value=1, max_value=plazo_maximo)
-        cuotas = st.number_input("📑 Número de cuotas", min_value=1)
+        # ============================================================
+        # PLAZO Y CUOTAS
+        # ============================================================
+        plazo = st.number_input(
+            "🗓 Plazo (semanas):",
+            min_value=1,
+            max_value=plazo_maximo,
+            value=1
+        )
+
+        cuotas = st.number_input(
+            "📑 Número de cuotas:",
+            min_value=1,
+            value=1
+        )
+
         firma = st.text_input("✍️ Firma directiva")
 
         enviar = st.form_submit_button("✅ Autorizar préstamo")
@@ -101,7 +103,7 @@ def autorizar_prestamo():
         return
 
     # ============================================================
-    # Validación — préstamo activo
+    # VALIDACIÓN — Préstamo activo
     # ============================================================
     cursor.execute("""
         SELECT COUNT(*) AS activos
@@ -113,7 +115,7 @@ def autorizar_prestamo():
         return
 
     # ============================================================
-    # Validación — ahorro suficiente
+    # VALIDACIÓN — Ahorro disponible
     # ============================================================
     cursor.execute("""
         SELECT `Saldo acumulado`
@@ -125,11 +127,11 @@ def autorizar_prestamo():
     ahorro_total = Decimal(row["Saldo acumulado"]) if row else Decimal("0.00")
 
     if Decimal(monto) > ahorro_total:
-        st.error(f"❌ La socia no tiene suficiente ahorro. Disponible: ${ahorro_total}.")
+        st.error(f"❌ Ahorro insuficiente. Tiene ${ahorro_total}.")
         return
 
     # ============================================================
-    # Validación — caja suficiente
+    # VALIDACIÓN — Caja
     # ============================================================
     id_caja = obtener_o_crear_reunion(fecha_prestamo)
     cursor.execute("SELECT saldo_final FROM caja_reunion WHERE id_caja=%s", (id_caja,))
@@ -140,13 +142,13 @@ def autorizar_prestamo():
         return
 
     # ============================================================
-    # Cálculo de intereses
+    # CÁLCULO FINAL
     # ============================================================
-    interes_total = Decimal(monto) * (Decimal(tasa) / 100)
+    interes_total = Decimal(monto) * (Decimal(interes_por_10) / Decimal(100))
     total_pagar = Decimal(monto) + interes_total
 
     # ============================================================
-    # Registrar préstamo
+    # REGISTRAR PRÉSTAMO
     # ============================================================
     cursor.execute("""
         INSERT INTO Prestamo(
@@ -156,14 +158,21 @@ def autorizar_prestamo():
         )
         VALUES (%s,%s,%s,%s,%s,%s,%s,'activo',1,%s,%s)
     """, (
-        fecha_prestamo, monto, float(interes_total),
-        tasa, plazo, cuotas, float(total_pagar),
-        id_socia, id_caja
+        fecha_prestamo,
+        monto,
+        float(interes_total),
+        interes_por_10,
+        plazo,
+        cuotas,
+        float(total_pagar),
+        id_socia,
+        id_caja
     ))
-    id_prestamo_generado = cursor.lastrowid
+
+    id_pre = cursor.lastrowid
 
     # ============================================================
-    # Descontar ahorro
+    # DESCONTAR AHORRO
     # ============================================================
     nuevo_ahorro = ahorro_total - Decimal(monto)
     cursor.execute("""
@@ -172,15 +181,10 @@ def autorizar_prestamo():
             `Comprobante digital`, `Saldo acumulado`, Id_Socia
         )
         VALUES (%s,%s,'Descuento préstamo','---',%s,%s)
-    """, (
-        fecha_prestamo,
-        -Decimal(monto),
-        nuevo_ahorro,
-        id_socia
-    ))
+    """, (fecha_prestamo, -Decimal(monto), nuevo_ahorro, id_socia))
 
     # ============================================================
-    # Restar de caja
+    # ACTUALIZAR CAJA
     # ============================================================
     registrar_movimiento(
         id_caja=id_caja,
@@ -190,28 +194,24 @@ def autorizar_prestamo():
     )
 
     # ============================================================
-    # Generar cuotas (cada 15 días)
+    # GENERAR CUOTAS (cada 15 días)
     # ============================================================
     valor_cuota = total_pagar / Decimal(cuotas)
     fecha_base = datetime.strptime(fecha_prestamo, "%Y-%m-%d")
 
-    lista_cuotas = []
+    listado_cuotas = []
 
     for n in range(1, cuotas + 1):
         fecha_cuota = fecha_base + timedelta(days=15 * n)
         fecha_str = fecha_cuota.strftime("%Y-%m-%d")
 
         cursor.execute("""
-            INSERT INTO Cuotas_prestamo
+            INSERT INTO Cuotas_prestamo 
             (Id_Prestamo, Numero_cuota, Fecha_programada, Monto_cuota, Estado)
             VALUES (%s,%s,%s,%s,'pendiente')
-        """, (
-            id_prestamo_generado, n,
-            fecha_str,
-            round(float(valor_cuota), 2)
-        ))
+        """, (id_pre, n, fecha_str, round(float(valor_cuota), 2)))
 
-        lista_cuotas.append((n, fecha_str, round(float(valor_cuota), 2)))
+        listado_cuotas.append((n, fecha_str, round(float(valor_cuota), 2)))
 
     con.commit()
 
@@ -219,15 +219,15 @@ def autorizar_prestamo():
     # RESUMEN FINAL
     # ============================================================
     st.success("✔ Préstamo autorizado correctamente.")
+    st.subheader("📄 Resumen del préstamo")
 
-    st.markdown("## 📘 Resumen del préstamo aprobado")
-    st.write(f"**📅 Fecha:** {fecha_prestamo}")
+    st.write(f"**📅 Fecha del préstamo:** {fecha_prestamo}")
     st.write(f"**👩 Socia:** {socia_sel}")
     st.write(f"**💵 Monto prestado:** ${monto}")
-    st.write(f"**📈 Interés aplicado ({tasa}%):** ${round(float(interes_total), 2)}")
+    st.write(f"**📈 Intereses generados:** ${round(float(interes_total), 2)}")
     st.write(f"**💰 Total a pagar:** ${round(float(total_pagar), 2)}")
-    st.write(f"**🗓 Número de cuotas:** {cuotas}")
+    st.write("---")
+    st.write("### 🗓 Cuotas programadas:")
 
-    st.markdown("### 📑 Calendario de cuotas (cada 15 días)")
-    for n, f, val in lista_cuotas:
-        st.write(f"• **Cuota {n}:** {f} — ${val}")
+    for num, fecha, valor in listado_cuotas:
+        st.write(f"➡ **Cuota {num}:** {fecha} — ${valor}")
