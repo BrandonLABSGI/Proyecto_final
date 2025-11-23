@@ -30,7 +30,7 @@ def gastos_grupo():
     descripcion = st.text_input("Descripción del gasto").strip()
 
     # --------------------------------------------------------
-    # MONTO
+    # MONTO DEL GASTO
     # --------------------------------------------------------
     monto_raw = st.number_input(
         "Monto del gasto ($)",
@@ -41,21 +41,27 @@ def gastos_grupo():
     monto = Decimal(str(monto_raw))
 
     # --------------------------------------------------------
-    # OBTENER SALDO DISPONIBLE
+    # OBTENER SALDO DISPONIBLE DE LA REUNIÓN
     # --------------------------------------------------------
     id_reunion = obtener_o_crear_reunion(fecha)
 
-    cursor.execute("SELECT saldo_final FROM caja_reunion WHERE id_caja = %s", (id_reunion,))
+    cursor.execute(
+        "SELECT saldo_final FROM caja_reunion WHERE id_caja = %s",
+        (id_reunion,)
+    )
     fila = cursor.fetchone()
     saldo_disponible = float(fila["saldo_final"]) if fila else 0.0
 
-    st.info(f"📌 Saldo disponible hoy: **${saldo_disponible:,.2f}**")
+    # SOLO mostramos el verdadero saldo disponible
+    st.info(f"📌 Saldo disponible: **${saldo_disponible:,.2f}**")
 
     # --------------------------------------------------------
     # VALIDACIÓN PRINCIPAL
     # --------------------------------------------------------
     if monto > saldo_disponible:
-        st.error(f"❌ No puedes registrar un gasto mayor al saldo disponible (${saldo_disponible:,.2f}).")
+        st.error(
+            f"❌ No puedes registrar un gasto mayor al saldo disponible (${saldo_disponible:,.2f})."
+        )
         return
 
     # --------------------------------------------------------
