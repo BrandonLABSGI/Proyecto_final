@@ -8,7 +8,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
 
 from modulos.conexion import obtener_conexion
-from modulos.caja import obtener_o_crear_reunion, registrar_movimiento
+from modulos.caja import obtener_o_crear_reunion, registrar_movimiento, obtener_saldo_actual
 
 
 # ------------------------------------------------------------
@@ -87,20 +87,16 @@ def gastos_grupo():
     monto = Decimal(str(monto_raw))
 
     # --------------------------------------------------------
-    # SALDO GLOBAL ACUMULADO (saldo real)
+    # SALDO REAL (EL QUE MANDA)
     # --------------------------------------------------------
-    cursor.execute("SELECT saldo_final FROM caja_reunion ORDER BY fecha DESC LIMIT 1")
-    fila_saldo = cursor.fetchone()
-    saldo_global = float(fila_saldo["saldo_final"]) if fila_saldo else 0.0
-
-    # (Saldo abajo eliminado por tu solicitud)
+    saldo_real = float(obtener_saldo_actual())
 
     # --------------------------------------------------------
     # VALIDACIÓN
     # --------------------------------------------------------
-    if monto > saldo_global:
+    if monto > saldo_real:
         st.error(
-            f"❌ No puedes registrar un gasto mayor al saldo disponible (${saldo_global:,.2f})."
+            f"❌ No puedes registrar un gasto mayor al saldo disponible (${saldo_real:,.2f})."
         )
         return
 
@@ -115,25 +111,26 @@ def gastos_grupo():
     if st.button("💾 Registrar gasto"):
 
         try:
-            # 🔥 ÚNICA CORRECCIÓN NECESARIA
             categoria_final = f"{descripcion} — Responsable: {responsable}"
 
             registrar_movimiento(
                 id_caja=id_reunion,
-                tipo="egreso",
+                tipo="Egreso",
                 categoria=categoria_final,
                 monto=monto
             )
 
-            # Nuevo saldo después del gasto
-            cursor.execute("SELECT saldo_final FROM caja_reunion ORDER BY fecha DESC LIMIT 1")
-            fila_nueva = cursor.fetchone()
-            saldo_despues = float(fila_nueva["saldo_final"]) if fila_nueva else saldo_global - float(monto)
+            # Nuevo saldo REAL actualizado
+            saldo_despues = float(obtener_saldo_actual())
 
-            # Generar PDF
+            # Generar PDF con saldo REAL, no el de reunión
             pdf_path = generar_pdf_gasto(
-                fecha, responsable, descripcion,
-                float(monto), saldo_global, saldo_despues
+                fecha,
+                responsable,
+                descripcion,
+                float(monto),
+                saldo_real,
+                saldo_despues
             )
 
             st.success("✅ Gasto registrado correctamente.")
