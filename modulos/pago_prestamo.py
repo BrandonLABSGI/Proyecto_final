@@ -58,7 +58,7 @@ def pago_prestamo():
     saldo_pendiente = Decimal(prestamo["Saldo pendiente"])
 
     # ============================================================
-    # CALCULAR INTERÉS TOTAL REAL (NO EXISTE EN LA TABLA)
+    # CALCULAR INTERÉS TOTAL REAL
     # ============================================================
     monto_prestado = Decimal(prestamo["Monto prestado"])
     tasa = Decimal(prestamo["Tasa de interes"])
@@ -109,7 +109,7 @@ def pago_prestamo():
     # ============================================================
     if st.button("💾 Registrar pago"):
 
-        # Obtener datos de la cuota seleccionada
+        # Obtener datos de esa cuota
         cur.execute("SELECT * FROM Cuotas_prestamo WHERE Id_Cuota=%s", (id_cuota,))
         cuota = cur.fetchone()
 
@@ -119,25 +119,33 @@ def pago_prestamo():
         fecha_programada_dt = date.fromisoformat(fecha_programada)
         fecha_pago_dt = date.fromisoformat(fecha_pago)
 
-        atraso = fecha_pago_dt > fecha_programada_dt
+        # ============================================================
+        # 🚫 BLOQUEAR SI LA FECHA NO COINCIDE (NUEVO BLOQUE)
+        # ============================================================
+        if fecha_pago_dt != fecha_programada_dt:
+            st.error(
+                f"❌ La fecha ingresada NO coincide con la fecha programada "
+                f"de esta cuota ({fecha_programada}).\n\n"
+                f"➡ Solo puedes pagarla EXACTAMENTE el día correspondiente."
+            )
+            return
 
+        # ============================================================
+        # MULTA POR MORA (YA NO SE USARÁ, PERO SE RESPETA EL CÓDIGO)
+        # ============================================================
+        atraso = fecha_pago_dt > fecha_programada_dt
         monto_total = monto_cuota
 
-        # ============================================================
-        # MULTA POR MORA
-        # ============================================================
         if atraso and multa_mora > 0:
 
             monto_total += multa_mora
             st.warning(f"⚠ Pago atrasado: multa por mora de ${multa_mora}")
 
-            # Registrar multa en tabla Multa
             cur.execute("""
                 INSERT INTO Multa (Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
                 VALUES (%s, %s, 'A pagar', 2, %s)
             """, (multa_mora, fecha_pago, id_socia))
 
-            # Registrar multa como ingreso de caja
             id_caja_multa = obtener_o_crear_reunion(fecha_pago)
             registrar_movimiento(
                 id_caja=id_caja_multa,
@@ -147,7 +155,7 @@ def pago_prestamo():
             )
 
         # ============================================================
-        # PAGO DE CUOTA → CAJA
+        # INGRESO A CAJA
         # ============================================================
         id_caja = obtener_o_crear_reunion(fecha_pago)
 
@@ -159,7 +167,7 @@ def pago_prestamo():
         )
 
         # ============================================================
-        # MARCAR CUOTA COMO PAGADA
+        # ACTUALIZAR CUOTA
         # ============================================================
         cur.execute("""
             UPDATE Cuotas_prestamo
