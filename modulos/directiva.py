@@ -207,9 +207,6 @@ def pagina_asistencia():
         st.rerun()
 
 
-import streamlit as st
-from modulos.conexion import obtener_conexion
-
 # ============================================================
 # REGISTRAR NUEVAS SOCIAS
 # ============================================================
@@ -220,13 +217,7 @@ def registrar_socia():
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    # -----------------------------------------------------------
-    # FORMULARIO
-    # -----------------------------------------------------------
-
-    nombre = st.text_input(
-        "Nombre completo de la socia:"
-    )
+    nombre = st.text_input("Nombre completo de la socia:")
 
     dui = st.text_input(
         "Número de DUI (9 dígitos):",
@@ -262,9 +253,6 @@ def registrar_socia():
 
     st.info("⚠️ Solo se permiten números y máximo 9 en DUI / 8 en Teléfono.")
 
-    # -----------------------------------------------------------
-    # VALIDACIÓN
-    # -----------------------------------------------------------
     if st.button("Registrar socia"):
 
         if not nombre or not dui or not telefono or not distrito or not usuario or not contrasena:
@@ -283,9 +271,6 @@ def registrar_socia():
             st.error("❌ El teléfono debe tener exactamente 8 números.")
             return
 
-        # -----------------------------------------------------------
-        # GUARDAR EN LA BASE DE DATOS
-        # -----------------------------------------------------------
         try:
             cursor.execute("""
                 INSERT INTO socia (Nombre, DUI, Telefono, Distrito, Usuario, Contrasena)
@@ -301,7 +286,6 @@ def registrar_socia():
         finally:
             cursor.close()
             con.close()
-
 
 
 
