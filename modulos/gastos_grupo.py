@@ -65,56 +65,50 @@ def gastos_grupo():
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
     # --------------------------------------------------------
-    # RESPONSABLE (lo guardamos dentro de categoría)
+    # CATEGORÍA DEL GASTO
     # --------------------------------------------------------
-    responsable = st.text_input("Responsable del gasto").strip()
+    categoria = st.text_input("Categoría / Descripción del gasto").strip()
+
+    if categoria == "":
+        st.warning("Ingrese una categoría o descripción del gasto.")
+        return
 
     # --------------------------------------------------------
-    # DESCRIPCIÓN (también va dentro de categoría)
-    # --------------------------------------------------------
-    descripcion = st.text_input("Descripción del gasto").strip()
-
-    # --------------------------------------------------------
-    # CATEGORÍA FINAL PARA GUARDAR EN caja_movimientos
-    # --------------------------------------------------------
-    categoria = f"{descripcion} — Responsable: {responsable}" if responsable else descripcion
-
-    # --------------------------------------------------------
-    # MONTO
+    # MONTO DEL GASTO
     # --------------------------------------------------------
     monto_raw = st.number_input(
         "Monto del gasto ($)",
         min_value=0.01,
-        step=0.25,
-        format="%.2f"
+        format="%.2f",
+        step=0.01
     )
     monto = Decimal(str(monto_raw))
 
     # --------------------------------------------------------
-    # SALDO REAL (CAJA GENERAL)
+    # OBTENER SALDO REAL (caja_general)
     # --------------------------------------------------------
-    saldo_antes = obtener_saldo_actual()
-    st.info(f"📌 Saldo disponible: **${saldo_antes:,.2f}**")
+    saldo_real = obtener_saldo_actual()
+    st.info(f"📌 Saldo disponible (caja actual): **${saldo_real:,.2f}**")
 
     # --------------------------------------------------------
     # VALIDACIÓN
     # --------------------------------------------------------
-    if monto > saldo_antes:
-        st.error(f"❌ No puedes gastar más del saldo disponible (${saldo_antes:,.2f}).")
+    if monto > saldo_real:
+        st.error(f"❌ No puedes registrar un gasto mayor al saldo disponible (${saldo_real:,.2f}).")
         return
 
     # --------------------------------------------------------
-    # REUNIÓN (solo para reporte)
+    # OBTENER O CREAR REUNIÓN (solo para reportes)
     # --------------------------------------------------------
     id_reunion = obtener_o_crear_reunion(fecha)
 
     # --------------------------------------------------------
-    # BOTÓN GUARDAR
+    # BOTÓN PARA GUARDAR EL GASTO
     # --------------------------------------------------------
     if st.button("💾 Registrar gasto"):
 
         try:
-            # Registrar movimiento (tu función solo acepta estos 4)
+            # Registrar movimiento (tipo Egreso)
             registrar_movimiento(
                 id_caja=id_reunion,
                 tipo="Egreso",
@@ -122,15 +116,15 @@ def gastos_grupo():
                 monto=monto
             )
 
-            # Nuevo saldo
+            # Obtener nuevo saldo actual
             saldo_despues = obtener_saldo_actual()
 
-            # PDF
+            # Generar PDF
             pdf_path = generar_pdf_gasto(
                 fecha,
                 categoria,
                 float(monto),
-                float(saldo_antes),
+                float(saldo_real),
                 float(saldo_despues)
             )
 
