@@ -207,6 +207,9 @@ def pagina_asistencia():
         st.rerun()
 
 
+import streamlit as st
+from modulos.conexion import obtener_conexion
+
 # ============================================================
 # REGISTRAR NUEVAS SOCIAS
 # ============================================================
