@@ -223,31 +223,30 @@ def pagina_registro_socias():
     nombre = st.text_input("Nombre completo de la socia:")
 
     # ---------------------------
-    # CAMPO: DUI (solo números y max 9 dígitos)
+    # CAMPO: DUI (exactamente 9 dígitos, solo números)
     # ---------------------------
-    dui_num = st.number_input(
+    dui = st.text_input(
         "Número de DUI (9 dígitos):",
-        min_value=0,
-        max_value=999999999,  # 9 dígitos
-        step=1,
-        format="%d"
+        max_chars=9
     )
 
-    # Convertimos a string para insertar en DB
-    dui = str(dui_num).zfill(9)
+    # Validación: solo números
+    if dui and not dui.isdigit():
+        st.warning("El DUI solo puede contener números.")
+        return
 
     # ---------------------------
-    # CAMPO: TELÉFONO (solo números y max 8 dígitos)
+    # CAMPO: TELÉFONO (exactamente 8 dígitos, solo números)
     # ---------------------------
-    tel_num = st.number_input(
+    telefono = st.text_input(
         "Número de teléfono (8 dígitos):",
-        min_value=0,
-        max_value=99999999,  # 8 dígitos
-        step=1,
-        format="%d"
+        max_chars=8
     )
 
-    telefono = str(tel_num).zfill(8)
+    # Validación: solo números
+    if telefono and not telefono.isdigit():
+        st.warning("El teléfono solo puede contener números.")
+        return
 
     # ---------------------------
     # BOTÓN DE REGISTRO
