@@ -1,28 +1,32 @@
+import mysql.connector
 from modulos.conexion import obtener_conexion
 
+
 def obtener_reglas():
+    """
+    Devuelve un diccionario con TODAS las reglas internas.
+    Si no existen, devuelve None.
+    """
+
     con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
+    cur = con.cursor(dictionary=True)
 
-    cursor.execute("SELECT * FROM reglas_grupo LIMIT 1")
-    reglas = cursor.fetchone()
+    cur.execute("SELECT * FROM reglas_internas ORDER BY id_regla DESC LIMIT 1")
+    row = cur.fetchone()
 
-    cursor.close()
-    con.close()
-
-    if not reglas:
+    if not row:
         return None
 
-    # Convertir claves a un dict limpio de Python
-    return {
-        "multa_inasistencia": float(reglas.get("multa_inasistencia", 0)),
-        "ahorro_minimo": float(reglas.get("ahorro_minimo", 0)),
-        "interes_por_10": float(reglas.get("interes_por_10", 0)),
-        "prestamo_maximo": float(reglas.get("prestamo_maximo", 0)),
-        "plazo_maximo": int(reglas.get("plazo_maximo", 0)),
-        "permisos_validos": reglas.get("permisos_inasistencia", "enfermedad, trabajo").strip(),
-        "multa_mora": float(reglas.get("multa_mora", 0)),   # ← NUEVO CAMPO
+    reglas = {
+        "ahorro_minimo": float(row.get("ahorro_minimo", 0)),
+        "prestamo_maximo": float(row.get("prestamo_maximo", 0)),
+        "interes_por_10": float(row.get("interes_por_10", 0)),
+        "plazo_maximo": int(row.get("plazo_maximo", 0)),
+        "multa_inasistencia": float(row.get("multa_inasistencia", 0)),
+        "multa_mora": float(row.get("multa_mora", 0)),
+        "permisos_validos": row.get("permisos_validos", "enfermedad, trabajo, maternidad")
     }
 
-
-
+    cur.close()
+    con.close()
+    return reglas
