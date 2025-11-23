@@ -1,7 +1,10 @@
 import streamlit as st
 from datetime import date
+from decimal import Decimal
+
 from modulos.conexion import obtener_conexion
 from modulos.reglas_utils import obtener_reglas
+from modulos.caja import registrar_movimiento, obtener_o_crear_reunion
 
 
 def cierre_ciclo():
@@ -17,90 +20,95 @@ def cierre_ciclo():
         st.error("⚠ No existen reglas internas registradas. Debes definirlas primero.")
         return
 
-    fecha_inicio_reg = reglas.get("fecha_inicio_ciclo")
-    fecha_fin_reg = reglas.get("fecha_fin_ciclo")
+    ciclo_inicio = reglas.get("ciclo_inicio")
+    ciclo_fin = reglas.get("ciclo_fin")
 
-    if not fecha_inicio_reg:
+    if not ciclo_inicio:
         st.error("⚠ Debes definir la fecha de inicio del ciclo en Reglas Internas.")
         return
 
-    st.info(f"📌 Ciclo según reglamento: **{fecha_inicio_reg} → {fecha_fin_reg or 'Activo'}**")
+    st.info(f"📌 Ciclo actual: **{ciclo_inicio} → {ciclo_fin or 'Activo'}**")
+
+    if ciclo_fin:
+        st.warning("⚠ Este ciclo ya fue cerrado anteriormente.")
+        return
 
     # ======================================================
     # 2️⃣ CONEXIÓN
     # ======================================================
     con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
+    cur = con.cursor(dictionary=True)
 
     # ======================================================
-    # 3️⃣ INGRESOS DEL CICLO
+    # 3️⃣ TOTAL INGRESOS Y EGRESOS DESDE caja_movimientos
     # ======================================================
+    cur.execute("""
+        SELECT 
+            IFNULL(SUM(CASE WHEN tipo='Ingreso' THEN monto ELSE 0 END),0) AS ingresos,
+            IFNULL(SUM(CASE WHEN tipo='Egreso' THEN monto ELSE 0 END),0) AS egresos
+        FROM caja_movimientos
+        WHERE fecha >= %s
+    """, (ciclo_inicio,))
 
-    # Multas pagadas
-    cursor.execute("""
-        SELECT IFNULL(SUM(Monto),0) AS total
-        FROM Multa
-        WHERE Estado='Pagada'
-          AND Fecha_aplicacion >= %s
-    """, (fecha_inicio_reg,))
-    total_multas = cursor.fetchone()["total"]
+    mov = cur.fetchone()
+    total_ingresos = Decimal(str(mov["ingresos"]))
+    total_egresos = Decimal(str(mov["egresos"]))
 
-    # Ingresos extraordinarios
-    cursor.execute("""
-        SELECT IFNULL(SUM(Monto),0) AS total
-        FROM IngresosExtra
-        WHERE Fecha >= %s
-    """, (fecha_inicio_reg,))
-    total_ing_extra = cursor.fetchone()["total"]
-
-    # Pagos de préstamo (suma de cuotas pagadas)
-    cursor.execute("""
-        SELECT IFNULL(SUM(Monto_cuota),0) AS total
-        FROM Cuotas_prestamo
-        WHERE Estado='pagada'
-          AND Fecha_pago >= %s
-    """, (fecha_inicio_reg,))
-    total_pagos = cursor.fetchone()["total"]
-
-    total_ingresos = total_multas + total_ing_extra + total_pagos
+    balance = total_ingresos - total_egresos
 
     # ======================================================
-    # 4️⃣ EGRESOS DEL CICLO (PRÉSTAMOS OTORGADOS)
+    # 4️⃣ SALDO REAL EN CAJA (último saldo_final en caja_reunion)
     # ======================================================
-    cursor.execute("""
-        SELECT IFNULL(SUM(`Monto prestado`),0) AS total
-        FROM Prestamo
-        WHERE `Fecha del préstamo` >= %s
-    """, (fecha_inicio_reg,))
-    total_prestamos = cursor.fetchone()["total"]
+    cur.execute("""
+        SELECT saldo_final
+        FROM caja_reunion
+        ORDER BY fecha DESC
+        LIMIT 1
+    """)
+    row = cur.fetchone()
+    saldo_actual = Decimal(str(row["saldo_final"])) if row else Decimal("0.00")
 
-    total_egresos = total_prestamos
+    st.subheader("📊 Resumen financiero del ciclo")
+    st.write(f"📥 **Ingresos totales:** ${total_ingresos:.2f}")
+    st.write(f"📤 **Egresos totales:** ${total_egresos:.2f}")
+    st.write(f"💼 **Balance neto:** ${balance:.2f}")
+    st.write(f"💰 **Saldo actual real en caja:** ${saldo_actual:.2f}")
+
+    monto_repartir = saldo_actual
+
+    st.success(f"🧮 **Monto a repartir entre todas las socias:** ${monto_repartir:.2f}")
+
+    st.warning("⚠ Después del cierre, el saldo en caja será reiniciado a $0.00")
 
     # ======================================================
-    # 5️⃣ RESULTADOS
+    # 5️⃣ BOTÓN PARA CERRAR CICLO
     # ======================================================
-    monto_repartido = total_ingresos - total_egresos
+    if st.button("🔒 Cerrar ciclo ahora"):
 
-    st.subheader("📊 Resumen del ciclo")
-    st.write(f"💰 **Total ingresos:** ${total_ingresos:,.2f}")
-    st.write(f"🏛 **Total egresos:** ${total_egresos:,.2f}")
-    st.success(f"🧮 **Monto a repartir:** ${monto_repartido:,.2f}")
-    st.info("📌 El saldo final del ciclo se reinicia a **$0.00** porque todo se reparte.")
+        hoy = date.today().strftime("%Y-%m-%d")
 
-    # ======================================================
-    # 6️⃣ CERRAR CICLO (ACTUALIZAR SOLO REGLAS INTERNAS)
-    # ======================================================
-    if st.button("🔒 Cerrar ciclo con estas condiciones"):
-
-        cursor.execute("""
+        # Actualizar fecha de cierre en reglas_internas
+        cur.execute("""
             UPDATE reglas_internas
-            SET fecha_fin_ciclo = %s
+            SET ciclo_fin = %s
             ORDER BY id_regla DESC
             LIMIT 1
-        """, (date.today(),))
+        """, (hoy,))
+
+        # Registrar movimiento especial de cierre
+        id_caja = obtener_o_crear_reunion(hoy)
+
+        if saldo_actual > 0:
+            registrar_movimiento(
+                id_caja=id_caja,
+                tipo="Egreso",
+                categoria="Cierre de ciclo – distribución del fondo",
+                monto=float(saldo_actual)
+            )
 
         con.commit()
 
-        st.success("✔ Ciclo cerrado correctamente. Fecha final actualizada en reglas internas.")
+        st.success("✔ Ciclo cerrado correctamente. El saldo se ha reiniciado a $0.00.")
+        st.balloons()
         st.rerun()
 
