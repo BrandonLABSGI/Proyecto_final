@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 
 from modulos.conexion import obtener_conexion
@@ -11,34 +11,37 @@ def pago_prestamo():
 
     st.header("💵 Registro de pagos de préstamos")
 
-    # ----------------------------------------------------
+    # ============================================================
     # 🔗 Cargar reglas internas
-    # ----------------------------------------------------
+    # ============================================================
     reglas = obtener_reglas()
 
     if not reglas:
         st.error("⚠ No hay reglas internas registradas. Configúralas primero.")
         return
 
-    multa_mora = Decimal(str(reglas["multa_mora"]))
+    multa_mora = Decimal(str(reglas.get("multa_mora", 0)))
 
     con = obtener_conexion()
     cur = con.cursor(dictionary=True)
 
-    # ----------------------------------------------------
+    # ============================================================
     # SOCIAS
-    # ----------------------------------------------------
+    # ============================================================
     cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cur.fetchall()
 
-    dict_socias = {f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] for s in socias}
+    dict_socias = {
+        f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] 
+        for s in socias
+    }
 
     socia_sel = st.selectbox("👩 Seleccione la socia:", dict_socias.keys())
     id_socia = dict_socias[socia_sel]
 
-    # ----------------------------------------------------
+    # ============================================================
     # PRÉSTAMO ACTIVO
-    # ----------------------------------------------------
+    # ============================================================
     cur.execute("""
         SELECT *
         FROM Prestamo
@@ -54,6 +57,9 @@ def pago_prestamo():
     id_prestamo = prestamo["Id_Préstamo"]
     saldo_pendiente = Decimal(prestamo["Saldo pendiente"])
 
+    # ============================================================
+    # MOSTRAR INFORMACIÓN DEL PRÉSTAMO
+    # ============================================================
     st.subheader("📄 Información del préstamo")
     st.write(f"**ID Préstamo:** {id_prestamo}")
     st.write(f"**Monto prestado:** ${prestamo['Monto prestado']}")
@@ -63,9 +69,9 @@ def pago_prestamo():
 
     st.divider()
 
-    # ----------------------------------------------------
+    # ============================================================
     # CUOTAS PENDIENTES
-    # ----------------------------------------------------
+    # ============================================================
     cur.execute("""
         SELECT *
         FROM Cuotas_prestamo
@@ -91,19 +97,18 @@ def pago_prestamo():
 
     fecha_pago = st.date_input("📅 Fecha del pago:", date.today()).strftime("%Y-%m-%d")
 
-    # ----------------------------------------------------
-    # REGISTRAR PAGO
-    # ----------------------------------------------------
+    # ============================================================
+    # BOTÓN PRINCIPAL
+    # ============================================================
     if st.button("💾 Registrar pago"):
 
-        # Obtener datos de la cuota
+        # Obtener datos de la cuota seleccionada
         cur.execute("SELECT * FROM Cuotas_prestamo WHERE Id_Cuota=%s", (id_cuota,))
         cuota = cur.fetchone()
 
         monto_cuota = Decimal(cuota["Monto_cuota"])
         fecha_programada = cuota["Fecha_programada"]
 
-        # Determinar atraso
         fecha_programada_dt = date.fromisoformat(fecha_programada)
         fecha_pago_dt = date.fromisoformat(fecha_pago)
 
@@ -111,12 +116,13 @@ def pago_prestamo():
 
         monto_total = monto_cuota
 
-        # ----------------------------------------------------
-        # Multa por mora
-        # ----------------------------------------------------
-        if atraso:
+        # ============================================================
+        # MULTA POR MORA
+        # ============================================================
+        if atraso and multa_mora > 0:
+
             monto_total += multa_mora
-            st.warning(f"⚠ Pago atrasado: se aplicará multa por mora de ${multa_mora}")
+            st.warning(f"⚠ Pago atrasado: multa por mora de ${multa_mora}")
 
             # Registrar multa en tabla Multa
             cur.execute("""
@@ -124,7 +130,7 @@ def pago_prestamo():
                 VALUES (%s, %s, 'A pagar', 2, %s)
             """, (multa_mora, fecha_pago, id_socia))
 
-            # Registrar multa como ingreso a caja
+            # Registrar multa como ingreso de caja
             id_caja_multa = obtener_o_crear_reunion(fecha_pago)
             registrar_movimiento(
                 id_caja=id_caja_multa,
@@ -133,9 +139,9 @@ def pago_prestamo():
                 monto=float(multa_mora)
             )
 
-        # ----------------------------------------------------
-        # Registrar pago en caja
-        # ----------------------------------------------------
+        # ============================================================
+        # PAGO DE CUOTA → CAJA
+        # ============================================================
         id_caja = obtener_o_crear_reunion(fecha_pago)
 
         registrar_movimiento(
@@ -145,18 +151,18 @@ def pago_prestamo():
             monto=float(monto_total)
         )
 
-        # ----------------------------------------------------
-        # Marcar cuota como pagada
-        # ----------------------------------------------------
+        # ============================================================
+        # MARCAR CUOTA COMO PAGADA
+        # ============================================================
         cur.execute("""
             UPDATE Cuotas_prestamo
             SET Estado='pagada', Fecha_pago=%s, Id_Caja=%s
             WHERE Id_Cuota=%s
         """, (fecha_pago, id_caja, id_cuota))
 
-        # ----------------------------------------------------
-        # Actualizar saldo del préstamo
-        # ----------------------------------------------------
+        # ============================================================
+        # ACTUALIZAR SALDO DEL PRÉSTAMO
+        # ============================================================
         nuevo_saldo = saldo_pendiente - monto_cuota
 
         if nuevo_saldo < 0:
