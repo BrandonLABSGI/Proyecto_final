@@ -8,16 +8,16 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
 
 from modulos.conexion import obtener_conexion
-from modulos.caja import obtener_o_crear_reunion, registrar_movimiento, obtener_saldo_actual
+from modulos.caja import obtener_o_crear_reunion, registrar_movimiento
 
 
 # ------------------------------------------------------------
-# PDF – Comprobante de gasto
+# PDF – Generación del comprobante de gasto
 # ------------------------------------------------------------
-def generar_pdf_gasto(fecha, categoria, monto, saldo_antes, saldo_despues):
+def generar_pdf_gasto(fecha, responsable, descripcion, monto, saldo_antes, saldo_despues):
     nombre_pdf = f"gasto_{fecha}.pdf"
-    doc = SimpleDocTemplate(nombre_pdf, pagesize=letter)
 
+    doc = SimpleDocTemplate(nombre_pdf, pagesize=letter)
     estilos = getSampleStyleSheet()
     contenido = []
 
@@ -27,8 +27,9 @@ def generar_pdf_gasto(fecha, categoria, monto, saldo_antes, saldo_despues):
     data = [
         ["Campo", "Detalle"],
         ["Fecha", fecha],
-        ["Categoría", categoria],
-        ["Monto del gasto", f"${monto:.2f}"],
+        ["Responsable", responsable],
+        ["Descripción", descripcion],
+        ["Monto", f"${monto:.2f}"],
         ["Saldo antes del gasto", f"${saldo_antes:.2f}"],
         ["Saldo después del gasto", f"${saldo_despues:.2f}"],
     ]
@@ -49,7 +50,7 @@ def generar_pdf_gasto(fecha, categoria, monto, saldo_antes, saldo_despues):
 
 
 # ------------------------------------------------------------
-# Registrar gastos del grupo
+# Módulo principal – Registrar gastos
 # ------------------------------------------------------------
 def gastos_grupo():
 
@@ -65,16 +66,17 @@ def gastos_grupo():
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
     # --------------------------------------------------------
-    # CATEGORÍA DEL GASTO
+    # RESPONSABLE
     # --------------------------------------------------------
-    categoria = st.text_input("Categoría / Descripción del gasto").strip()
-
-    if categoria == "":
-        st.warning("Ingrese una categoría o descripción del gasto.")
-        return
+    responsable = st.text_input("Nombre de la persona responsable del gasto").strip()
 
     # --------------------------------------------------------
-    # MONTO DEL GASTO
+    # DESCRIPCIÓN
+    # --------------------------------------------------------
+    descripcion = st.text_input("Descripción del gasto").strip()
+
+    # --------------------------------------------------------
+    # MONTO
     # --------------------------------------------------------
     monto_raw = st.number_input(
         "Monto del gasto ($)",
@@ -85,47 +87,52 @@ def gastos_grupo():
     monto = Decimal(str(monto_raw))
 
     # --------------------------------------------------------
-    # OBTENER SALDO REAL (caja_general)
+    # SALDO GLOBAL ACUMULADO (saldo real)
     # --------------------------------------------------------
-    saldo_real = obtener_saldo_actual()
-    st.info(f"📌 Saldo disponible (caja actual): **${saldo_real:,.2f}**")
+    cursor.execute("SELECT saldo_final FROM caja_reunion ORDER BY fecha DESC LIMIT 1")
+    fila_saldo = cursor.fetchone()
+    saldo_global = float(fila_saldo["saldo_final"]) if fila_saldo else 0.0
+
+    st.info(f"📌 Saldo disponible (caja actual): **${saldo_global:,.2f}**")
 
     # --------------------------------------------------------
     # VALIDACIÓN
     # --------------------------------------------------------
-    if monto > saldo_real:
-        st.error(f"❌ No puedes registrar un gasto mayor al saldo disponible (${saldo_real:,.2f}).")
+    if monto > saldo_global:
+        st.error(
+            f"❌ No puedes registrar un gasto mayor al saldo disponible (${saldo_global:,.2f})."
+        )
         return
 
     # --------------------------------------------------------
-    # OBTENER O CREAR REUNIÓN (solo para reportes)
+    # ID DE REUNIÓN (solo para reportes)
     # --------------------------------------------------------
     id_reunion = obtener_o_crear_reunion(fecha)
 
     # --------------------------------------------------------
-    # BOTÓN PARA GUARDAR EL GASTO
+    # BOTÓN PARA GUARDAR
     # --------------------------------------------------------
     if st.button("💾 Registrar gasto"):
 
         try:
-            # Registrar movimiento (tipo Egreso)
             registrar_movimiento(
                 id_caja=id_reunion,
-                tipo="Egreso",
-                categoria=categoria,
-                monto=monto
+                tipo="egreso",
+                monto=monto,
+                descripcion=descripcion,
+                responsable=responsable,
+                fecha=fecha
             )
 
-            # Obtener nuevo saldo actual
-            saldo_despues = obtener_saldo_actual()
+            # Nuevo saldo después del gasto
+            cursor.execute("SELECT saldo_final FROM caja_reunion ORDER BY fecha DESC LIMIT 1")
+            fila_nueva = cursor.fetchone()
+            saldo_despues = float(fila_nueva["saldo_final"]) if fila_nueva else saldo_global - float(monto)
 
             # Generar PDF
             pdf_path = generar_pdf_gasto(
-                fecha,
-                categoria,
-                float(monto),
-                float(saldo_real),
-                float(saldo_despues)
+                fecha, responsable, descripcion,
+                float(monto), saldo_global, saldo_despues
             )
 
             st.success("✅ Gasto registrado correctamente.")
@@ -138,8 +145,8 @@ def gastos_grupo():
             )
 
         except Exception as e:
-            st.error("❌ Error al registrar el gasto.")
-            st.write(str(e))
+            st.error("❌ Ocurrió un error al registrar el gasto.")
+            st.write(e)
 
     cursor.close()
     con.close()
