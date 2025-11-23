@@ -87,8 +87,7 @@ def interfaz_directiva():
         st.error(f"⚠ Error al generar reporte diario: {e}")
 
    
-
-       # ============================================
+    # ============================================
     # MENÚ LATERAL
     # ============================================
     menu = st.sidebar.radio(
@@ -109,24 +108,34 @@ def interfaz_directiva():
 
     if menu == "Registro de asistencia":
         pagina_asistencia()
+
     elif menu == "Aplicar multas":
         pagina_multas()
+
     elif menu == "Registrar nuevas socias":
         pagina_registro_socias()
+
     elif menu == "Autorizar préstamo":
         autorizar_prestamo()
+
     elif menu == "Registrar pago de préstamo":
         pago_prestamo()
+
     elif menu == "Registrar ahorro":
         ahorro()
+
     elif menu == "Registrar otros gastos":
         gastos_grupo()
+
     elif menu == "Cierre de ciclo":
         cierre_ciclo()
+
     elif menu == "Reporte de caja":
         reporte_caja()
+
     elif menu == "Reglas internas":
         gestionar_reglas()
+
 
 
     # ============================================================
