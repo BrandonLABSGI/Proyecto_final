@@ -208,7 +208,7 @@ def pagina_asistencia():
 
 
 # ============================================================
-# REGISTRO DE NUEVAS SOCIAS — DUI / TEL SOLO NÚMEROS
+# REGISTRO DE NUEVAS SOCIAS — DUI Y TELÉFONO SOLO NÚMEROS
 # ============================================================
 def pagina_registro_socias():
 
@@ -219,32 +219,54 @@ def pagina_registro_socias():
 
     nombre = st.text_input("Nombre completo de la socia:")
 
-    # ⛔ number_input NO permite letras → SOLO números
-    dui = st.number_input("Número de DUI (9 dígitos):", min_value=0, max_value=999999999, step=1)
-    telefono = st.number_input("Número de teléfono (8 dígitos):", min_value=0, max_value=99999999, step=1)
+    # -------------------------
+    # DUI — SOLO NÚMEROS (9)
+    # -------------------------
+    dui_raw = st.text_input("Número de DUI (9 dígitos):", key="dui_input")
 
-    # Convertir a string para validar longitud exacta
-    dui_str = str(dui)
-    telefono_str = str(telefono)
+    # Filtrar solo números
+    dui = "".join([c for c in dui_raw if c.isdigit()])
 
+    # Limitar a 9 caracteres máximo
+    if len(dui) > 9:
+        dui = dui[:9]
+
+    # Actualizar el campo visualmente
+    st.session_state["dui_input"] = dui
+
+    # -------------------------
+    # TELÉFONO — SOLO NÚMEROS (8)
+    # -------------------------
+    tel_raw = st.text_input("Número de teléfono (8 dígitos):", key="tel_input")
+
+    telefono = "".join([c for c in tel_raw if c.isdigit()])
+
+    if len(telefono) > 8:
+        telefono = telefono[:8]
+
+    st.session_state["tel_input"] = telefono
+
+    # -------------------------
+    # BOTÓN DE REGISTRO
+    # -------------------------
     if st.button("Registrar socia"):
 
         if nombre.strip() == "":
             st.warning("Debe ingresar un nombre.")
             return
 
-        if len(dui_str) != 9:
+        if len(dui) != 9:
             st.warning("El DUI debe contener exactamente 9 dígitos.")
             return
 
-        if len(telefono_str) != 8:
+        if len(telefono) != 8:
             st.warning("El teléfono debe contener exactamente 8 dígitos.")
             return
 
         cur.execute("""
             INSERT INTO Socia(Nombre, DUI, Telefono)
             VALUES(%s, %s, %s)
-        """, (nombre, dui_str, telefono_str))
+        """, (nombre, dui, telefono))
         con.commit()
 
         st.success(f"Socia '{nombre}' registrada correctamente.")
@@ -258,6 +280,7 @@ def pagina_registro_socias():
         df = pd.DataFrame(data)
         st.subheader("📋 Lista de socias")
         st.dataframe(df, use_container_width=True)
+
 
 
 
