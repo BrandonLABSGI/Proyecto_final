@@ -67,31 +67,22 @@ def interfaz_directiva():
     # RUTEO
     if menu == "Registro de asistencia":
         pagina_asistencia()
-
     elif menu == "Registrar nuevas socias":
-        registrar_socia()  # ✅ CORREGIDO
-
+        pagina_registro_socias()
     elif menu == "Reglas internas":
         gestionar_reglas()
-
     elif menu == "Registrar ahorro":
         ahorro()
-
     elif menu == "Aplicar multas":
         pagina_multas()
-
     elif menu == "Autorizar préstamo":
         autorizar_prestamo()
-
     elif menu == "Registrar pago de préstamo":
         pago_prestamo()
-
     elif menu == "Gastos del grupo":
         gastos_grupo()
-
     elif menu == "Reporte de caja":
         reporte_caja()
-
     elif menu == "Cierre de ciclo":
         cierre_ciclo()
 
@@ -217,84 +208,85 @@ def pagina_asistencia():
 
 
 # ============================================================
-# REGISTRAR NUEVAS SOCIAS
+# REGISTRO DE NUEVAS SOCIAS — SOLO NÚMEROS, SIN LETRAS
 # ============================================================
-def registrar_socia():
+def pagina_registro_socias():
 
-    st.title("🤱 Registrar nuevas socias")
+    st.header("👩‍🦰 Registrar nuevas socias")
 
     con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
+    cur = con.cursor(dictionary=True)
 
+    # ---------------------------
+    # CAMPO: NOMBRE
+    # ---------------------------
     nombre = st.text_input("Nombre completo de la socia:")
 
-    dui = st.text_input(
+    # ---------------------------
+    # CAMPO: DUI (solo números y max 9 dígitos)
+    # ---------------------------
+    dui_num = st.number_input(
         "Número de DUI (9 dígitos):",
-        value="",
-        max_chars=9,
-        placeholder="XXXXXXXXX",
-        key="dui_input",
-        kwargs={
-            "inputmode": "numeric",
-            "pattern": "[0-9]{0,9}",
-            "maxlength": "9"
-        }
+        min_value=0,
+        max_value=999999999,  # 9 dígitos
+        step=1,
+        format="%d"
     )
 
-    telefono = st.text_input(
+    # Convertimos a string para insertar en DB
+    dui = str(dui_num).zfill(9)
+
+    # ---------------------------
+    # CAMPO: TELÉFONO (solo números y max 8 dígitos)
+    # ---------------------------
+    tel_num = st.number_input(
         "Número de teléfono (8 dígitos):",
-        value="",
-        max_chars=8,
-        placeholder="XXXXXXXX",
-        key="telefono_input",
-        kwargs={
-            "inputmode": "numeric",
-            "pattern": "[0-9]{0,8}",
-            "maxlength": "8"
-        }
+        min_value=0,
+        max_value=99999999,  # 8 dígitos
+        step=1,
+        format="%d"
     )
 
-    distrito = st.text_input("Distrito asignado:")
+    telefono = str(tel_num).zfill(8)
 
-    usuario = st.text_input("Usuario:")
-    contrasena = st.text_input("Contraseña:", type="password")
-    confirmar = st.text_input("Confirmar contraseña:", type="password")
-
-    st.info("⚠️ Solo se permiten números y máximo 9 en DUI / 8 en Teléfono.")
-
+    # ---------------------------
+    # BOTÓN DE REGISTRO
+    # ---------------------------
     if st.button("Registrar socia"):
 
-        if not nombre or not dui or not telefono or not distrito or not usuario or not contrasena:
-            st.error("❌ Todos los campos son obligatorios.")
+        if nombre.strip() == "":
+            st.warning("Debe ingresar un nombre.")
             return
 
-        if contrasena != confirmar:
-            st.error("❌ Las contraseñas no coinciden.")
+        if len(dui) != 9:
+            st.warning("El DUI debe tener exactamente 9 dígitos.")
             return
 
-        if not dui.isnumeric() or len(dui) != 9:
-            st.error("❌ El DUI debe tener exactamente 9 números.")
+        if len(telefono) != 8:
+            st.warning("El teléfono debe tener exactamente 8 dígitos.")
             return
 
-        if not telefono.isnumeric() or len(telefono) != 8:
-            st.error("❌ El teléfono debe tener exactamente 8 números.")
-            return
+        cur.execute("""
+            INSERT INTO Socia (Nombre, DUI, Telefono)
+            VALUES (%s, %s, %s)
+        """, (nombre, dui, telefono))
+        con.commit()
 
-        try:
-            cursor.execute("""
-                INSERT INTO socia (Nombre, DUI, Telefono, Distrito, Usuario, Contrasena)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (nombre, dui, telefono, distrito, usuario, contrasena))
+        st.success(f"Socia '{nombre}' registrada correctamente.")
+        st.rerun()
 
-            con.commit()
-            st.success("✅ Socia registrada correctamente.")
+    # ---------------------------
+    # LISTA DE SOCIAS
+    # ---------------------------
+    cur.execute("SELECT Id_Socia, Nombre, DUI, Telefono FROM Socia ORDER BY Id_Socia ASC")
+    data = cur.fetchall()
 
-        except Exception as e:
-            st.error(f"❌ Error al registrar: {e}")
+    if data:
+        df = pd.DataFrame(data)
+        st.subheader("📋 Lista de socias")
+        st.dataframe(df, use_container_width=True)
 
-        finally:
-            cursor.close()
-            con.close()
+
 
 
 # ============================================================
@@ -337,3 +329,79 @@ def pagina_multas():
         con.commit()
         st.success("Multa registrada correctamente.")
         st.rerun()
+
+    st.markdown("---")
+    st.subheader("📋 Multas registradas")
+
+    filtro_socia = st.selectbox("Filtrar por socia:", ["Todas"] + list(dict_socias.keys()))
+    filtro_estado = st.selectbox("Estado:", ["Todos", "A pagar", "Pagada"])
+
+    query = """
+        SELECT M.Id_Multa, S.Nombre AS Socia, T.Tipo_de_multa,
+               M.Monto, M.Estado, M.Fecha_aplicacion
+        FROM Multa M
+        JOIN Socia S ON S.Id_Socia = M.Id_Socia
+        JOIN tipo_de_multa T ON T.Id_Tipo_multa = M.Id_Tipo_multa
+        WHERE 1 = 1
+    """
+    params = []
+
+    if filtro_socia != "Todas":
+        query += " AND S.Nombre = %s"
+        params.append(filtro_socia)
+
+    if filtro_estado != "Todos":
+        query += " AND M.Estado = %s"
+        params.append(filtro_estado)
+
+    query += " ORDER BY M.Id_Multa DESC"
+
+    cur.execute(query, params)
+    multas = cur.fetchall()
+
+    for m in multas:
+
+        col1, col2, col3, col4, col5, col6, col7 = st.columns([1, 3, 3, 2, 2, 2, 2])
+
+        col1.write(m["Id_Multa"])
+        col2.write(m["Socia"])
+        col3.write(m["Tipo_de_multa"])
+        col4.write(f"${m['Monto']:.2f}")
+
+        nuevo_estado = col5.selectbox(
+            " ",
+            ["A pagar", "Pagada"],
+            index=0 if m["Estado"] == "A pagar" else 1,
+            key=f"multa_{m['Id_Multa']}"
+        )
+
+        col6.write(str(m["Fecha_aplicacion"]))
+
+        if col7.button("Actualizar", key=f"u_{m['Id_Multa']}"):
+
+            estado_anterior = m["Estado"]
+
+            if estado_anterior == "A pagar" and nuevo_estado == "Pagada":
+
+                cur.execute("SELECT id_caja FROM caja_reunion WHERE fecha = %s", (m["Fecha_aplicacion"],))
+                reunion = cur.fetchone()
+
+                if reunion:
+                    id_caja = reunion["id_caja"]
+
+                    registrar_movimiento(
+                        id_caja=id_caja,
+                        tipo="Ingreso",
+                        categoria=f"Pago multa ({m['Socia']})",
+                        monto=float(m["Monto"])
+                    )
+
+            cur.execute("""
+                UPDATE Multa
+                SET Estado = %s
+                WHERE Id_Multa = %s
+            """, (nuevo_estado, m["Id_Multa"]))
+
+            con.commit()
+            st.success("Multa actualizada correctamente.")
+            st.rerun()
