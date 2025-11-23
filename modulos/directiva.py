@@ -268,6 +268,7 @@ def pagina_multas():
     con = obtener_conexion()
     cur = con.cursor(dictionary=True)
 
+    # SOCIAS
     cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cur.fetchall()
     dict_socias = {s["Nombre"]: s["Id_Socia"] for s in socias}
@@ -275,19 +276,21 @@ def pagina_multas():
     socia_sel = st.selectbox("Socia:", dict_socias.keys())
     id_socia = dict_socias[socia_sel]
 
-    cur.execute("SELECT Id_Tipo_multa, Tipo_de_multa FROM tipo_de_multa")
+    # TIPOS DE MULTA  ✔ CORREGIDO
+    cur.execute("SELECT Id_Tipo_multa, Tipo_de_multa FROM `Tipo de multa`")
     tipos = cur.fetchall()
     dict_tipos = {t["Tipo_de_multa"]: t["Id_Tipo_multa"] for t in tipos}
 
     tipo_sel = st.selectbox("Tipo de multa:", dict_tipos.keys())
     id_tipo = dict_tipos[tipo_sel]
 
+    # Monto, fecha, estado
     monto = st.number_input("Monto ($):", min_value=0.01, step=0.25)
     fecha_raw = st.date_input("Fecha:", date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
-
     estado = st.selectbox("Estado:", ["A pagar", "Pagada"])
 
+    # ✔ REGISTRAR MULTA
     if st.button("💾 Registrar multa"):
 
         cur.execute("""
@@ -302,15 +305,17 @@ def pagina_multas():
     st.markdown("---")
     st.subheader("📋 Multas registradas")
 
+    # FILTROS
     filtro_socia = st.selectbox("Filtrar por socia:", ["Todas"] + list(dict_socias.keys()))
     filtro_estado = st.selectbox("Estado:", ["Todos", "A pagar", "Pagada"])
 
+    # QUERY PRINCIPAL  ✔ CORREGIDO
     query = """
         SELECT M.Id_Multa, S.Nombre AS Socia, T.Tipo_de_multa,
                M.Monto, M.Estado, M.Fecha_aplicacion
         FROM Multa M
         JOIN Socia S ON S.Id_Socia = M.Id_Socia
-        JOIN tipo_de_multa T ON T.Id_Tipo_multa = M.Id_Tipo_multa
+        JOIN `Tipo de multa` T ON T.Id_Tipo_multa = M.Id_Tipo_multa
         WHERE 1 = 1
     """
     params = []
@@ -328,6 +333,7 @@ def pagina_multas():
     cur.execute(query, params)
     multas = cur.fetchall()
 
+    # TABLA CON MULTAS
     for m in multas:
 
         col1, col2, col3, col4, col5, col6, col7 = st.columns([1, 3, 3, 2, 2, 2, 2])
