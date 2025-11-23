@@ -35,7 +35,10 @@ def autorizar_prestamo():
 
         fecha_prestamo = st.date_input("📅 Fecha del préstamo", date.today())
 
-        socia_seleccionada = st.selectbox("👩 Socia que recibe el préstamo", list(lista_socias.keys()))
+        socia_seleccionada = st.selectbox(
+            "👩 Socia que recibe el préstamo",
+            list(lista_socias.keys())
+        )
         id_socia = lista_socias[socia_seleccionada]
 
         monto = st.number_input("💵 Monto prestado ($):", min_value=1, step=1)
@@ -71,20 +74,25 @@ def autorizar_prestamo():
             return
 
         # ======================================================
-        # VALIDAR CAJA
+        # VALIDAR CAJA GENERAL (caja_reunion)
         # ======================================================
-        cursor.execute("SELECT Id_Caja, Saldo_actual FROM Caja ORDER BY Id_Caja DESC LIMIT 1")
+        cursor.execute("""
+            SELECT id_caja, saldo_final
+            FROM caja_reunion
+            ORDER BY fecha DESC
+            LIMIT 1
+        """)
         caja = cursor.fetchone()
 
         if not caja:
-            st.error("❌ No existe caja activa.")
+            st.error("❌ No existe caja general activa.")
             return
 
-        id_caja = caja["Id_Caja"]
-        saldo_actual = caja["Saldo_actual"]
+        id_caja = caja["id_caja"]
+        saldo_actual = float(caja["saldo_final"])
 
         if monto > saldo_actual:
-            st.error(f"❌ Fondos insuficientes en caja. Saldo disponible: ${saldo_actual}")
+            st.error(f"❌ Fondos insuficientes en caja general. Saldo disponible: ${saldo_actual}")
             return
 
         saldo_pendiente = monto
@@ -115,16 +123,13 @@ def autorizar_prestamo():
                 id_caja
             ))
 
-            # 2. EGRESO EN CAJA
+            # 2. ACTUALIZAR CAJA GENERAL
             cursor.execute("""
-                INSERT INTO Caja(Concepto, Monto, Saldo_actual, Id_Grupo, Id_Tipo_movimiento, Fecha)
-                VALUES (%s, %s, %s, 1, 3, CURRENT_DATE())
-            """,
-            (
-                f"Préstamo otorgado a: {socia_seleccionada}",
-                -monto,
-                saldo_actual - monto
-            ))
+                UPDATE caja_reunion
+                SET egresos = egresos + %s,
+                    saldo_final = saldo_final - %s
+                WHERE id_caja=%s
+            """, (monto, monto, id_caja))
 
             con.commit()
 
