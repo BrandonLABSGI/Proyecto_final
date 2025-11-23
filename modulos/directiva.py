@@ -217,56 +217,76 @@ def pagina_registro_socias():
     con = obtener_conexion()
     cur = con.cursor(dictionary=True)
 
+    # ======== INPUT HTML DUI ========
+    dui = st.components.v1.html(
+        """
+        <input type="text" id="dui_field" maxlength="9"
+               oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,9);"
+               placeholder="Ingrese 9 dígitos"
+               style="
+                   width:100%; padding:10px; border-radius:6px;
+                   background:#2b2b2b; color:white; border:1px solid #555;
+               ">
+        <script>
+            const input = document.getElementById("dui_field");
+            input.oninput = () => {
+                input.value = input.value.replace(/[^0-9]/g,'').slice(0,9);
+            }
+        </script>
+        """,
+        height=80
+    )
+
+    # ======== INPUT HTML TELÉFONO ========
+    telefono = st.components.v1.html(
+        """
+        <input type="text" id="tel_field" maxlength="8"
+               oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,8);"
+               placeholder="Ingrese 8 dígitos"
+               style="
+                   width:100%; padding:10px; border-radius:6px;
+                   background:#2b2b2b; color:white; border:1px solid #555;
+               ">
+        <script>
+            const tel = document.getElementById("tel_field");
+            tel.oninput = () => {
+                tel.value = tel.value.replace(/[^0-9]/g,'').slice(0,8);
+            }
+        </script>
+        """,
+        height=80
+    )
+
     nombre = st.text_input("Nombre completo de la socia:")
 
-    # DUI: EXACTAMENTE 9 DÍGITOS — SOLO NÚMEROS
-    dui_num = st.number_input(
-        "Número de DUI (9 dígitos):",
-        min_value=0,
-        max_value=999999999,   # 9 dígitos
-        step=1,
-        format="%d"
-    )
-
-    # Convertimos a string para validar longitud
-    dui = str(dui_num)
-
-    # TELÉFONO: EXACTAMENTE 8 DÍGITOS — SOLO NÚMEROS
-    telefono_num = st.number_input(
-        "Número de teléfono (8 dígitos):",
-        min_value=0,
-        max_value=99999999,  # 8 dígitos
-        step=1,
-        format="%d"
-    )
-
-    telefono = str(telefono_num)
-
-    # BOTÓN
     if st.button("Registrar socia"):
 
         if nombre.strip() == "":
             st.warning("Debe ingresar un nombre.")
             return
+        
+        # OBTENER LOS VALORES DESDE EL FRONTEND
+        dui_val = st.session_state.get("dui_field_value", "")
+        tel_val = st.session_state.get("tel_field_value", "")
 
-        if len(dui) != 9:
+        if len(dui_val) != 9:
             st.warning("El DUI debe tener exactamente 9 dígitos.")
             return
 
-        if len(telefono) != 8:
-            st.warning("El número de teléfono debe tener exactamente 8 dígitos.")
+        if len(tel_val) != 8:
+            st.warning("El teléfono debe tener exactamente 8 dígitos.")
             return
 
         cur.execute("""
             INSERT INTO Socia(Nombre, DUI, Telefono)
             VALUES(%s, %s, %s)
-        """, (nombre, dui, telefono))
-
+        """, (nombre, dui_val, tel_val))
         con.commit()
+
         st.success(f"Socia '{nombre}' registrada correctamente.")
         st.rerun()
 
-    # Lista de socias
+    # Mostrar lista
     cur.execute("SELECT Id_Socia, Nombre, DUI FROM Socia ORDER BY Id_Socia ASC")
     data = cur.fetchall()
 
