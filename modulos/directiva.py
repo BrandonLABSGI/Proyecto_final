@@ -271,7 +271,7 @@ def pagina_multas():
     # -----------------------------------------------------------
     # SOCIAS
     # -----------------------------------------------------------
-    cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Nombre ASC")
+    cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cur.fetchall()
     dict_socias = {s["Nombre"]: s["Id_Socia"] for s in socias}
 
@@ -289,7 +289,7 @@ def pagina_multas():
     id_tipo = dict_tipos[tipo_sel]
 
     # -----------------------------------------------------------
-    # Monto según tipo de multa
+    # Monto según tipo
     # -----------------------------------------------------------
     tipo_lower = tipo_sel.lower()
     if "inasistencia" in tipo_lower:
@@ -297,7 +297,7 @@ def pagina_multas():
     elif "mora" in tipo_lower:
         monto_def = 3.00
     else:
-        monto_def = 0.00  # si hubiera otros tipos
+        monto_def = 0.00
 
     monto = st.number_input("Monto ($):", min_value=0.00, value=monto_def, step=0.25)
     fecha_raw = st.date_input("Fecha:", date.today())
@@ -322,28 +322,32 @@ def pagina_multas():
     st.subheader("📋 Multas registradas")
 
     # -----------------------------------------------------------
-    # FILTROS - socia, estado, fechas
+    # FILTROS – socia, estado, fecha ÚNICA
     # -----------------------------------------------------------
     filtro_socia = st.selectbox("Filtrar por socia:", ["Todas"] + list(dict_socias.keys()))
     filtro_estado = st.selectbox("Estado:", ["Todos", "A pagar", "Pagada"])
-
-    col_f1, col_f2 = st.columns(2)
-    fecha_inicio = col_f1.date_input("Desde:", date(2020, 1, 1))
-    fecha_fin = col_f2.date_input("Hasta:", date.today())
+    fecha_filtro = st.date_input("Filtrar por fecha:", date.today())
+    fecha_filtro_str = fecha_filtro.strftime("%Y-%m-%d")
 
     # -----------------------------------------------------------
     # QUERY PRINCIPAL
     # -----------------------------------------------------------
     query = """
-        SELECT M.Id_Multa, S.Nombre AS Socia, T.`Tipo de multa`,
-               M.Monto, M.Estado, M.Fecha_aplicacion
+        SELECT 
+            M.Id_Multa,
+            S.Id_Socia,
+            S.Nombre AS Socia,
+            T.`Tipo de multa`,
+            M.Monto,
+            M.Estado,
+            M.Fecha_aplicacion
         FROM Multa M
         JOIN Socia S ON S.Id_Socia = M.Id_Socia
         JOIN `Tipo de multa` T ON T.Id_Tipo_multa = M.Id_Tipo_multa
-        WHERE M.Fecha_aplicacion BETWEEN %s AND %s
+        WHERE DATE(M.Fecha_aplicacion) = %s
     """
 
-    params = [fecha_inicio.strftime("%Y-%m-%d"), fecha_fin.strftime("%Y-%m-%d")]
+    params = [fecha_filtro_str]
 
     if filtro_socia != "Todas":
         query += " AND S.Nombre = %s"
@@ -353,22 +357,22 @@ def pagina_multas():
         query += " AND M.Estado = %s"
         params.append(filtro_estado)
 
-    # -----------------------------------------------------------
-    # ORDENAR POR FECHA APLICADA (NO POR ID)
-    # -----------------------------------------------------------
-    query += " ORDER BY M.Fecha_aplicacion DESC, M.Id_Multa DESC"
+    # ORDEN OFICIAL:
+    # 1. Id_Socia (orden de registro)
+    # 2. Id_Multa
+    query += " ORDER BY S.Id_Socia ASC, M.Id_Multa DESC"
 
     cur.execute(query, params)
     multas = cur.fetchall()
 
     # -----------------------------------------------------------
-    # MENSAJE SI NO HAY MULTAS SEGÚN FILTRO
+    # MENSAJE SI NO HAY MULTAS
     # -----------------------------------------------------------
     if not multas:
-        if filtro_socia != "Todas" and filtro_estado == "A pagar":
-            st.info(f"✔ La socia **{filtro_socia}** no tiene multas pendientes.")
+        if filtro_socia != "Todas":
+            st.info(f"✔ La socia **{filtro_socia}** no tiene multas registradas en esta fecha.")
         else:
-            st.info("No se encontraron multas con los filtros aplicados.")
+            st.info("No existen multas en esta fecha.")
         return
 
     # -----------------------------------------------------------
@@ -382,7 +386,7 @@ def pagina_multas():
         col2.write(m["Socia"])
         col3.write(m["Tipo de multa"])
 
-        # Monto correcto por tipo
+        # Monto correcto según tipo
         tipo_m = m["Tipo de multa"].lower()
         if "inasistencia" in tipo_m:
             monto_f = 1.00
@@ -392,12 +396,14 @@ def pagina_multas():
             monto_f = float(m["Monto"])
 
         col4.write(f"${monto_f:.2f}")
+
         nuevo_estado = col5.selectbox(
-            " ",
+            "",
             ["A pagar", "Pagada"],
             index=0 if m["Estado"] == "A pagar" else 1,
             key=f"multa_{m['Id_Multa']}"
         )
+
         col6.write(str(m["Fecha_aplicacion"]))
 
         # -----------------------------------------------------------
@@ -407,7 +413,7 @@ def pagina_multas():
 
             estado_anterior = m["Estado"]
 
-            # Registrar ingreso en caja cuando cambia a pagada
+            # Si cambia de A pagar → Pagada → Registrar en caja
             if estado_anterior == "A pagar" and nuevo_estado == "Pagada":
 
                 cur.execute("SELECT id_caja FROM caja_reunion WHERE fecha = %s", (m["Fecha_aplicacion"],))
@@ -423,10 +429,9 @@ def pagina_multas():
                         monto=monto_f
                     )
 
-            # Actualizar multa
             cur.execute("""
                 UPDATE Multa
-                SET Estado = %s, Monto=%s
+                SET Estado = %s, Monto = %s
                 WHERE Id_Multa = %s
             """, (nuevo_estado, monto_f, m["Id_Multa"]))
 
