@@ -277,20 +277,20 @@ def pagina_multas():
     id_socia = dict_socias[socia_sel]
 
     # TIPOS DE MULTA  ✔ CORREGIDO
-    cur.execute("SELECT Id_Tipo_multa, Tipo_de_multa FROM `Tipo de multa`")
+    cur.execute("SELECT Id_Tipo_multa, `Tipo de multa` FROM `Tipo de multa`")
     tipos = cur.fetchall()
-    dict_tipos = {t["Tipo_de_multa"]: t["Id_Tipo_multa"] for t in tipos}
+    dict_tipos = {t["Tipo de multa"]: t["Id_Tipo_multa"] for t in tipos}
 
     tipo_sel = st.selectbox("Tipo de multa:", dict_tipos.keys())
     id_tipo = dict_tipos[tipo_sel]
 
-    # Monto, fecha, estado
     monto = st.number_input("Monto ($):", min_value=0.01, step=0.25)
     fecha_raw = st.date_input("Fecha:", date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
+
     estado = st.selectbox("Estado:", ["A pagar", "Pagada"])
 
-    # ✔ REGISTRAR MULTA
+    # REGISTRAR
     if st.button("💾 Registrar multa"):
 
         cur.execute("""
@@ -311,7 +311,7 @@ def pagina_multas():
 
     # QUERY PRINCIPAL  ✔ CORREGIDO
     query = """
-        SELECT M.Id_Multa, S.Nombre AS Socia, T.Tipo_de_multa,
+        SELECT M.Id_Multa, S.Nombre AS Socia, T.`Tipo de multa`,
                M.Monto, M.Estado, M.Fecha_aplicacion
         FROM Multa M
         JOIN Socia S ON S.Id_Socia = M.Id_Socia
@@ -333,14 +333,14 @@ def pagina_multas():
     cur.execute(query, params)
     multas = cur.fetchall()
 
-    # TABLA CON MULTAS
+    # LISTA
     for m in multas:
 
         col1, col2, col3, col4, col5, col6, col7 = st.columns([1, 3, 3, 2, 2, 2, 2])
 
         col1.write(m["Id_Multa"])
         col2.write(m["Socia"])
-        col3.write(m["Tipo_de_multa"])
+        col3.write(m["Tipo de multa"])
         col4.write(f"${m['Monto']:.2f}")
 
         nuevo_estado = col5.selectbox(
