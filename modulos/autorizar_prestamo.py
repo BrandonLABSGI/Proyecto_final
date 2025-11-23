@@ -121,6 +121,27 @@ def autorizar_prestamo():
         )
 
         # ======================================================
+        # 🔥 DESCONTAR AHORRO DE LA SOCIA (CORRECTO)
+        # ======================================================
+        nuevo_ahorro = ahorro_total - monto
+
+        cursor.execute("""
+            INSERT INTO Ahorro(
+                `Fecha del aporte`, `Monto del aporte`, `Tipo de aporte`,
+                `Comprobante digital`, `Saldo acumulado`, Id_Socia
+            )
+            VALUES (%s,%s,%s,%s,%s,%s)
+        """,
+        (
+            fecha_prestamo,
+            -monto,                      # Descuento del ahorro (correcto)
+            "Descuento préstamo",
+            "---",
+            nuevo_ahorro,
+            id_socia
+        ))
+
+        # ======================================================
         # REGISTRO DE CUOTAS (cada 15 días)
         # ======================================================
         fecha_base = datetime.strptime(str(fecha_prestamo), "%Y-%m-%d")
