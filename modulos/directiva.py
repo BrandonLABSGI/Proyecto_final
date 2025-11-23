@@ -105,7 +105,7 @@ def interfaz_directiva():
 
 
 # ============================================================
-# 🎯 REGISTRO DE ASISTENCIA — AHORA SÍ/NO
+# 🎯 REGISTRO DE ASISTENCIA — AHORA SÍ/NO + TABLA EN LA POSICIÓN CORRECTA
 # ============================================================
 def pagina_asistencia():
 
@@ -121,12 +121,12 @@ def pagina_asistencia():
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
     # -------------------------------------------
-    # Crear o recuperar reunión (caja del día)
+    # Crear o recuperar reunión
     # -------------------------------------------
     id_caja = obtener_o_crear_reunion(fecha)
 
     # -------------------------------------------
-    # Obtener lista de socias
+    # Obtener socias
     # -------------------------------------------
     cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cur.fetchall()
@@ -135,7 +135,7 @@ def pagina_asistencia():
     estados = {}
 
     # -------------------------------------------
-    # Formulario por socia (Sólo Sí/No)
+    # Formulario por socia (Sí/No)
     # -------------------------------------------
     for s in socias:
         eleccion = st.selectbox(
@@ -143,8 +143,6 @@ def pagina_asistencia():
             ["Sí", "No"],
             key=f"asis_{s['Id_Socia']}"
         )
-
-        # Conversión automática:
         estados[s["Id_Socia"]] = "Presente" if eleccion == "Sí" else "Ausente"
 
     # -------------------------------------------
@@ -167,7 +165,6 @@ def pagina_asistencia():
                     SET Estado_asistencia=%s
                     WHERE Id_Asistencia=%s
                 """, (estado, existe["Id_Asistencia"]))
-
             else:
                 cur.execute("""
                     INSERT INTO Asistencia(Id_Socia,Fecha,Estado_asistencia,Id_Reunion)
@@ -177,6 +174,22 @@ def pagina_asistencia():
         con.commit()
         st.success("Asistencia guardada correctamente.")
         st.rerun()
+
+    # --------------------------------------------------
+    # Mostrar tabla de asistencia del día (NUEVA POSICIÓN)
+    # --------------------------------------------------
+    cur.execute("""
+        SELECT S.Nombre, A.Estado_asistencia
+        FROM Asistencia A
+        JOIN Socia S ON S.Id_Socia = A.Id_Socia
+        WHERE A.Fecha = %s
+    """, (fecha,))
+    registros = cur.fetchall()
+
+    if registros:
+        st.subheader("📋 Asistencia registrada")
+        df_tabla = pd.DataFrame(registros)
+        st.dataframe(df_tabla, use_container_width=True)
 
     # -------------------------------------------
     # Resumen
@@ -203,7 +216,7 @@ def pagina_asistencia():
     st.markdown("---")
 
     # ===========================================================
-    # ⭐ INGRESOS EXTRAORDINARIOS — COMPLETAMENTE REDISEÑADO
+    # ⭐ INGRESOS EXTRAORDINARIOS (Fecha + Socia + Concepto)
     # ===========================================================
     st.subheader("💵 Registrar ingreso extraordinario (rifas, donaciones, etc.)")
 
@@ -225,6 +238,7 @@ def pagina_asistencia():
     # Monto
     monto = st.number_input("Monto ($)", min_value=0.01, step=0.25)
 
+    # Registrar ingreso
     if st.button("➕ Registrar ingreso extraordinario"):
 
         id_caja = obtener_o_crear_reunion(fecha_ingreso)
@@ -239,24 +253,9 @@ def pagina_asistencia():
         st.success("Ingreso extraordinario registrado y agregado a caja.")
         st.rerun()
 
-    # -------------------------------------------
-    # Mostrar asistencia del día
-    # -------------------------------------------
-    cur.execute("""
-        SELECT S.Nombre, A.Estado_asistencia
-        FROM Asistencia A
-        JOIN Socia S ON S.Id_Socia = A.Id_Socia
-        WHERE A.Fecha = %s
-    """, (fecha,))
-    registros = cur.fetchall()
-
-    if registros:
-        df = pd.DataFrame(registros)
-        st.dataframe(df, use_container_width=True)
-
 
 # ============================================================
-# 👩‍🦰 REGISTRAR NUEVAS SOCIAS
+# REGISTRO DE NUEVAS SOCIAS
 # ============================================================
 def pagina_registro_socias():
 
@@ -291,7 +290,7 @@ def pagina_registro_socias():
 
 
 # ============================================================
-# ⚠️ APLICACIÓN DE MULTAS
+# MULTAS
 # ============================================================
 def pagina_multas():
 
@@ -300,9 +299,6 @@ def pagina_multas():
     con = obtener_conexion()
     cur = con.cursor(dictionary=True)
 
-    # ----------------------------------------------------------
-    # SOCIAS
-    # ----------------------------------------------------------
     cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cur.fetchall()
     dict_socias = {s["Nombre"]: s["Id_Socia"] for s in socias}
@@ -310,9 +306,6 @@ def pagina_multas():
     socia_sel = st.selectbox("Socia:", dict_socias.keys())
     id_socia = dict_socias[socia_sel]
 
-    # ----------------------------------------------------------
-    # TIPOS DE MULTA
-    # ----------------------------------------------------------
     cur.execute("SELECT Id_Tipo_multa, Tipo_de_multa FROM tipo_de_multa")
     tipos = cur.fetchall()
     dict_tipos = {t["Tipo_de_multa"]: t["Id_Tipo_multa"] for t in tipos}
@@ -320,18 +313,12 @@ def pagina_multas():
     tipo_sel = st.selectbox("Tipo de multa:", dict_tipos.keys())
     id_tipo = dict_tipos[tipo_sel]
 
-    # ----------------------------------------------------------
-    # DATOS DE LA MULTA
-    # ----------------------------------------------------------
     monto = st.number_input("Monto ($):", min_value=0.01, step=0.25)
     fecha_raw = st.date_input("Fecha:", date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
     estado = st.selectbox("Estado:", ["A pagar", "Pagada"])
 
-    # ----------------------------------------------------------
-    # GUARDAR MULTA
-    # ----------------------------------------------------------
     if st.button("💾 Registrar multa"):
 
         cur.execute("""
@@ -346,9 +333,6 @@ def pagina_multas():
     st.markdown("---")
     st.subheader("📋 Multas registradas")
 
-    # ----------------------------------------------------------
-    # FILTROS
-    # ----------------------------------------------------------
     filtro_socia = st.selectbox("Filtrar por socia:", ["Todas"] + list(dict_socias.keys()))
     filtro_estado = st.selectbox("Estado:", ["Todos", "A pagar", "Pagada"])
 
@@ -375,9 +359,6 @@ def pagina_multas():
     cur.execute(query, params)
     multas = cur.fetchall()
 
-    # ----------------------------------------------------------
-    # MOSTRAR MULTAS
-    # ----------------------------------------------------------
     for m in multas:
 
         col1, col2, col3, col4, col5, col6, col7 = st.columns([1, 3, 3, 2, 2, 2, 2])
@@ -400,7 +381,6 @@ def pagina_multas():
 
             estado_anterior = m["Estado"]
 
-            # SI pasa de A pagar → Pagada → suma a caja
             if estado_anterior == "A pagar" and nuevo_estado == "Pagada":
 
                 cur.execute("SELECT id_caja FROM caja_reunion WHERE fecha = %s", (m["Fecha_aplicacion"],))
