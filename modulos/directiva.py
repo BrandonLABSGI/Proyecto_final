@@ -207,8 +207,9 @@ def pagina_asistencia():
         st.rerun()
 
 
+
 # ============================================================
-# REGISTRO DE NUEVAS SOCIAS — DUI Y TELÉFONO SOLO NÚMEROS
+# REGISTRO DE NUEVAS SOCIAS — BLOQUEO TOTAL LETRAS Y LÍMITES
 # ============================================================
 def pagina_registro_socias():
 
@@ -222,47 +223,55 @@ def pagina_registro_socias():
     # ---------------------------
     nombre = st.text_input("Nombre completo de la socia:")
 
-    # ---------------------------
-    # DUI SOLO NÚMEROS (9)
-    # ---------------------------
-    if "dui" not in st.session_state:
-        st.session_state.dui = ""
+    # ============================================================
+    # DUI — SOLO NÚMEROS, MÁXIMO 9, SIN LETRAS (HTML real)
+    # ============================================================
+    st.markdown("**Número de DUI (9 dígitos):**")
+    dui = st.components.v1.html("""
+        <input id="dui_input" type="text" maxlength="9"
+            placeholder="Solo números"
+            style="width:100%; padding:10px; border-radius:6px; font-size:16px;">
+        <script>
+            const dui = document.getElementById("dui_input");
+            dui.addEventListener("input", function() {
+                this.value = this.value.replace(/[^0-9]/g, "");
+                if (this.value.length > 9) {
+                    this.value = this.value.slice(0, 9);
+                }
+                window.parent.streamlitRPC.sendMessage("setComponentValue", {
+                    key: "dui_value",
+                    value: this.value
+                });
+            });
+        </script>
+    """, height=80)
 
-    dui_input = st.text_input(
-        "Número de DUI (9 dígitos):",
-        st.session_state.dui,
-        max_chars=9,
-        key="dui_text"
-    )
+    dui = st.session_state.get("dui_value", "")
 
-    # LIMPIAR LETRAS Y LIMITAR A 9
-    cleaned_dui = "".join([c for c in dui_input if c.isdigit()])[:9]
-    if cleaned_dui != st.session_state.dui:
-        st.session_state.dui = cleaned_dui
-        st.rerun()
+    # ============================================================
+    # TELÉFONO — SOLO NÚMEROS, MÁXIMO 8, SIN LETRAS (HTML real)
+    # ============================================================
+    st.markdown("**Número de teléfono (8 dígitos):**")
+    telefono = st.components.v1.html("""
+        <input id="tel_input" type="text" maxlength="8"
+            placeholder="Solo números"
+            style="width:100%; padding:10px; border-radius:6px; font-size:16px;">
+        <script>
+            const tel = document.getElementById("tel_input");
+            tel.addEventListener("input", function() {
+                this.value = this.value.replace(/[^0-9]/g, "");
+                if (this.value.length > 8) {
+                    this.value = this.value.slice(0, 8);
+                }
+                window.parent.streamlitRPC.sendMessage("setComponentValue", {
+                    key: "tel_value",
+                    value: this.value
+                });
+            });
+        </script>
+    """, height=80)
 
-    dui = st.session_state.dui
-
-    # ---------------------------
-    # TELÉFONO SOLO NÚMEROS (8)
-    # ---------------------------
-    if "telefono" not in st.session_state:
-        st.session_state.telefono = ""
-
-    tel_input = st.text_input(
-        "Número de teléfono (8 dígitos):",
-        st.session_state.telefono,
-        max_chars=8,
-        key="tel_text"
-    )
-
-    # LIMPIAR LETRAS Y LIMITAR A 8
-    cleaned_tel = "".join([c for c in tel_input if c.isdigit()])[:8]
-    if cleaned_tel != st.session_state.telefono:
-        st.session_state.telefono = cleaned_tel
-        st.rerun()
-
-    telefono = st.session_state.telefono
+    telefono = st.session_state.get("tel_value", "")
 
     # ---------------------------
     # BOTÓN DE REGISTRO
@@ -300,6 +309,7 @@ def pagina_registro_socias():
         df = pd.DataFrame(data)
         st.subheader("📋 Lista de socias")
         st.dataframe(df, use_container_width=True)
+
 
 
 
