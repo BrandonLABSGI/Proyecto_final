@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from datetime import date
-import matplotlib.pyplot as plt
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
@@ -45,7 +44,7 @@ def reporte_caja():
     obtener_o_crear_reunion(hoy)
 
     # ============================================================
-    # 3️⃣ LISTA DE FECHAS DISPONIBLES
+    # 3️⃣ FECHAS DISPONIBLES
     # ============================================================
     cursor.execute("SELECT fecha FROM caja_reunion ORDER BY fecha DESC")
     fechas_raw = cursor.fetchall()
@@ -59,7 +58,7 @@ def reporte_caja():
     fecha_sel = st.selectbox("📅 Seleccione la fecha:", fechas)
 
     # ============================================================
-    # 4️⃣ RESUMEN DEL DÍA SELECCIONADO
+    # 4️⃣ RESUMEN DEL DÍA
     # ============================================================
     cursor.execute("""
         SELECT *
@@ -91,7 +90,7 @@ def reporte_caja():
     st.markdown("---")
 
     # ============================================================
-    # 5️⃣ DETALLE DE MOVIMIENTOS DEL DÍA
+    # 5️⃣ MOVIMIENTOS DEL DÍA
     # ============================================================
     st.subheader("📋 Movimientos del día")
 
@@ -135,17 +134,18 @@ def reporte_caja():
     st.success(f"💼 **Balance del ciclo:** ${balance_ciclo:.2f}")
 
     # ============================================================
-    # 7️⃣ GRÁFICA — INGRESOS VS EGRESOS (CICLO)
+    # 7️⃣ GRÁFICAS SIN MATPLOTLIB
     # ============================================================
-    st.subheader("📈 Gráfica del ciclo")
+    st.subheader("📈 Gráfica del ciclo (Streamlit)")
 
-    fig, ax = plt.subplots()
-    ax.bar(["Ingresos", "Egresos"], [total_ingresos, total_egresos])
-    ax.set_title("Ingresos vs Egresos del Ciclo")
-    ax.set_ylabel("Monto ($)")
-    st.pyplot(fig)
+    df_chart = pd.DataFrame({
+        "Categoria": ["Ingresos", "Egresos"],
+        "Monto": [total_ingresos, total_egresos]
+    })
 
-    # Pie chart por categorías
+    st.bar_chart(df_chart, x="Categoria", y="Monto")
+
+    # Pie Chart por categorías usando plotly opcional
     cursor.execute("""
         SELECT categoria, SUM(monto) AS total
         FROM caja_movimientos
@@ -156,18 +156,14 @@ def reporte_caja():
     categorias = cursor.fetchall()
 
     if categorias:
-        labels = [c["categoria"] for c in categorias]
-        values = [c["total"] for c in categorias]
-
-        fig2, ax2 = plt.subplots()
-        ax2.pie(values, labels=labels, autopct="%1.1f%%")
-        ax2.set_title("Distribución por categoría")
-        st.pyplot(fig2)
+        df_pie = pd.DataFrame(categorias)
+        st.subheader("📊 Distribución por categoría")
+        st.bar_chart(df_pie, x="categoria", y="total")
 
     st.markdown("---")
 
     # ============================================================
-    # 8️⃣ GENERAR PDF COMPLETO
+    # 8️⃣ PDF
     # ============================================================
     st.subheader("📄 Exportar reporte a PDF")
 
@@ -192,7 +188,7 @@ def reporte_caja():
             ["Saldo Final", f"${saldo_final:.2f}"],
         ]
 
-        t_day = Table(tabla_dia, colWidths=[150, 300])
+        t_day = Table(tabla_dia)
         t_day.setStyle(TableStyle([("GRID", (0,0), (-1,-1), 1, colors.black)]))
 
         contenido.append(Paragraph("<b>Resumen del día</b>", styles["Heading2"]))
@@ -207,7 +203,7 @@ def reporte_caja():
             ["Balance del ciclo", f"${balance_ciclo:.2f}"],
         ]
 
-        t_cycle = Table(tabla_ciclo, colWidths=[200, 250])
+        t_cycle = Table(tabla_ciclo)
         t_cycle.setStyle(TableStyle([("GRID", (0,0), (-1,-1), 1, colors.black)]))
 
         contenido.append(Paragraph("<b>Resumen del ciclo</b>", styles["Heading2"]))
