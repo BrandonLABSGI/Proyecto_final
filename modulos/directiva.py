@@ -52,7 +52,7 @@ def interfaz_directiva():
         st.warning("⚠ No se pudo obtener el saldo actual de caja.")
 
     # -------------------------------------------
-    # MENÚ LATERAL — ORDEN FINAL SOLICITADO
+    # MENÚ LATERAL
     # -------------------------------------------
     menu = st.sidebar.radio(
         "📌 Selección rápida:",
@@ -105,7 +105,7 @@ def interfaz_directiva():
 
 
 # ============================================================
-# 🎯 REGISTRO DE ASISTENCIA — ***MEJORADO SIN ROMPER NADA***
+# 🎯 REGISTRO DE ASISTENCIA — AHORA SÍ/NO
 # ============================================================
 def pagina_asistencia():
 
@@ -135,14 +135,17 @@ def pagina_asistencia():
     estados = {}
 
     # -------------------------------------------
-    # Formulario por socia
+    # Formulario por socia (Sólo Sí/No)
     # -------------------------------------------
     for s in socias:
-        estados[s["Id_Socia"]] = st.selectbox(
+        eleccion = st.selectbox(
             f"{s['Id_Socia']} - {s['Nombre']}",
-            ["Presente", "Ausente"],
+            ["Sí", "No"],
             key=f"asis_{s['Id_Socia']}"
         )
+
+        # Conversión automática:
+        estados[s["Id_Socia"]] = "Presente" if eleccion == "Sí" else "Ausente"
 
     # -------------------------------------------
     # Guardar asistencia
@@ -150,7 +153,6 @@ def pagina_asistencia():
     if st.button("💾 Guardar asistencia"):
         for id_socia, estado in estados.items():
 
-            # ¿Ya existe registro?
             cur.execute("""
                 SELECT Id_Asistencia
                 FROM Asistencia
@@ -177,7 +179,7 @@ def pagina_asistencia():
         st.rerun()
 
     # -------------------------------------------
-    # Mostrar TOT ALES DE ASISTENCIA
+    # Resumen
     # -------------------------------------------
     cur.execute("""
         SELECT Estado_asistencia
@@ -200,31 +202,45 @@ def pagina_asistencia():
 
     st.markdown("---")
 
-    # ----------------------------------------------------------
-    # ⭐ INGRESOS EXTRAORDINARIOS
-    # ----------------------------------------------------------
+    # ===========================================================
+    # ⭐ INGRESOS EXTRAORDINARIOS — COMPLETAMENTE REDISEÑADO
+    # ===========================================================
     st.subheader("💵 Registrar ingreso extraordinario (rifas, donaciones, etc.)")
 
-    concepto = st.text_input("Concepto del ingreso:")
+    # Fecha
+    fecha_ing = st.date_input("📅 Fecha del ingreso:", date.today())
+    fecha_ingreso = fecha_ing.strftime("%Y-%m-%d")
+
+    # Socias
+    cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
+    lista = cur.fetchall()
+    dict_socias = {f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] for s in lista}
+
+    socia_sel = st.selectbox("Socia que aporta el ingreso:", list(dict_socias.keys()))
+    id_socia_ing = dict_socias[socia_sel]
+
+    # Concepto
+    concepto = st.selectbox("Concepto:", ["Rifa", "Donación", "Otros"])
+
+    # Monto
     monto = st.number_input("Monto ($)", min_value=0.01, step=0.25)
 
     if st.button("➕ Registrar ingreso extraordinario"):
 
-        if concepto.strip() == "":
-            st.warning("Debe ingresar un concepto.")
-        else:
-            registrar_movimiento(
-                id_caja=id_caja,
-                tipo="Ingreso",
-                categoria=f"Ingreso extraordinario — {concepto}",
-                monto=monto
-            )
+        id_caja = obtener_o_crear_reunion(fecha_ingreso)
 
-            st.success("Ingreso extraordinario registrado y agregado a caja.")
-            st.rerun()
+        registrar_movimiento(
+            id_caja=id_caja,
+            tipo="Ingreso",
+            categoria=f"Ingreso extraordinario — {concepto}",
+            monto=monto
+        )
+
+        st.success("Ingreso extraordinario registrado y agregado a caja.")
+        st.rerun()
 
     # -------------------------------------------
-    # Mostrar registro guardado
+    # Mostrar asistencia del día
     # -------------------------------------------
     cur.execute("""
         SELECT S.Nombre, A.Estado_asistencia
@@ -409,8 +425,3 @@ def pagina_multas():
             con.commit()
             st.success("Multa actualizada correctamente.")
             st.rerun()
-
-
-# ============================================================
-# FIN DEL MÓDULO DIRECTIVA
-# ============================================================
