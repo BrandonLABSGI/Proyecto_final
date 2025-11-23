@@ -273,31 +273,59 @@ def pagina_multas():
     con.close()
 
 
-    # --------------------------
-    # REGISTRO DE MULTA
-    # --------------------------
-    st.subheader("➕ Registrar nueva multa")
+   # --------------------------
+# REGISTRO DE MULTA
+# --------------------------
+st.subheader("➕ Registrar nueva multa")
 
-    socia_sel = st.selectbox("Socia:", opciones_socias.keys())
-    id_socia = opciones_socias[socia_sel]
+socia_sel = st.selectbox("Socia:", opciones_socias.keys())
+id_socia = opciones_socias[socia_sel]
 
-    tipo_sel = st.selectbox("Tipo de multa:", opciones_tipos.keys())
-    id_tipo = opciones_tipos[tipo_sel]
+tipo_sel = st.selectbox("Tipo de multa:", opciones_tipos.keys())
+id_tipo = opciones_tipos[tipo_sel]
 
-    monto = st.number_input("Monto ($)", min_value=0.25, step=0.25)
-    fecha = st.date_input("Fecha", date.today()).strftime("%Y-%m-%d")
-    estado_sel = st.selectbox("Estado:", ["A pagar", "Pagada"])
+# leer reglas
+from modulos.reglas_utils import obtener_reglas
+reglas = obtener_reglas()
 
-    if st.button("💾 Registrar multa"):
-        cursor.execute("""
-            INSERT INTO Multa(Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
-            VALUES (%s,%s,%s,%s,%s)
-        """, (monto, fecha, estado_sel, id_tipo, id_socia))
-        con.commit()
-        st.success("✔ Multa registrada correctamente.")
-        st.rerun()
+multa_inasistencia = float(reglas["multa_inasistencia"])
+multa_mora = float(reglas["multa_mora"])
 
-    st.markdown("---")
+# determinar monto automático
+tipo_nombre = tipo_sel.lower()
+
+if "inasistencia" in tipo_nombre:
+    monto_default = multa_inasistencia
+    editable = False
+
+elif "mora" in tipo_nombre:
+    monto_default = multa_mora
+    editable = False
+
+else:
+    monto_default = 0.25
+    editable = True
+
+monto = st.number_input(
+    "Monto ($)",
+    min_value=0.25,
+    step=0.25,
+    value=monto_default,
+    disabled=not editable
+)
+
+fecha = st.date_input("Fecha", date.today()).strftime("%Y-%m-%d")
+estado_sel = st.selectbox("Estado:", ["A pagar", "Pagada"])
+
+if st.button("💾 Registrar multa"):
+    cur = con.cursor()
+    cur.execute("""
+        INSERT INTO Multa(Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
+        VALUES (%s,%s,%s,%s,%s)
+    """, (monto, fecha, estado_sel, id_tipo, id_socia))
+    con.commit()
+    st.success("✔ Multa registrada correctamente.")
+    st.rerun()
 
     # --------------------------
     # FILTROS
