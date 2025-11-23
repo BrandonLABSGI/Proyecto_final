@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from modulos.conexion import obtener_conexion
@@ -102,62 +102,54 @@ def pago_prestamo():
     cuota_sel = st.selectbox("Seleccione la cuota a pagar:", opciones.keys())
     id_cuota = opciones[cuota_sel]
 
-    fecha_pago = st.date_input("📅 Fecha del pago:", date.today()).strftime("%Y-%m-%d")
+    fecha_pago = st.date_input("📅 Fecha del pago:", date.today())
 
     # ============================================================
     # BOTÓN PRINCIPAL
     # ============================================================
     if st.button("💾 Registrar pago"):
 
-        # Obtener datos de esa cuota
+        # Obtener datos de la cuota
         cur.execute("SELECT * FROM Cuotas_prestamo WHERE Id_Cuota=%s", (id_cuota,))
         cuota = cur.fetchone()
 
         monto_cuota = Decimal(cuota["Monto_cuota"])
         fecha_programada = cuota["Fecha_programada"]
 
-        fecha_programada_dt = date.fromisoformat(fecha_programada)
-        fecha_pago_dt = date.fromisoformat(fecha_pago)
+        # ============================================================
+        # NORMALIZAR FECHA PROGRAMADA (EVITA ERROR TypeError)
+        # ============================================================
+        if isinstance(fecha_programada, date):
+            fecha_programada_dt = fecha_programada
+        else:
+            fecha_programada_dt = date.fromisoformat(str(fecha_programada))
+
+        # Normalizar fecha de pago
+        if isinstance(fecha_pago, date):
+            fecha_pago_dt = fecha_pago
+        else:
+            fecha_pago_dt = date.fromisoformat(str(fecha_pago))
 
         # ============================================================
-        # 🚫 BLOQUEAR SI LA FECHA NO COINCIDE (NUEVO BLOQUE)
+        # 🚫 BLOQUEAR SI LA FECHA NO COINCIDE EXACTAMENTE
         # ============================================================
         if fecha_pago_dt != fecha_programada_dt:
             st.error(
                 f"❌ La fecha ingresada NO coincide con la fecha programada "
-                f"de esta cuota ({fecha_programada}).\n\n"
+                f"de esta cuota ({fecha_programada_dt}).\n\n"
                 f"➡ Solo puedes pagarla EXACTAMENTE el día correspondiente."
             )
             return
 
         # ============================================================
-        # MULTA POR MORA (YA NO SE USARÁ, PERO SE RESPETA EL CÓDIGO)
+        # PAGO NORMAL (SIN MULTA)
         # ============================================================
-        atraso = fecha_pago_dt > fecha_programada_dt
-        monto_total = monto_cuota
-
-        if atraso and multa_mora > 0:
-
-            monto_total += multa_mora
-            st.warning(f"⚠ Pago atrasado: multa por mora de ${multa_mora}")
-
-            cur.execute("""
-                INSERT INTO Multa (Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
-                VALUES (%s, %s, 'A pagar', 2, %s)
-            """, (multa_mora, fecha_pago, id_socia))
-
-            id_caja_multa = obtener_o_crear_reunion(fecha_pago)
-            registrar_movimiento(
-                id_caja=id_caja_multa,
-                tipo="Ingreso",
-                categoria=f"Multa por mora (Préstamo #{id_prestamo})",
-                monto=float(multa_mora)
-            )
+        monto_total = monto_cuota  # multa ya no aplica porque bloqueamos fechas
 
         # ============================================================
         # INGRESO A CAJA
         # ============================================================
-        id_caja = obtener_o_crear_reunion(fecha_pago)
+        id_caja = obtener_o_crear_reunion(str(fecha_pago_dt))
 
         registrar_movimiento(
             id_caja=id_caja,
@@ -167,16 +159,16 @@ def pago_prestamo():
         )
 
         # ============================================================
-        # ACTUALIZAR CUOTA
+        # MARCAR CUOTA COMO PAGADA
         # ============================================================
         cur.execute("""
             UPDATE Cuotas_prestamo
             SET Estado='pagada', Fecha_pago=%s, Id_Caja=%s
             WHERE Id_Cuota=%s
-        """, (fecha_pago, id_caja, id_cuota))
+        """, (fecha_pago_dt, id_caja, id_cuota))
 
         # ============================================================
-        # ACTUALIZAR SALDO DEL PRÉSTAMO
+        # ACTUALIZAR SALDO
         # ============================================================
         nuevo_saldo = saldo_pendiente - monto_cuota
 
