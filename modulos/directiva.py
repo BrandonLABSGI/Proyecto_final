@@ -217,72 +217,78 @@ def pagina_registro_socias():
     con = obtener_conexion()
     cur = con.cursor(dictionary=True)
 
-    # ------------------------------
-    # NOMBRE
-    # ------------------------------
+    # ------------------------------------------------------------------
+    # 🔥 INPUTS HTML — DUI y TELÉFONO solo números y con máximo permitido
+    # ------------------------------------------------------------------
+    st.markdown("""
+        <style>
+            input[type=number]::-webkit-inner-spin-button,
+            input[type=number]::-webkit-outer-spin-button {
+                -webkit-appearance: none;
+                margin: 0;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
     nombre = st.text_input("Nombre completo de la socia:")
 
-    # ------------------------------
-    # DUI — solo dígitos, máx 9
-    # ------------------------------
-    dui_raw = st.text_input("Número de DUI (9 dígitos):", max_chars=9)
+    dui = st.number_input(
+        "Número de DUI (9 dígitos):",
+        min_value=0,
+        max_value=999999999,
+        step=1,
+        format="%d",
+        key="dui_num"
+    )
 
-    # Limpiar todo lo que no sea número
-    dui_filtrado = "".join([c for c in dui_raw if c.isdigit()])
+    telefono = st.number_input(
+        "Número de teléfono (8 dígitos):",
+        min_value=0,
+        max_value=99999999,
+        step=1,
+        format="%d",
+        key="tel_num"
+    )
 
-    # Limitar a 9 dígitos
-    dui_filtrado = dui_filtrado[:9]
-
-    # Mostrar el valor corregido
-    if dui_filtrado != dui_raw:
-        st.warning("Solo se permiten números y máximo 9 dígitos en el DUI.")
-
-    # ------------------------------
-    # TELÉFONO — solo dígitos, máx 8
-    # ------------------------------
-    tel_raw = st.text_input("Número de teléfono (8 dígitos):", max_chars=8)
-
-    tel_filtrado = "".join([c for c in tel_raw if c.isdigit()])
-    tel_filtrado = tel_filtrado[:8]
-
-    if tel_filtrado != tel_raw:
-        st.warning("Solo se permiten números y máximo 8 dígitos en el teléfono.")
-
-    # ------------------------------
-    # BOTÓN DE REGISTRO
-    # ------------------------------
+    # ------------------------------------------------------------------
+    # VALIDACIÓN
+    # ------------------------------------------------------------------
     if st.button("Registrar socia"):
 
         if nombre.strip() == "":
             st.warning("Debe ingresar un nombre.")
             return
 
-        if len(dui_filtrado) != 9:
+        dui_str = str(int(dui)) if dui else ""
+        tel_str = str(int(telefono)) if telefono else ""
+
+        if len(dui_str) != 9:
             st.warning("El DUI debe contener exactamente 9 dígitos.")
             return
 
-        if len(tel_filtrado) != 8:
+        if len(tel_str) != 8:
             st.warning("El teléfono debe contener exactamente 8 dígitos.")
             return
 
         cur.execute("""
             INSERT INTO Socia(Nombre, DUI, Telefono)
             VALUES(%s, %s, %s)
-        """, (nombre, dui_filtrado, tel_filtrado))
-        con.commit()
+        """, (nombre, dui_str, tel_str))
 
+        con.commit()
         st.success(f"Socia '{nombre}' registrada correctamente.")
         st.rerun()
 
-    # ------------------------------
-    # LISTA DE SOCIAS
-    # ------------------------------
-    cur.execute("SELECT Id_Socia, Nombre, DUI, Telefono FROM Socia ORDER BY Id_Socia ASC")
+    # ------------------------------------------------------------------
+    # Mostrar lista
+    # ------------------------------------------------------------------
+    cur.execute("SELECT Id_Socia, Nombre, DUI FROM Socia ORDER BY Id_Socia ASC")
     data = cur.fetchall()
 
     if data:
+        df = pd.DataFrame(data)
         st.subheader("📋 Lista de socias")
-        st.dataframe(pd.DataFrame(data), use_container_width=True)
+        st.dataframe(df, use_container_width=True)
 
 
 
