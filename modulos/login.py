@@ -5,17 +5,38 @@ def login():
 
     st.set_page_config(page_title="Ingreso — Solidaridad CVX", layout="centered")
 
-    # ===== IMAGEN CENTRADA =====
+    # ============================
+    #   ESTILOS
+    # ============================
     st.markdown("""
-        <div style='text-align:center; margin-top:20px; margin-bottom:10px;'>
-            <img src='modulos/imagenes/senoras.png' width='260'>
-        </div>
+        <style>
+            .center-img {
+                display: flex;
+                justify-content: center;
+                margin-top: 10px;
+                margin-bottom: 5px;
+            }
+        </style>
     """, unsafe_allow_html=True)
 
-    # ===== TÍTULO =====
-    st.markdown("<h1 style='text-align:center; color:white; margin-bottom:35px;'>Bienvenida a Solidaridad CVX</h1>", unsafe_allow_html=True)
+    # ============================
+    #   IMAGEN CENTRADA
+    # ============================
+    st.markdown('<div class="center-img">', unsafe_allow_html=True)
+    st.image("modulos/imagenes/senoras.png", width=280)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # ===== FORMULARIO =====
+    # ============================
+    #   TÍTULO
+    # ============================
+    st.markdown(
+        "<h1 style='text-align:center; font-weight:800;'>Bienvenida a Solidaridad CVX</h1>",
+        unsafe_allow_html=True
+    )
+
+    # ============================
+    #   FORMULARIO
+    # ============================
     usuario = st.text_input("Usuario")
     contrasena = st.text_input("Contraseña", type="password")
 
