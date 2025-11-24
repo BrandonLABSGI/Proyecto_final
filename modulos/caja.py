@@ -1,17 +1,19 @@
 import streamlit as st
 from decimal import Decimal
-from datetime import date
+from datetime import date, timedelta
 from modulos.conexion import obtener_conexion
 
 
-# ====================================================================
-# 🟢 1. OBTENER O CREAR REUNIÓN (MEJORADO PARA TOMAR EL SALDO ANTERIOR)
-# ====================================================================
+# ================================================================
+# 🟢 1. OBTENER O CREAR REUNIÓN — SALDO INICIAL CORRECTO
+# ================================================================
 def obtener_o_crear_reunion(fecha):
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    # 1️⃣ Buscar reunión existente para esta fecha
+    # ------------------------------------------------------------
+    # 1️⃣ Ver si ya existe la reunión
+    # ------------------------------------------------------------
     cursor.execute("""
         SELECT id_caja
         FROM caja_reunion
@@ -22,25 +24,35 @@ def obtener_o_crear_reunion(fecha):
     if reunion:
         return reunion["id_caja"]
 
-    # 2️⃣ Obtener saldo_final del día anterior (si existe)
-    cursor.execute("""
-        SELECT saldo_final
-        FROM caja_reunion
-        WHERE fecha < %s
-        ORDER BY fecha DESC
-        LIMIT 1
-    """, (fecha,))
-    anterior = cursor.fetchone()
+    # ------------------------------------------------------------
+    # 2️⃣ Buscar día anterior
+    # ------------------------------------------------------------
+    fecha_dt = date.fromisoformat(fecha)
+    fecha_ayer = (fecha_dt - timedelta(days=1)).strftime("%Y-%m-%d")
 
-    if anterior:
-        saldo_inicial = Decimal(str(anterior["saldo_final"]))
+    cursor.execute("""
+        SELECT saldo_final, dia_cerrado
+        FROM caja_reunion
+        WHERE fecha = %s
+    """, (fecha_ayer,))
+    ayer = cursor.fetchone()
+
+    # ------------------------------------------------------------
+    # 3️⃣ Si el día anterior existe y está cerrado → usar saldo_final
+    # ------------------------------------------------------------
+    if ayer and ayer["dia_cerrado"] == 1:
+        saldo_inicial = Decimal(str(ayer["saldo_final"]))
     else:
-        # Si no hay día anterior, usar saldo_real actual del sistema
+        # --------------------------------------------------------
+        # 4️⃣ Si no está cerrado → usar saldo real
+        # --------------------------------------------------------
         cursor.execute("SELECT saldo_actual FROM caja_general WHERE id = 1")
         row = cursor.fetchone()
         saldo_inicial = Decimal(str(row["saldo_actual"])) if row else Decimal("0.00")
 
-    # 3️⃣ Crear reunión con saldo inicial consistente
+    # ------------------------------------------------------------
+    # 5️⃣ Crear la reunión con saldo inicial correcto
+    # ------------------------------------------------------------
     cursor.execute("""
         INSERT INTO caja_reunion (fecha, saldo_inicial, ingresos, egresos, saldo_final, dia_cerrado)
         VALUES (%s, %s, 0, 0, %s, 0)
@@ -77,18 +89,18 @@ def registrar_movimiento(id_caja, tipo, categoria, monto):
 
     monto = Decimal(str(monto))
 
-    # 1️⃣ Registrar movimiento histórico
+    # Registrar movimiento histórico
     cursor.execute("""
         INSERT INTO caja_movimientos (id_caja, tipo, categoria, monto)
         VALUES (%s, %s, %s, %s)
     """, (id_caja, tipo, categoria, monto))
 
-    # 2️⃣ Obtener saldo real actual
+    # Obtener saldo real
     cursor.execute("SELECT saldo_actual FROM caja_general WHERE id = 1")
     row = cursor.fetchone()
     saldo = Decimal(str(row["saldo_actual"]))
 
-    # 3️⃣ Actualizar saldo general
+    # Actualizar saldo real
     if tipo == "Ingreso":
         saldo += monto
     else:
@@ -100,7 +112,7 @@ def registrar_movimiento(id_caja, tipo, categoria, monto):
         WHERE id = 1
     """, (saldo,))
 
-    # 4️⃣ Actualizar saldo de la reunión
+    # Actualizar reporte de reunión
     if tipo == "Ingreso":
         cursor.execute("""
             UPDATE caja_reunion
@@ -121,7 +133,7 @@ def registrar_movimiento(id_caja, tipo, categoria, monto):
 
 
 # ================================================================
-# 🟢 4. OBTENER REPORTE POR REUNIÓN
+# 🟢 4. OBTENER REPORTE POR FECHA
 # ================================================================
 def obtener_reporte_reunion(fecha):
     con = obtener_conexion()
