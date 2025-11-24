@@ -1,20 +1,17 @@
 import streamlit as st
 from decimal import Decimal
-from datetime import date
+from datetime import date, timedelta
 from modulos.conexion import obtener_conexion
 
 
 # ================================================================
-# 🟢 1. OBTENER O CREAR REUNIÓN DEL DÍA
-#    — Opción A: usar saldo_final del día anterior SIEMPRE
+# 🟢 1. OBTENER O CREAR REUNIÓN (YA CORREGIDO)
 # ================================================================
 def obtener_o_crear_reunion(fecha):
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    # --------------------------------------------
-    # ¿Ya existe una reunión hoy?
-    # --------------------------------------------
+    # 1) Verificar si la reunión ya existe
     cursor.execute("""
         SELECT id_caja
         FROM caja_reunion
@@ -25,28 +22,28 @@ def obtener_o_crear_reunion(fecha):
     if reunion:
         return reunion["id_caja"]
 
-    # --------------------------------------------
-    # Buscar día inmediatamente anterior cerrado
-    # --------------------------------------------
+    # 2) Buscar saldo_final del día anterior
     cursor.execute("""
         SELECT saldo_final
         FROM caja_reunion
-        WHERE fecha < %s AND dia_cerrado = 1
+        WHERE fecha < %s
         ORDER BY fecha DESC
         LIMIT 1
     """, (fecha,))
+    anterior = cursor.fetchone()
 
-    row = cursor.fetchone()
+    if anterior:
+        saldo_inicial = Decimal(str(anterior["saldo_final"]))
+    else:
+        # Si no existe día anterior, usar el saldo general
+        cursor.execute("SELECT saldo_actual FROM caja_general WHERE id = 1")
+        row = cursor.fetchone()
+        saldo_inicial = Decimal(str(row["saldo_actual"])) if row else Decimal("0.00")
 
-    # Si no hay días cerrados, saldo inicial = 0
-    saldo_inicial = Decimal(str(row["saldo_final"])) if row else Decimal("0.00")
-
-    # --------------------------------------------
-    # Crear la nueva reunión
-    # --------------------------------------------
+    # 3) Crear nueva reunión con el saldo inicial correcto
     cursor.execute("""
-        INSERT INTO caja_reunion (fecha, saldo_inicial, ingresos, egresos, saldo_final, dia_cerrado)
-        VALUES (%s, %s, 0, 0, %s, 0)
+        INSERT INTO caja_reunion (fecha, saldo_inicial, ingresos, egresos, saldo_final)
+        VALUES (%s, %s, 0, 0, %s)
     """, (fecha, saldo_inicial, saldo_inicial))
 
     con.commit()
@@ -55,7 +52,7 @@ def obtener_o_crear_reunion(fecha):
 
 
 # ================================================================
-# 🟢 2. OBTENER SALDO ACTUAL (de caja_general)
+# 🟢 2. OBTENER SALDO REAL
 # ================================================================
 def obtener_saldo_actual():
     con = obtener_conexion()
@@ -80,24 +77,18 @@ def registrar_movimiento(id_caja, tipo, categoria, monto):
 
     monto = Decimal(str(monto))
 
-    # -------------------------
-    # Registrar movimiento
-    # -------------------------
+    # Registrar movimiento histórico
     cursor.execute("""
         INSERT INTO caja_movimientos (id_caja, tipo, categoria, monto)
         VALUES (%s, %s, %s, %s)
     """, (id_caja, tipo, categoria, monto))
 
-    # -------------------------
-    # Obtener saldo actual
-    # -------------------------
+    # Obtener saldo real actual
     cursor.execute("SELECT saldo_actual FROM caja_general WHERE id = 1")
     row = cursor.fetchone()
     saldo = Decimal(str(row["saldo_actual"]))
 
-    # -------------------------
-    # Actualizar saldo real
-    # -------------------------
+    # Actualizar saldo
     if tipo == "Ingreso":
         saldo += monto
     else:
@@ -109,9 +100,7 @@ def registrar_movimiento(id_caja, tipo, categoria, monto):
         WHERE id = 1
     """, (saldo,))
 
-    # -------------------------
-    # Actualizar datos de reunión
-    # -------------------------
+    # Actualizar el registro de la reunión
     if tipo == "Ingreso":
         cursor.execute("""
             UPDATE caja_reunion
@@ -132,7 +121,7 @@ def registrar_movimiento(id_caja, tipo, categoria, monto):
 
 
 # ================================================================
-# 🟢 4. OBTENER REPORTE POR FECHA
+# 🟢 4. OBTENER REPORTE POR REUNIÓN
 # ================================================================
 def obtener_reporte_reunion(fecha):
     con = obtener_conexion()
@@ -155,12 +144,13 @@ def obtener_reporte_reunion(fecha):
 
     ingresos = Decimal(str(row["ingresos"]))
     egresos = Decimal(str(row["egresos"]))
+    balance = ingresos - egresos
     saldo_final = Decimal(str(row["saldo_final"]))
 
     return {
         "ingresos": ingresos,
         "egresos": egresos,
-        "balance": ingresos - egresos,
+        "balance": balance,
         "saldo_final": saldo_final,
     }
 
@@ -176,7 +166,8 @@ def obtener_movimientos_por_fecha(fecha):
     cursor.execute("""
         SELECT tipo, categoria, monto
         FROM caja_movimientos cm
-        JOIN caja_reunion cr ON cm.id_caja = cr.id_caja
+        JOIN caja_reunion cr
+            ON cm.id_caja = cr.id_caja
         WHERE cr.fecha = %s
     """, (fecha,))
 
