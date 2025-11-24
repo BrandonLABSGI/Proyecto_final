@@ -440,6 +440,8 @@ def gestion_grupos():
 
 
 
+import re
+
 # ============================================================
 #                   GESTIÓN DE EMPLEADOS
 # ============================================================
@@ -479,13 +481,13 @@ def gestion_empleados():
         contra = st.text_input("Contraseña", type="password")
         nombres = st.text_input("Nombres")
         apellidos = st.text_input("Apellidos")
+
     with col2:
         # Usamos keys para poder limpiar en session_state
         dui_raw = st.text_input("DUI (9 dígitos, sin guion)", key="dui_input")
         tel_raw = st.text_input("Teléfono (8 dígitos, sin guion)", key="tel_input")
 
-        # ---- Limpieza en vivo: solo dígitos y límite de longitud ----
-        # DUI: solo números, máximo 9
+        # ---- DUI: solo números, máximo 9 ----
         dui_digits = re.sub(r"\D", "", dui_raw or "")
         if len(dui_digits) > 9:
             dui_digits = dui_digits[:9]
@@ -493,7 +495,7 @@ def gestion_empleados():
             st.session_state["dui_input"] = dui_digits
         dui = dui_digits  # valor “oficial” a usar
 
-        # Teléfono: solo números, máximo 8
+        # ---- Teléfono: solo números, máximo 8 ----
         tel_digits = re.sub(r"\D", "", tel_raw or "")
         if len(tel_digits) > 8:
             tel_digits = tel_digits[:8]
@@ -535,19 +537,20 @@ def gestion_empleados():
         if not dict_distritos or distrito_sel not in dict_distritos:
             errores.append("Debe seleccionar un distrito válido.")
 
-        # Validación de DUI: exactamente 9 dígitos
+        # ---------- Validación de DUI (9 dígitos sin guion) ----------
         if not re.fullmatch(r"\d{9}", dui):
             errores.append("El DUI debe tener exactamente 9 dígitos numéricos, sin guiones ni espacios.")
 
-        # Validación de Teléfono: exactamente 8 dígitos
+        # ---------- Validación de Teléfono (8 dígitos sin guion) ----------
         if not re.fullmatch(r"\d{8}", telefono):
             errores.append("El teléfono debe tener exactamente 8 dígitos numéricos, sin guiones ni espacios.")
 
-        # Si hay errores, no insertamos
+        # Si hay errores, los mostramos y no insertamos
         if errores:
             for msg in errores:
                 st.warning(msg)
         else:
+            # Todo OK: insertamos
             try:
                 id_rol, rol_texto = dict_roles[rol_sel]
                 id_distrito = dict_distritos[distrito_sel]
@@ -575,8 +578,8 @@ def gestion_empleados():
                         rol_texto,
                         nombres.strip(),
                         apellidos.strip(),
-                        dui,        # 9 dígitos
-                        telefono,   # 8 dígitos
+                        dui,        # ya es solo números y máx 9
+                        telefono,   # solo números y máx 8
                         id_distrito,
                         estado,
                     ),
