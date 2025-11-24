@@ -151,15 +151,13 @@ def gestion_distritos():
 
     st.subheader("➕ Crear nuevo distrito")
 
+    # Solo pedimos el nombre en la interfaz
     nombre = st.text_input("Nombre del distrito")
-    col1, col2 = st.columns(2)
-    with col1:
-        representantes = st.number_input("Número de representantes", min_value=0, step=1, value=0)
-    with col2:
-        # Ver punto 2 sobre este campo 👇
-        cant_grupos = st.number_input("Cantidad de grupos (inicial)", min_value=0, step=1, value=0)
 
-    estado = st.selectbox("Estado del distrito", ["Activo", "Inactivo", "En formación"])
+    # Valores por defecto internos (no visibles en la UI)
+    representantes_defecto = 0
+    cant_grupos_defecto = 0
+    estado_defecto = "Activo"
 
     if st.button("Crear distrito"):
         if nombre.strip() == "":
@@ -178,9 +176,9 @@ def gestion_distritos():
                     """,
                     (
                         nombre,
-                        int(representantes),
-                        int(cant_grupos),
-                        estado,
+                        representantes_defecto,
+                        cant_grupos_defecto,
+                        estado_defecto,
                     ),
                 )
                 con.commit()
@@ -191,6 +189,8 @@ def gestion_distritos():
     st.markdown("### 📋 Distritos registrados")
 
     try:
+        # Seguimos leyendo todos los campos por si se usan en otros lados,
+        # pero solo mostramos ID y Nombre en la tabla.
         cursor.execute(
             """
             SELECT Id_Distrito,
@@ -204,9 +204,10 @@ def gestion_distritos():
         )
         distritos = cursor.fetchall()
         if distritos:
+            # Solo mostramos ID y Nombre en el dataframe
             df = pd.DataFrame(
-                distritos,
-                columns=["ID", "Nombre", "Representantes", "Cant. grupos", "Estado"],
+                [(d[0], d[1]) for d in distritos],
+                columns=["ID", "Nombre"],
             )
             st.dataframe(df, use_container_width=True)
         else:
