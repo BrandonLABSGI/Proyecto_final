@@ -4,7 +4,6 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
 import pandas as pd
 import io
-from openpyxl import Workbook
 import streamlit as st
 import mysql.connector
 from datetime import date
