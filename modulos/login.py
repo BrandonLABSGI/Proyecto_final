@@ -1,37 +1,51 @@
 import streamlit as st
+import os
 import base64
 
-# ==============================
-# FUNCIÓN PARA CENTRAR IMAGEN
-# ==============================
-def centered_image(img_path, width=260):
+# ---------------------------------------------------------
+# FUNCION PARA MOSTRAR UNA IMAGEN CENTRADA
+# ---------------------------------------------------------
+def centered_image(relative_path, width=280):
+    # Ruta absoluta correcta del archivo dentro del proyecto
+    img_path = os.path.join(os.path.dirname(__file__), relative_path)
+
+    # Leer imagen en base64
+    with open(img_path, "rb") as f:
+        img_bytes = f.read()
+        img_base64 = base64.b64encode(img_bytes).decode()
+
+    # HTML centrado
     st.markdown(
         f"""
-        <div style="display: flex; justify-content: center; margin-top:40px;">
-            <img src="data:image/png;base64,{base64.b64encode(open(img_path, "rb").read()).decode()}" 
-                 width="{width}">
+        <div style="text-align:center; margin-top: 10px; margin-bottom: 25px;">
+            <img src="data:image/png;base64,{img_base64}" width="{width}">
         </div>
         """,
         unsafe_allow_html=True
     )
 
-# ==============================
-# LOGIN
-# ==============================
+
+# ---------------------------------------------------------
+# PANTALLA DE LOGIN
+# ---------------------------------------------------------
 def login():
 
-    # --- RUTA CORRECTA ---
-    centered_image("imagenes/senoras.png", width=280)
+    st.set_page_config(page_title="CVX", layout="wide")
 
+    # Mostrar imagen centrada
+    centered_image("imagenes/senoras.png", width=260)
+
+    # Título centrado
     st.markdown(
-        "<h1 style='text-align:center; margin-top:15px;'>Bienvenida a Solidaridad CVX</h1>",
+        """
+        <h1 style="text-align:center; color:white;">Bienvenida a Solidaridad CVX</h1>
+        """,
         unsafe_allow_html=True
     )
 
-    st.write("")  
-
+    # Campos de login
     usuario = st.text_input("Usuario")
     contrasena = st.text_input("Contraseña", type="password")
 
     if st.button("Iniciar sesión"):
-        st.success("Procesando...")
+        st.success("Intentando iniciar sesión…")
