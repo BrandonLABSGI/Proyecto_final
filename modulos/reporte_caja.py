@@ -124,7 +124,7 @@ def reporte_caja():
             con.commit()
 
             st.success("🔒 Día cerrado correctamente.")
-            st.experimental_rerun()
+            st.rerun()   # ← YA CORREGIDO
 
     st.markdown("---")
 
@@ -158,7 +158,6 @@ def reporte_caja():
     # ============================================================
     st.subheader("📈 Gráficas del día")
 
-    # --- Construir dataframe del día ---
     df_dia = pd.DataFrame(movimientos)
     df_dia["monto"] = df_dia["monto"].astype(float)
 
@@ -178,7 +177,6 @@ def reporte_caja():
     else:
         st.info("No hubo egresos ese día.")
 
-    # Comparativa del día
     st.write("### 📊 Comparación del día")
     st.bar_chart(pd.DataFrame({
         "Ingresos": [ingresos],
@@ -189,7 +187,7 @@ def reporte_caja():
     st.markdown("---")
 
     # ============================================================
-    # 8️⃣ PDF SOLO RESUMEN DEL DÍA — SIN GRAFICAS
+    # 8️⃣ PDF SOLO RESUMEN DEL DÍA
     # ============================================================
     st.subheader("📄 Exportar resumen del día a PDF")
 
