@@ -20,7 +20,7 @@ def obtener_ciclo_activo():
     cur.execute("""
         SELECT * FROM ciclo_resumen
         WHERE fecha_cierre IS NULL
-        ORDER BY id_resumen DESC
+       ORDER BY id_ciclo_resumen DESC
         LIMIT 1
     """)
 
