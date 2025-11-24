@@ -1,5 +1,8 @@
 import streamlit as st
 from datetime import date
+import matplotlib.pyplot as plt
+import pandas as pd
+
 from modulos.conexion import obtener_conexion
 
 # PDF
@@ -88,7 +91,7 @@ def obtener_saldo_final(fecha_inicio, fecha_fin):
 
 
 # ---------------------------------------------------------
-# TOTALES INGRESOS / EGRESOS
+# TOTAL INGRESOS & EGRESOS
 # ---------------------------------------------------------
 def obtener_totales(fecha_inicio, fecha_fin):
     con = obtener_conexion()
@@ -141,6 +144,7 @@ def calcular_utilidad(fecha_inicio, fecha_fin):
     con = obtener_conexion()
     cur = con.cursor()
 
+    # INTERESES
     cur.execute("""
         SELECT COALESCE(SUM(Interes_total), 0)
         FROM Prestamo
@@ -148,6 +152,7 @@ def calcular_utilidad(fecha_inicio, fecha_fin):
     """, (fecha_inicio, fecha_fin))
     intereses = cur.fetchone()[0]
 
+    # MULTAS
     cur.execute("""
         SELECT COALESCE(SUM(Monto), 0)
         FROM Multa
@@ -157,6 +162,25 @@ def calcular_utilidad(fecha_inicio, fecha_fin):
 
     con.close()
     return intereses + multas, intereses, multas
+
+
+# ---------------------------------------------------------
+# DETALLE DIARIO (Auditoría)
+# ---------------------------------------------------------
+def obtener_detalle_diario(fecha_inicio, fecha_fin):
+    con = obtener_conexion()
+    cur = con.cursor(dictionary=True)
+
+    cur.execute("""
+        SELECT fecha, saldo_inicial, ingresos, egresos, saldo_final
+        FROM caja_reunion
+        WHERE fecha BETWEEN %s AND %s
+        ORDER BY fecha ASC
+    """, (fecha_inicio, fecha_fin))
+
+    data = cur.fetchall()
+    con.close()
+    return data
 
 
 # ---------------------------------------------------------
@@ -260,7 +284,7 @@ def generar_pdf(html):
 
 
 # ---------------------------------------------------------
-# INTERFAZ COMPLETA — CIERRE DEL CICLO
+# INTERFAZ COMPLETA
 # ---------------------------------------------------------
 def cierre_ciclo():
     st.title("🔒 Cierre de Ciclo — Solidaridad CVX")
@@ -275,9 +299,6 @@ def cierre_ciclo():
 
     pendientes = prestamos_pendientes()
 
-    # ---------------------------------------------------------
-    # MODO PRUEBA (IGNORAR PRÉSTAMOS PENDIENTES)
-    # ---------------------------------------------------------
     modo_prueba = st.toggle("🧪 Activar modo prueba (ignora préstamos pendientes)")
 
     if pendientes and not modo_prueba:
@@ -287,7 +308,7 @@ def cierre_ciclo():
         return
 
     if pendientes and modo_prueba:
-        st.warning("⚠️ MODO PRUEBA ACTIVADO. Los préstamos pendientes NO serán considerados.")
+        st.warning("⚠️ MODO PRUEBA ACTIVADO. No se bloqueará el cierre del ciclo.")
 
     ingresos, egresos = obtener_totales(fecha_inicio, fecha_fin)
     saldo_inicial = obtener_saldo_inicial(fecha_inicio)
@@ -296,76 +317,115 @@ def cierre_ciclo():
     utilidad_total, intereses, multas = calcular_utilidad(fecha_inicio, fecha_fin)
     socias = obtener_ahorros_por_socia(fecha_inicio, fecha_fin)
     tabla = generar_tabla_distribucion(socias, utilidad_total)
+    detalle = obtener_detalle_diario(fecha_inicio, fecha_fin)
 
-    # ---------------- resumen ----------------
-    st.subheader("📘 Resumen del ciclo")
+    # ---------------- TABS ----------------
+    tab_resumen, tab_auditoria, tab_detalle, tab_grafica, tab_acta = st.tabs(
+        ["📘 Resumen", "🧮 Auditoría", "📅 Detalle diario", "📊 Gráfica", "📄 Acta"]
+    )
 
-    st.write(f"**Saldo inicial:** ${saldo_inicial:,.2f}")
-    st.write(f"**Saldo final:** ${saldo_final:,.2f}")
-    st.write(f"**Ingresos:** ${ingresos:,.2f}")
-    st.write(f"**Egresos:** ${egresos:,.2f}")
-    st.write(f"**Intereses:** ${intereses:,.2f}")
-    st.write(f"**Multas:** ${multas:,.2f}")
-    st.write(f"**Utilidad total:** ${utilidad_total:,.2f}")
+    # ---------------- RESUMEN ----------------
+    with tab_resumen:
+        st.write(f"**Fecha inicio:** {fecha_inicio}")
+        st.write(f"**Fecha fin:** {fecha_fin}")
+        st.write(f"**Saldo inicial:** ${saldo_inicial:,.2f}")
+        st.write(f"**Saldo final:** ${saldo_final:,.2f}")
+        st.write(f"**Ingresos:** ${ingresos:,.2f}")
+        st.write(f"**Egresos:** ${egresos:,.2f}")
+        st.write(f"**Intereses:** ${intereses:,.2f}")
+        st.write(f"**Multas:** ${multas:,.2f}")
+        st.write(f"**Utilidad total:** ${utilidad_total:,.2f}")
 
-    # ---------------- cierre ----------------
-    if st.button("🔐 Cerrar ciclo ahora"):
-        con = obtener_conexion()
-        cur = con.cursor()
+        if st.button("🔐 Cerrar ciclo ahora"):
+            con = obtener_conexion()
+            cur = con.cursor()
 
-        cur.execute("""
-            UPDATE ciclo_resumen
-            SET fecha_cierre=%s,
-                saldo_inicial=%s,
-                saldo_final=%s,
-                total_ahorros=%s,
-                total_prestamos_vigentes=0,
-                total_intereses_pendientes=%s,
-                total_multas_pendientes=0,
-                utilidad_total=%s,
-                monto_repartido=0,
-                estado='Cerrado'
-            WHERE id_ciclo_resumen=%s
-        """, (
-            fecha_fin,
-            saldo_inicial,
-            saldo_final,
-            sum(s["ahorro"] for s in socias),
-            intereses,
-            utilidad_total,
-            ciclo["id_ciclo_resumen"]
-        ))
+            cur.execute("""
+                UPDATE ciclo_resumen
+                SET fecha_cierre=%s,
+                    saldo_inicial=%s,
+                    saldo_final=%s,
+                    total_ahorros=%s,
+                    total_prestamos_vigentes=0,
+                    total_intereses_pendientes=%s,
+                    total_multas_pendientes=0,
+                    utilidad_total=%s,
+                    monto_repartido=0,
+                    estado='Cerrado'
+                WHERE id_ciclo_resumen=%s
+            """, (
+                fecha_fin,
+                saldo_inicial,
+                saldo_final,
+                sum(s["ahorro"] for s in socias),
+                intereses,
+                utilidad_total,
+                ciclo["id_ciclo_resumen"]
+            ))
 
-        con.commit()
-        con.close()
+            con.commit()
+            con.close()
 
-        st.success("Ciclo cerrado correctamente.")
-        st.balloons()
+            st.success("Ciclo cerrado correctamente.")
+            st.balloons()
 
-    # ---------------- actas ----------------
-    st.subheader("📄 Acta")
+    # ---------------- AUDITORÍA ----------------
+    with tab_auditoria:
+        st.subheader("🧮 Auditoría del ciclo")
+        st.write("Comparación de cálculos:")
 
-    if st.button("📘 Ver Acta HTML"):
-        html = generar_html_acta(
-            fecha_inicio, fecha_fin,
-            saldo_inicial, saldo_final,
-            ingresos, egresos,
-            utilidad_total, intereses, multas,
-            tabla
-        )
-        st.markdown(html, unsafe_allow_html=True)
+        st.write(f"**Ingresos (reales):** ${ingresos:,.2f}")
+        st.write(f"**Egresos (reales):** ${egresos:,.2f}")
+        st.write(f"**Utilidad (intereses + multas):** ${utilidad_total:,.2f}")
+        st.write(f"**Ahorros totales:** ${sum(s['ahorro'] for s in socias):,.2f}")
 
-    if st.button("⬇️ Descargar Acta PDF"):
-        html = generar_html_acta(
-            fecha_inicio, fecha_fin,
-            saldo_inicial, saldo_final,
-            ingresos, egresos,
-            utilidad_total, intereses, multas,
-            tabla
-        )
-        pdf = generar_pdf(html)
-        b64 = base64.b64encode(pdf).decode()
-        st.markdown(
-            f'<a href="data:application/pdf;base64,{b64}" download="Acta_Cierre_CVX.pdf">📥 Descargar PDF</a>',
-            unsafe_allow_html=True
-        )
+        st.write("Si todas las cifras cuadran, la auditoría está correcta ✔")
+
+    # ---------------- DETALLE DIARIO ----------------
+    with tab_detalle:
+        st.subheader("📅 Movimientos diarios")
+        df = pd.DataFrame(detalle)
+        st.dataframe(df)
+
+    # ---------------- GRAFICA ----------------
+    with tab_grafica:
+        st.subheader("📊 Evolución del saldo del ciclo")
+
+        df = pd.DataFrame(detalle)
+        if not df.empty:
+            plt.figure(figsize=(8, 4))
+            plt.plot(df["fecha"], df["saldo_final"], marker="o")
+            plt.xticks(rotation=45)
+            plt.title("Saldo diario")
+            plt.grid()
+            st.pyplot(plt.gcf())
+        else:
+            st.info("No hay datos de caja para graficar.")
+
+    # ---------------- ACTA ----------------
+    with tab_acta:
+
+        if st.button("📘 Ver Acta HTML"):
+            html = generar_html_acta(
+                fecha_inicio, fecha_fin,
+                saldo_inicial, saldo_final,
+                ingresos, egresos,
+                utilidad_total, intereses, multas,
+                tabla
+            )
+            st.markdown(html, unsafe_allow_html=True)
+
+        if st.button("⬇️ Descargar Acta PDF"):
+            html = generar_html_acta(
+                fecha_inicio, fecha_fin,
+                saldo_inicial, saldo_final,
+                ingresos, egresos,
+                utilidad_total, intereses, multas,
+                tabla
+            )
+            pdf = generar_pdf(html)
+            b64 = base64.b64encode(pdf).decode()
+            st.markdown(
+                f'<a href="data:application/pdf;base64,{b64}" download="Acta_Cierre_CVX.pdf">📥 Descargar PDF</a>',
+                unsafe_allow_html=True
+            )
