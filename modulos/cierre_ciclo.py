@@ -177,7 +177,7 @@ def calcular_utilidad(fecha_inicio, fecha_fin):
 
 
 # ==========================================================
-# 9. DISTRIBUCIÓN PROPORCIONAL (AHORROS NEGATIVOS CORREGIDOS)
+# 9. DISTRIBUCIÓN PROPORCIONAL
 # ==========================================================
 def generar_tabla_distribucion(socias, utilidad_total):
     total_ahorros = sum(s["ahorro"] for s in socias)
@@ -210,9 +210,8 @@ def generar_tabla_distribucion(socias, utilidad_total):
     return tabla
 
 
-
 # ==========================================================
-# 10. ACTA EN HTML (PANTALLA)
+# 10. ACTA HTML
 # ==========================================================
 def generar_html_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
                       utilidad, intereses, multas, tabla):
@@ -243,9 +242,8 @@ def generar_html_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
     return html
 
 
-
 # ==========================================================
-# 11. PDF FINAL — PROFESIONAL, FORMAL Y COMPLETO
+# 11. PDF FINAL — CORREGIDO CON FIRMAS SEPARADAS
 # ==========================================================
 def generar_pdf_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
                      utilidad, intereses, multas, tabla_dist):
@@ -260,16 +258,11 @@ def generar_pdf_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
     doc = SimpleDocTemplate(buffer, pagesize=letter)
     story = []
 
-    # ---------------------------------------------------------
-    # TÍTULO
-    # ---------------------------------------------------------
-    story.append(Paragraph("<b>ACTA DE CIERRE DEL CICLO — SOLIDARIDAD CVX</b>",
-                           styles["Title"]))
+    # ---------------- Título ----------------
+    story.append(Paragraph("<b>ACTA DE CIERRE DEL CICLO — SOLIDARIDAD CVX</b>", styles["Title"]))
     story.append(Spacer(1, 16))
 
-    # ---------------------------------------------------------
-    # DATOS GENERALES
-    # ---------------------------------------------------------
+    # ---------------- Datos Generales ----------------
     story.append(Paragraph("<b>1. Datos Generales</b>", styles["Heading2"]))
     texto = f"""
     <b>Inicio:</b> {inicio}<br/>
@@ -283,9 +276,7 @@ def generar_pdf_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
     story.append(Paragraph(texto, styles["Normal"]))
     story.append(Spacer(1, 14))
 
-    # ---------------------------------------------------------
-    # UTILIDADES
-    # ---------------------------------------------------------
+    # ---------------- Utilidades ----------------
     story.append(Paragraph("<b>2. Utilidades</b>", styles["Heading2"]))
     texto2 = f"""
     <b>Intereses generados:</b> ${intereses:,.2f}<br/>
@@ -295,28 +286,21 @@ def generar_pdf_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
     story.append(Paragraph(texto2, styles["Normal"]))
     story.append(Spacer(1, 16))
 
-    # ---------------------------------------------------------
-    # FÓRMULA USADA — OPCIÓN B
-    # ---------------------------------------------------------
+    # ---------------- Fórmula ----------------
     story.append(Paragraph("<b>3. Fórmula utilizada para la distribución</b>", styles["Heading2"]))
-
     formula = """
     <br/><b>Porción proporcional:</b><br/>
     &nbsp;&nbsp;&nbsp;&nbsp;( Ahorro individual ÷ Ahorro total del grupo ) × Utilidad total<br/><br/>
-
     <b>Monto final recibido:</b><br/>
     &nbsp;&nbsp;&nbsp;&nbsp;Ahorro individual + Porción proporcional<br/><br/>
     """
-
     story.append(Paragraph(formula, styles["Normal"]))
     story.append(Spacer(1, 16))
 
-    # ---------------------------------------------------------
-    # AHORRO INDIVIDUAL DETALLADO
-    # ---------------------------------------------------------
+    # ---------------- Ahorros individuales ----------------
     story.append(Paragraph("<b>4. Ahorro individual por socia</b>", styles["Heading2"]))
-
     ahorro_data = [["ID", "Nombre", "Ahorro ($)"]]
+
     for f in tabla_dist:
         ahorro_data.append([
             f["id"], f["nombre"], f"${f['ahorro']:,.2f}"
@@ -333,9 +317,7 @@ def generar_pdf_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
     story.append(tabla_ahorro)
     story.append(Spacer(1, 16))
 
-    # ---------------------------------------------------------
-    # TABLA PRINCIPAL - DISTRIBUCIÓN FINAL
-    # ---------------------------------------------------------
+    # ---------------- Distribución final ----------------
     story.append(Paragraph("<b>5. Distribución proporcional de utilidades</b>", styles["Heading2"]))
 
     encabezado = ["ID", "Nombre", "Ahorro", "% Porción", "Monto final"]
@@ -362,42 +344,31 @@ def generar_pdf_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
     story.append(tabla)
     story.append(Spacer(1, 30))
 
-  # ---------------------------------------------------------
-# ESPACIO PARA FIRMAS (SEPARADAS)
-# ---------------------------------------------------------
-story.append(Spacer(1, 40))
-story.append(Paragraph("<b>Firmas de cierre</b>", styles["Heading2"]))
-story.append(Spacer(1, 30))
+    # ---------------- FIRMAS (CORREGIDAS Y SEPARADAS) ----------------
+    story.append(Paragraph("<b>Firmas de cierre</b>", styles["Heading2"]))
+    story.append(Spacer(1, 20))
 
-firmas_data = [
-    ["_______________________", "_______________________", "_______________________"],
-    ["Presidenta", "Tesorera", "Secretaria"]
-]
+    firmas_data = [
+        ["_______________________", "_______________________", "_______________________"],
+        ["Presidenta", "Tesorera", "Secretaria"]
+    ]
 
-tabla_firmas = Table(
-    firmas_data,
-    colWidths=[170, 170, 170]  # ← separación perfecta
-)
+    tabla_firmas = Table(firmas_data, colWidths=[170, 170, 170])
+    tabla_firmas.setStyle(TableStyle([
+        ("ALIGN", (0,0), (-1,-1), "CENTER"),
+        ("FONTNAME", (0,1), (-1,1), "Helvetica"),
+        ("FONTSIZE", (0,1), (-1,1), 10),
+        ("BOTTOMPADDING", (0,0), (-1,0), 12),
+        ("TOPPADDING", (0,1), (-1,1), 4),
+    ]))
 
-tabla_firmas.setStyle(TableStyle([
-    ("ALIGN", (0,0), (-1,-1), "CENTER"),
-    ("FONTNAME", (0,1), (-1,1), "Helvetica"),
-    ("FONTSIZE", (0,1), (-1,1), 10),
-    ("BOTTOMPADDING", (0,0), (-1,0), 10),
-    ("TOPPADDING", (0,1), (-1,1), 2),
-]))
+    story.append(tabla_firmas)
 
-story.append(tabla_firmas)
-
-
-    # ---------------------------------------------------------
-    # Construir PDF
-    # ---------------------------------------------------------
+    # ---------------- Construcción PDF ----------------
     doc.build(story)
     pdf = buffer.getvalue()
     buffer.close()
     return pdf
-
 
 
 # ==========================================================
@@ -425,7 +396,7 @@ def cierre_ciclo():
         return
 
     if pendientes and modo_prueba:
-        st.warning("⚠️ Modo prueba: préstamos pendientes ignorados.")
+        st.warning("⚠️ Modo prueba activado: préstamos pendientes ignorados.")
 
     ingresos, egresos = obtener_totales(fecha_inicio, fecha_cierre)
     saldo_inicial = obtener_saldo_inicial(fecha_inicio)
@@ -437,14 +408,14 @@ def cierre_ciclo():
 
     tabla_dist = generar_tabla_distribucion(socias, utilidad_total)
 
-    # ======================================================
+    # ==========================
     # TABS
-    # ======================================================
+    # ==========================
     tab1, tab2, tab3, tab4, tab5 = st.tabs(
         ["📘 Resumen", "📋 Auditoría", "📅 Detalle Diario", "📊 Gráfica", "📄 Acta"]
     )
 
-    # TAB 1 — RESUMEN
+    # TAB 1
     with tab1:
         st.subheader("📘 Resumen del ciclo")
         st.write(f"**Fecha inicio:** {fecha_inicio}")
@@ -457,7 +428,7 @@ def cierre_ciclo():
         st.write(f"**Multas:** ${multas:,.2f}")
         st.write(f"**Utilidad total:** ${utilidad_total:,.2f}")
 
-    # TAB 2 — AUDITORÍA
+    # TAB 2
     with tab2:
         st.subheader("📋 Auditoría de ingresos y egresos por día")
         if detalle_diario:
@@ -465,7 +436,7 @@ def cierre_ciclo():
         else:
             st.info("No hay movimientos en este ciclo.")
 
-    # TAB 3 — DETALLE DIARIO
+    # TAB 3
     with tab3:
         st.subheader("📅 Detalle diario")
         if detalle_diario:
@@ -475,7 +446,7 @@ def cierre_ciclo():
         else:
             st.info("Sin movimientos para mostrar.")
 
-    # TAB 4 — GRÁFICA
+    # TAB 4
     with tab4:
         st.subheader("📊 Saldo final por día")
         if detalle_diario:
