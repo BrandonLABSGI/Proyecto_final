@@ -5,23 +5,23 @@ def login():
 
     st.set_page_config(page_title="Ingreso — Solidaridad CVX", layout="centered")
 
-    # Quitar header y footer para que no genere duplicados visuales
+    # Quitar header/footer para que no genere duplicados
     st.markdown("""
         <style>
         header, footer {visibility: hidden;}
+        .block-container {padding-top: 0rem;}
         </style>
     """, unsafe_allow_html=True)
 
-    # ===============================
-    # IMAGEN DEL LOGIN (TU MAQUETA)
-    # ===============================
-    st.image("modulos/imagenes/9e001816-7c44-4523-8a27-4b5bb730a1fa.png", use_column_width=True)
+    # 📌 MOSTRAR SOLO LA IMAGEN PRINCIPAL ARRIBA
+    st.image(
+        "modulos/imagenes/9e001816-7c44-4523-8a27-4b5bb730a1fa.png",
+        use_column_width=True
+    )
 
-    st.markdown("### Iniciar Sesión")
+    # 📌 FORMULARIO DE LOGIN (DEBAJO DE LA IMAGEN)
+    st.markdown("## Iniciar Sesión")
 
-    # ===============================
-    # CAMPOS DE LOGIN
-    # ===============================
     usuario = st.text_input("Usuario")
     contrasena = st.text_input("Contraseña", type="password")
 
