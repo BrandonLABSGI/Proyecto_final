@@ -324,7 +324,7 @@ def gestion_grupos():
     )
 
     # ---------------------- GUARDAR GRUPO --------------------
-    if st.button("Crear grupo"):
+        if st.button("Crear grupo"):
         if nombre_grupo.strip() == "":
             st.warning("El nombre del grupo es obligatorio.")
         elif not dict_distritos or distrito_sel not in dict_distritos:
@@ -343,10 +343,15 @@ def gestion_grupos():
                 else:
                     id_directiva = None
 
-                # Valores por defecto para campos no visibles
+                # 🔹 Valores por defecto para campos no visibles
                 tasa_interes = 0.0
-                # 🔴 Aquí estaba el problema: forzamos formato YYYY-MM-DD
-                periodicidad = fecha_inicio.strftime("%Y-%m-%d")
+
+                # 🔹 PERIODICIDAD: usar un entero pequeño (ej. 7 días)
+                periodicidad = 7
+
+                # Fecha de inicio sí como fecha normal
+                fecha_inicio_db = fecha_inicio.strftime("%Y-%m-%d")
+
                 reglas_texto = "Se aplican las reglas generales del programa de ahorro y crédito."
 
                 cursor.execute(
@@ -367,10 +372,10 @@ def gestion_grupos():
                     (
                         nombre_grupo,
                         tasa_interes,
-                        periodicidad,
+                        periodicidad,       # 👈 ahora es 7 (cabe en cualquier INT/TINYINT)
                         default_tipo_multa_id,
                         reglas_texto,
-                        fecha_inicio.strftime("%Y-%m-%d"),
+                        fecha_inicio_db,     # '2025-11-24'
                         id_prom,
                         id_distrito,
                         id_directiva,
