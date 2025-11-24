@@ -2,82 +2,80 @@ import streamlit as st
 from modulos.conexion import obtener_conexion
 
 def login():
-    st.set_page_config(page_title="Ingreso — Solidaridad CVX", layout="centered")
 
-    # ============================
-    # ESTILOS DEL LOGIN (idéntico al ejemplo)
-    # ============================
+    st.set_page_config(page_title="Inicio de Sesión — Solidaridad CVX", layout="centered")
+
+    # --------------------- CSS ---------------------
     st.markdown("""
         <style>
             body {
-                background-color: #11141A;
-            }
-            .login-card {
-                width: 900px;
-                background: #ffffff;
-                border-radius: 22px;
-                box-shadow: 0px 4px 35px rgba(0,0,0,0.35);
-                overflow: hidden;
-                display: flex;
-                margin: 70px auto;
+                background-color: #0d1017 !important;
             }
 
-            .left-panel img {
+            .card-login {
+                width: 880px;
+                margin: 50px auto;
+                background: #ffffff;
+                border-radius: 18px;
+                overflow: hidden;
+                display: flex;
+                flex-direction: row;
+                box-shadow: 0 4px 35px rgba(0,0,0,0.30);
+            }
+
+            .left-side {
+                width: 50%;
+            }
+            .left-side img {
                 width: 100%;
                 height: 100%;
                 object-fit: cover;
             }
 
-            .right-panel {
+            .right-side {
                 width: 50%;
-                padding: 40px 50px;
+                padding: 40px 45px;
                 background: #faf9f4;
             }
 
             .title {
                 font-size: 30px;
                 font-weight: 800;
-                color: #0a3161;
-                margin-bottom: 25px;
+                color: #0A3161;
+                margin-bottom: 20px;
             }
 
             .stTextInput>div>div>input,
             .stPasswordInput>div>div>input {
-                background-color: white !important;
-                border-radius: 8px;
-                height: 45px;
-                border: 1px solid #cfcfcf;
-                color: #000;
+                height: 42px;
+                background: white !important;
+                border-radius: 7px;
             }
 
             .stButton>button {
                 width: 100%;
                 height: 45px;
+                font-size: 17px;
+                border-radius: 7px;
                 background-color: #2e7d32;
                 color: white;
-                border-radius: 8px;
-                font-size: 17px;
-                margin-top: 10px;
             }
-
             .stButton>button:hover {
-                background-color: #1b5e20 !important;
+                background-color: #1b5e20;
             }
         </style>
     """, unsafe_allow_html=True)
 
-    # ============================
-    # TARJETA LOGIN EXACTA
-    # ============================
-    st.markdown('<div class="login-card">', unsafe_allow_html=True)
+    # --------------------- TARJETA LOGIN ---------------------
+    st.markdown('<div class="card-login">', unsafe_allow_html=True)
 
-    # PANEL IZQUIERDO (IMAGEN COMPLETA)
-    st.markdown('<div class="left-panel" style="width:50%;">', unsafe_allow_html=True)
+    # PANEL IZQUIERDO = IMAGEN
+    st.markdown('<div class="left-side">', unsafe_allow_html=True)
     st.image("modulos/imagenes/9e001816-7c44-4523-8a27-4b5bb730a1fa.png")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # PANEL DERECHO (FORMULARIO)
-    st.markdown('<div class="right-panel">', unsafe_allow_html=True)
+    # PANEL DERECHO = FORMULARIO
+    st.markdown('<div class="right-side">', unsafe_allow_html=True)
 
     st.markdown('<div class="title">Inicio de Sesión</div>', unsafe_allow_html=True)
 
