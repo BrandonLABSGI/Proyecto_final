@@ -1,7 +1,6 @@
 import streamlit as st
 from datetime import date
 import pandas as pd
-import matplotlib.pyplot as plt
 import base64
 import io
 
@@ -158,7 +157,7 @@ def calcular_utilidad(fecha_inicio, fecha_fin):
 
 
 # ---------------------------------------------------------
-# DETALLE DIARIO (AUDITORÍA)
+# DETALLE DIARIO
 # ---------------------------------------------------------
 def obtener_detalle_diario(fecha_inicio, fecha_fin):
     con = obtener_conexion()
@@ -264,12 +263,11 @@ def generar_html_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
 
 
 # ---------------------------------------------------------
-# DESCARGAR HTML COMO PDF DESDE NAVEGADOR
+# DESCARGAR ACTA COMO HTML
 # ---------------------------------------------------------
 def descargar_acta_html(nombre_archivo, html):
     b64 = base64.b64encode(html.encode()).decode()
-    href = f'<a href="data:text/html;base64,{b64}" download="{nombre_archivo}.html">📥 Descargar Acta en HTML</a>'
-    return href
+    return f'<a href="data:text/html;base64,{b64}" download="{nombre_archivo}.html">📥 Descargar Acta (HTML)</a>'
 
 
 # ---------------------------------------------------------
@@ -293,7 +291,7 @@ def cierre_ciclo():
     if pendientes and not modo_prueba:
         st.error("❌ NO puedes cerrar: existen préstamos pendientes.")
         for p in pendientes:
-            st.write(f"- Préstamo #{p['Id_Préstamo']} — Saldo: ${p['Saldo pendiente']}")
+            st.write(f"- Préstamo #{p['Id_Préstamo']} — ${p['Saldo pendiente']}")
         return
 
     ingresos, egresos = obtener_totales(fecha_inicio, fecha_fin)
@@ -314,12 +312,12 @@ def cierre_ciclo():
     # TAB RESUMEN
     # ---------------------------------------------------------
     with tab1:
-        st.subheader("📘 Resumen general del ciclo")
+        st.subheader("📘 Resumen del ciclo")
         st.write(f"**Fecha inicio:** {fecha_inicio}")
         st.write(f"**Fecha cierre:** {fecha_fin}")
         st.write(f"**Saldo inicial:** ${saldo_inicial:,.2f}")
         st.write(f"**Saldo final:** ${saldo_final:,.2f}")
-        st.write(f"**Ingresos:** ${ingresos:,.2f}")
+        st.write(f**"Ingresos:** ${ingresos:,.2f}")
         st.write(f"**Egresos:** ${egresos:,.2f}")
         st.write(f"**Intereses:** ${intereses:,.2f}")
         st.write(f"**Multas:** ${multas:,.2f}")
@@ -362,15 +360,12 @@ def cierre_ciclo():
     # TAB AUDITORÍA
     # ---------------------------------------------------------
     with tab2:
-        st.subheader("🧮 Auditoría detallada")
-
-        st.write("Comparación de valores calculados:")
-        st.write(f"- Ingresos totales: ${ingresos:,.2f}")
-        st.write(f"- Egresos totales: ${egresos:,.2f}")
-        st.write(f"- Utilidad total (intereses + multas): ${utilidad_total:,.2f}")
-        st.write(f"- Ahorro total: ${sum(s['ahorro'] for s in socias):,.2f}")
-
-        st.info("Si estos valores coinciden con los movimientos diarios, la auditoría es correcta.")
+        st.subheader("🧮 Auditoría del ciclo")
+        st.write(f"**Ingresos:** ${ingresos:,.2f}")
+        st.write(f"**Egresos:** ${egresos:,.2f}")
+        st.write(f"**Intereses:** ${intereses:,.2f}")
+        st.write(f"**Multas:** ${multas:,.2f}")
+        st.write(f"**Utilidad total:** ${utilidad_total:,.2f}")
 
     # ---------------------------------------------------------
     # TAB DETALLE DIARIO
@@ -387,14 +382,19 @@ def cierre_ciclo():
         st.subheader("📊 Evolución del saldo")
 
         df = pd.DataFrame(detalle)
-        if not df.empty:
-            plt.figure(figsize=(8, 4))
-            plt.plot(df["fecha"], df["saldo_final"], marker="o")
-            plt.xticks(rotation=45)
-            plt.grid(True)
-            st.pyplot(plt.gcf())
-        else:
+
+        if df.empty:
             st.info("No hay datos suficientes para generar la gráfica.")
+        else:
+            try:
+                import matplotlib.pyplot as plt
+                plt.figure(figsize=(8, 4))
+                plt.plot(df["fecha"], df["saldo_final"], marker="o")
+                plt.xticks(rotation=45)
+                plt.grid(True)
+                st.pyplot(plt.gcf())
+            except ModuleNotFoundError:
+                st.warning("⚠ Matplotlib no está disponible en Streamlit Cloud.")
 
     # ---------------------------------------------------------
     # TAB ACTA
@@ -413,9 +413,7 @@ def cierre_ciclo():
         st.markdown(html, unsafe_allow_html=True)
 
         st.markdown("---")
-
         st.markdown(
             descargar_acta_html("Acta_Cierre_CVX", html),
             unsafe_allow_html=True
         )
-
