@@ -210,8 +210,9 @@ def generar_tabla_distribucion(socias, utilidad_total):
     return tabla
 
 
+
 # ==========================================================
-# 10. ACTA EN HTML (PARA MOSTRAR EN PANTALLA)
+# 10. ACTA EN HTML (PANTALLA)
 # ==========================================================
 def generar_html_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
                       utilidad, intereses, multas, tabla):
@@ -237,37 +238,17 @@ def generar_html_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
     <p><b>Utilidad total:</b> ${utilidad:,.2f}</p>
 
     <h3>3. Distribución proporcional</h3>
-
-    <table border=1 cellpadding=5 cellspacing=0>
-        <tr>
-            <th>ID</th><th>Nombre</th><th>Ahorro</th>
-            <th>%</th><th>Porción</th><th>Monto final</th>
-        </tr>
     """
 
-    for f in tabla:
-        html += f"""
-        <tr>
-            <td>{f["id"]}</td>
-            <td>{f["nombre"]}</td>
-            <td>${f["ahorro"]:,.2f}</td>
-            <td>{f["porcentaje"]}%</td>
-            <td>${f["porcion"]:,.2f}</td>
-            <td>${f["monto_final"]:,.2f}</td>
-        </tr>
-        """
-
-    html += "</table>"
     return html
 
 
+
 # ==========================================================
-# 11. NUEVO PDF PRO (TABLA REAL Y BONITA)
+# 11. PDF FINAL — PROFESIONAL, FORMAL Y COMPLETO
 # ==========================================================
-def generar_pdf_acta(inicio, fin, saldo_i, saldo_f,
-                     ingresos, egresos,
-                     utilidad, intereses, multas,
-                     tabla_dist):
+def generar_pdf_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
+                     utilidad, intereses, multas, tabla_dist):
 
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer
     from reportlab.lib.styles import getSampleStyleSheet
@@ -277,14 +258,19 @@ def generar_pdf_acta(inicio, fin, saldo_i, saldo_f,
     buffer = io.BytesIO()
     styles = getSampleStyleSheet()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
-
     story = []
 
-    # Título
-    story.append(Paragraph("<b>ACTA DE CIERRE DEL CICLO — SOLIDARIDAD CVX</b>", styles["Title"]))
-    story.append(Spacer(1, 12))
+    # ---------------------------------------------------------
+    # TÍTULO
+    # ---------------------------------------------------------
+    story.append(Paragraph("<b>ACTA DE CIERRE DEL CICLO — SOLIDARIDAD CVX</b>",
+                           styles["Title"]))
+    story.append(Spacer(1, 16))
 
-    # Datos generales
+    # ---------------------------------------------------------
+    # DATOS GENERALES
+    # ---------------------------------------------------------
+    story.append(Paragraph("<b>1. Datos Generales</b>", styles["Heading2"]))
     texto = f"""
     <b>Inicio:</b> {inicio}<br/>
     <b>Cierre:</b> {fin}<br/>
@@ -292,22 +278,66 @@ def generar_pdf_acta(inicio, fin, saldo_i, saldo_f,
     <b>Saldo final:</b> ${saldo_f:,.2f}<br/>
     <b>Ingresos totales:</b> ${ingresos:,.2f}<br/>
     <b>Egresos totales:</b> ${egresos:,.2f}<br/>
+    <b>Ahorro total del grupo:</b> ${sum(f["ahorro"] for f in tabla_dist):,.2f}<br/>
     """
-    story.append(Paragraph("<b>1. Datos Generales</b>", styles["Heading2"]))
     story.append(Paragraph(texto, styles["Normal"]))
-    story.append(Spacer(1, 12))
+    story.append(Spacer(1, 14))
 
-    # Utilidades
-    texto2 = f"""
-    <b>Intereses:</b> ${intereses:,.2f}<br/>
-    <b>Multas:</b> ${multas:,.2f}<br/>
-    <b>Utilidad total:</b> ${utilidad:,.2f}<br/>
-    """
+    # ---------------------------------------------------------
+    # UTILIDADES
+    # ---------------------------------------------------------
     story.append(Paragraph("<b>2. Utilidades</b>", styles["Heading2"]))
+    texto2 = f"""
+    <b>Intereses generados:</b> ${intereses:,.2f}<br/>
+    <b>Multas generadas:</b> ${multas:,.2f}<br/>
+    <b>Utilidad total distribuible:</b> ${utilidad:,.2f}<br/>
+    """
     story.append(Paragraph(texto2, styles["Normal"]))
-    story.append(Spacer(1, 12))
+    story.append(Spacer(1, 16))
 
-    # Tabla de distribución
+    # ---------------------------------------------------------
+    # FÓRMULA USADA — OPCIÓN B
+    # ---------------------------------------------------------
+    story.append(Paragraph("<b>3. Fórmula utilizada para la distribución</b>", styles["Heading2"]))
+
+    formula = """
+    <br/><b>Porción proporcional:</b><br/>
+    &nbsp;&nbsp;&nbsp;&nbsp;( Ahorro individual ÷ Ahorro total del grupo ) × Utilidad total<br/><br/>
+
+    <b>Monto final recibido:</b><br/>
+    &nbsp;&nbsp;&nbsp;&nbsp;Ahorro individual + Porción proporcional<br/><br/>
+    """
+
+    story.append(Paragraph(formula, styles["Normal"]))
+    story.append(Spacer(1, 16))
+
+    # ---------------------------------------------------------
+    # AHORRO INDIVIDUAL DETALLADO
+    # ---------------------------------------------------------
+    story.append(Paragraph("<b>4. Ahorro individual por socia</b>", styles["Heading2"]))
+
+    ahorro_data = [["ID", "Nombre", "Ahorro ($)"]]
+    for f in tabla_dist:
+        ahorro_data.append([
+            f["id"], f["nombre"], f"${f['ahorro']:,.2f}"
+        ])
+
+    tabla_ahorro = Table(ahorro_data, colWidths=[40, 200, 100])
+    tabla_ahorro.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
+        ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
+        ("ALIGN", (0,0), (-1,-1), "CENTER"),
+        ("ALIGN", (1,1), (1,-1), "LEFT"),
+    ]))
+
+    story.append(tabla_ahorro)
+    story.append(Spacer(1, 16))
+
+    # ---------------------------------------------------------
+    # TABLA PRINCIPAL - DISTRIBUCIÓN FINAL
+    # ---------------------------------------------------------
+    story.append(Paragraph("<b>5. Distribución proporcional de utilidades</b>", styles["Heading2"]))
+
     encabezado = ["ID", "Nombre", "Ahorro", "% Porción", "Monto final"]
     data = [encabezado]
 
@@ -324,24 +354,39 @@ def generar_pdf_acta(inicio, fin, saldo_i, saldo_f,
     tabla.setStyle(TableStyle([
         ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
         ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
-        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
         ("ALIGN", (0,0), (-1,-1), "CENTER"),
         ("ALIGN", (1,1), (1,-1), "LEFT"),
-        ("BOTTOMPADDING", (0,0), (-1,0), 6),
+        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
     ]))
 
-    story.append(Paragraph("<b>3. Distribución proporcional</b>", styles["Heading2"]))
     story.append(tabla)
+    story.append(Spacer(1, 30))
 
+    # ---------------------------------------------------------
+    # ESPACIO PARA FIRMAS
+    # ---------------------------------------------------------
+    story.append(Paragraph("<br/><br/><b>Firmas de cierre</b><br/><br/>", styles["Heading2"]))
+
+    firmas = """
+    <br/><br/><br/>
+    _______________________      _______________________      _______________________<br/>
+    Presidenta                      Tesorera                     Secretaria
+    """
+
+    story.append(Paragraph(firmas, styles["Normal"]))
+
+    # ---------------------------------------------------------
+    # Construir PDF
+    # ---------------------------------------------------------
     doc.build(story)
-
     pdf = buffer.getvalue()
     buffer.close()
     return pdf
 
 
+
 # ==========================================================
-# 12. INTERFAZ PRINCIPAL — CIERRE DE CICLO
+# 12. INTERFAZ CIERRE DE CICLO
 # ==========================================================
 def cierre_ciclo():
 
@@ -488,7 +533,3 @@ def cierre_ciclo():
         st.success("✅ Ciclo cerrado correctamente.")
         st.balloons()
         st.rerun()
-
-
-
-
