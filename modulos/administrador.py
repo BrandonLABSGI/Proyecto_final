@@ -617,7 +617,7 @@ def gestion_grupos():
 #                   GESTIÓN DE EMPLEADOS
 # ============================================================
 def gestion_empleados():
-    st.header("🧑‍💻 Gestión de empleados (usuarios del sistema)")
+    st.header("🧑‍💻 Gestión de empleados")
 
     con = obtener_conexion()
     cursor = con.cursor()
@@ -801,7 +801,7 @@ def gestion_empleados():
 #                   RESUMEN GENERAL (VISTA GLOBAL)
 # ============================================================
 def resumen_general():
-    st.header("📊 Resumen general de grupos, promotoras y distritos")
+    st.header("📊 Resumen general de grupos, promotores y distritos")
 
     con = obtener_conexion()
     cursor = con.cursor()
@@ -916,7 +916,7 @@ def resumen_general():
     # ------------------------------------------------------------------
     # 4) Tabs de visualización
     # ------------------------------------------------------------------
-    tab1, tab2, tab3 = st.tabs(["🔹 Por grupo", "🔹 Por promotora", "🔹 Por distrito"])
+    tab1, tab2, tab3 = st.tabs(["🔹 Por grupo", "🔹 Por promotor", "🔹 Por distrito"])
 
     # ---- TAB 1: POR GRUPO ----
     with tab1:
