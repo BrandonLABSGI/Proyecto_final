@@ -362,18 +362,33 @@ def generar_pdf_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
     story.append(tabla)
     story.append(Spacer(1, 30))
 
-    # ---------------------------------------------------------
-    # ESPACIO PARA FIRMAS
-    # ---------------------------------------------------------
-    story.append(Paragraph("<br/><br/><b>Firmas de cierre</b><br/><br/>", styles["Heading2"]))
+  # ---------------------------------------------------------
+# ESPACIO PARA FIRMAS (SEPARADAS)
+# ---------------------------------------------------------
+story.append(Spacer(1, 40))
+story.append(Paragraph("<b>Firmas de cierre</b>", styles["Heading2"]))
+story.append(Spacer(1, 30))
 
-    firmas = """
-    <br/><br/><br/>
-    _______________________      _______________________      _______________________<br/>
-    Presidenta                      Tesorera                     Secretaria
-    """
+firmas_data = [
+    ["_______________________", "_______________________", "_______________________"],
+    ["Presidenta", "Tesorera", "Secretaria"]
+]
 
-    story.append(Paragraph(firmas, styles["Normal"]))
+tabla_firmas = Table(
+    firmas_data,
+    colWidths=[170, 170, 170]  # ← separación perfecta
+)
+
+tabla_firmas.setStyle(TableStyle([
+    ("ALIGN", (0,0), (-1,-1), "CENTER"),
+    ("FONTNAME", (0,1), (-1,1), "Helvetica"),
+    ("FONTSIZE", (0,1), (-1,1), 10),
+    ("BOTTOMPADDING", (0,0), (-1,0), 10),
+    ("TOPPADDING", (0,1), (-1,1), 2),
+]))
+
+story.append(tabla_firmas)
+
 
     # ---------------------------------------------------------
     # Construir PDF
