@@ -372,10 +372,10 @@ def gestion_grupos():
                     (
                         nombre_grupo,
                         tasa_interes,
-                        periodicidad,       # 👈 ahora es 7 (cabe en cualquier INT/TINYINT)
+                        periodicidad,       
                         default_tipo_multa_id,
                         reglas_texto,
-                        fecha_inicio_db,     # '2025-11-24'
+                        fecha_inicio_db,     
                         id_prom,
                         id_distrito,
                         id_directiva,
