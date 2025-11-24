@@ -3,98 +3,103 @@ from modulos.conexion import obtener_conexion
 
 def login():
 
-    st.set_page_config(page_title="Inicio de Sesión — Solidaridad CVX", layout="centered")
+    st.set_page_config(page_title="Ingreso — Solidaridad CVX", layout="centered")
 
-    # --------------------- CSS ---------------------
+    # ==========================
+    #   ESTILOS DEL LOGIN
+    # ==========================
     st.markdown("""
         <style>
-            body {
-                background-color: #0d1017 !important;
-            }
 
-            .card-login {
-                width: 880px;
-                margin: 50px auto;
-                background: #ffffff;
-                border-radius: 18px;
-                overflow: hidden;
-                display: flex;
-                flex-direction: row;
-                box-shadow: 0 4px 35px rgba(0,0,0,0.30);
-            }
+        body {
+            background-color: #11141A !important;
+        }
 
-            .left-side {
-                width: 50%;
-            }
-            .left-side img {
-                width: 100%;
-                height: 100%;
-                object-fit: cover;
-            }
+        .login-wrapper {
+            width: 860px;
+            margin: 40px auto;
+            background: #ffffff;
+            border-radius: 18px;
+            box-shadow: 0px 4px 40px rgba(0,0,0,0.25);
+            overflow: hidden;
+            display: flex;
+        }
 
-            .right-side {
-                width: 50%;
-                padding: 40px 45px;
-                background: #faf9f4;
-            }
+        .login-image {
+            width: 50%;
+        }
+        .login-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
 
-            .title {
-                font-size: 30px;
-                font-weight: 800;
-                color: #0A3161;
-                margin-bottom: 20px;
-            }
+        .login-box {
+            width: 50%;
+            padding: 45px 40px;
+            background: #faf9f4;
+        }
 
-            .stTextInput>div>div>input,
-            .stPasswordInput>div>div>input {
-                height: 42px;
-                background: white !important;
-                border-radius: 7px;
-            }
+        .title {
+            font-size: 30px;
+            font-weight: 800;
+            color: #0A3161;
+            margin-bottom: 25px;
+        }
 
-            .stButton>button {
-                width: 100%;
-                height: 45px;
-                font-size: 17px;
-                border-radius: 7px;
-                background-color: #2e7d32;
-                color: white;
-            }
-            .stButton>button:hover {
-                background-color: #1b5e20;
-            }
+        .stTextInput>div>div>input,
+        .stPasswordInput>div>div>input {
+            background-color: white;
+            border-radius: 8px;
+            height: 42px;
+            border: 1px solid #CCC;
+        }
+
+        .stButton>button {
+            width: 100%;
+            background-color: #2e7d32;
+            color: white;
+            height: 45px;
+            border-radius: 8px;
+            font-size: 17px;
+            margin-top: 20px;
+        }
+
+        .stButton>button:hover {
+            background-color: #1b5e20;
+        }
+
         </style>
     """, unsafe_allow_html=True)
 
-    # --------------------- TARJETA LOGIN ---------------------
-    st.markdown('<div class="card-login">', unsafe_allow_html=True)
+    # ==========================
+    #    TARJETA DEL LOGIN
+    # ==========================
+    st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
 
-    # PANEL IZQUIERDO = IMAGEN
-    st.markdown('<div class="left-side">', unsafe_allow_html=True)
+    # Imagen
+    st.markdown('<div class="login-image">', unsafe_allow_html=True)
     st.image("modulos/imagenes/9e001816-7c44-4523-8a27-4b5bb730a1fa.png")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # PANEL DERECHO = FORMULARIO
-    st.markdown('<div class="right-side">', unsafe_allow_html=True)
+    # Formulario
+    st.markdown('<div class="login-box">', unsafe_allow_html=True)
 
-    st.markdown('<div class="title">Inicio de Sesión</div>', unsafe_allow_html=True)
+    st.markdown('<div class="title">Iniciar Sesión</div>', unsafe_allow_html=True)
 
     usuario = st.text_input("Usuario")
     contrasena = st.text_input("Contraseña", type="password")
 
     if st.button("Iniciar sesión"):
         con = obtener_conexion()
-        cursor = con.cursor(dictionary=True)
-
-        cursor.execute(
-            "SELECT * FROM usuarios WHERE usuario = %s AND contrasena = %s",
-            (usuario, contrasena)
-        )
-        datos = cursor.fetchone()
+        cur = con.cursor(dictionary=True)
+        cur.execute("SELECT * FROM usuarios WHERE usuario=%s AND contrasena=%s", (usuario, contrasena))
+        datos = cur.fetchone()
 
         if datos:
             st.session_state["sesion_iniciada"] = True
             st.session_state["rol"] = datos["rol"]
+            st.success("Inicio de sesión correcto.")
             st.rerun()
         else:
             st.error("Usuario o contraseña incorrectos.")
