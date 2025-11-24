@@ -4,39 +4,77 @@ from modulos.conexion import obtener_conexion
 def login():
     st.set_page_config(page_title="Ingreso — Solidaridad CVX", layout="centered")
 
-    st.markdown("""
+    # Ocultar header/footer
+    hide_st = """
         <style>
             header, footer {visibility: hidden;}
-            .main-container {
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                margin-top: 40px;
-            }
-            .login-card {
+            #MainMenu {visibility:hidden;}
+        </style>
+    """
+    st.markdown(hide_st, unsafe_allow_html=True)
+
+    # =============================
+    # CONTENEDOR TOTAL
+    # =============================
+    st.markdown("""
+        <style>
+            .login-wrapper {
                 position: relative;
                 width: 900px;
+                margin: auto;
             }
-            .form-box {
+
+            .login-bg {
+                width: 100%;
+                border-radius: 20px;
+            }
+
+            /* FORMULARIO SUPERPUESTO */
+            .form-container {
                 position: absolute;
-                top: 200px;          /* Ajustar posicion vertical */
-                left: 520px;         /* Ajustar posicion horizontal */
-                width: 330px;
-                padding: 20px;
+                top: 190px;      /* Ajusta la altura */
+                left: 515px;     /* Ajusta la posición horizontal */
+                width: 310px;
             }
-            label {
+
+            .form-container label {
                 font-size: 16px !important;
+                font-weight: 600;
+            }
+
+            .form-container .stTextInput>div>div>input,
+            .form-container .stPasswordInput>div>div>input {
+                height: 40px;
+                font-size: 16px;
+            }
+
+            .form-container .stButton>button {
+                width: 100%;
+                height: 42px;
+                background-color: #2e7d32;
+                color: white;
+                font-size: 16px;
+                border-radius: 8px;
             }
         </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="main-container"><div class="login-card">', unsafe_allow_html=True)
+    # =============================
+    # TARJETA + FORMULARIO
+    # =============================
+    st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
 
-    # IMAGEN COMPLETA DEL LOGIN
-    st.image("modulos/imagenes/9e001816-7c44-4523-8a27-4b5bb730a1fa.png", use_column_width=True)
+    # IMAGEN GRANDE DEL LOGIN
+    st.markdown(
+        """
+        <img src="modulos/imagenes/9e001816-7c44-4523-8a27-4b5bb730a1fa.png"
+             class="login-bg">
+        """,
+        unsafe_allow_html=True
+    )
 
-    # FORMULARIO SUPERPUESTO
-    st.markdown('<div class="form-box">', unsafe_allow_html=True)
+    # FORMULARIO SUPERPUESTO (REAL)
+    st.markdown('<div class="form-container">', unsafe_allow_html=True)
 
     usuario = st.text_input("Usuario")
     contrasena = st.text_input("Contraseña", type="password")
@@ -50,7 +88,6 @@ def login():
             "SELECT * FROM usuarios WHERE usuario = %s AND contrasena = %s",
             (usuario, contrasena)
         )
-
         datos = cursor.fetchone()
 
         if datos:
@@ -60,4 +97,4 @@ def login():
         else:
             st.error("Usuario o contraseña incorrectos.")
 
-    st.markdown('</div></div></div>', unsafe_allow_html=True)
+    st.markdown('</div></div>', unsafe_allow_html=True)
