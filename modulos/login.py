@@ -1,98 +1,60 @@
 import streamlit as st
-from modulos.conexion import obtener_conexion
+import base64
 
 def login():
-
     st.set_page_config(page_title="Ingreso — Solidaridad CVX", layout="centered")
 
-    # ==========================================
-    # ESTILOS
-    # ==========================================
+    # ============================
+    # Cargar imagen embebida BASE64
+    # ============================
+    encoded_image = """
+    iVBORw0KGgoAAAANSUhEUgAAAoAAAAHgCAYAAADx...
+    """  # ← Te pongo abajo la imagen real
+
+    # Convertir a HTML IMG
+    image_html = f"""
+        <img src="data:image/png;base64,{encoded_image}"
+             style="width:100%; border-radius:18px; box-shadow:0 4px 40px rgba(0,0,0,0.25);" />
+    """
+
+    # ============================
+    # Estilos globales
+    # ============================
     st.markdown("""
         <style>
-
-            body, .stApp {
-                background-color: #0d0f16 !important;
+            header, footer {visibility: hidden !important;}
+            .block-container {padding-top: 10px !important;}
+            label { font-size: 18px !important; color: white !important; }
+            .stTextInput>div>div>input, .stPasswordInput>div>div>input {
+                background: #ffffff !important;
+                border-radius: 10px !important;
+                height: 45px !important;
+                font-size: 18px !important;
             }
-
-            /* Contenedor tarjeta */
-            .login-card {
-                width: 900px;
-                margin: 60px auto;
-                background: #ffffff;
-                border-radius: 22px;
-                box-shadow: 0px 4px 40px rgba(0,0,0,0.25);
-                overflow: hidden;
-                display: flex;
-            }
-
-            .left-side {
-                width: 50%;
-            }
-
-            .left-side img {
-                width: 100%;
-                height: 100%;
-                object-fit: cover;
-            }
-
-            .right-side {
-                width: 50%;
-                padding: 45px 40px;
-                background: #faf9f4;
-            }
-
-            .title {
-                font-size: 32px;
-                font-weight: 800;
-                color: #0a3161;
-                margin-bottom: 25px;
-            }
-
-            .stTextInput>div>div>input,
-            .stPasswordInput>div>div>input {
-                background-color: white !important;
-                height: 45px;
-                border-radius: 8px;
-                border: 1px solid #d4d4d4;
-                color: black !important;
-            }
-
             .stButton>button {
                 width: 100%;
+                background: #2e7d32;
+                font-size: 18px;
                 height: 45px;
-                border-radius: 8px;
-                background-color: #2e7d32;
+                border-radius: 10px;
                 color: white;
-                font-size: 17px;
             }
-
             .stButton>button:hover {
-                background-color: #1e5b23;
+                background: #1b5e20 !important;
             }
-
         </style>
     """, unsafe_allow_html=True)
 
-    # ==========================================
-    # TARJETA LOGIN
-    # ==========================================
-    st.markdown('<div class="login-card">', unsafe_allow_html=True)
+    st.markdown(image_html, unsafe_allow_html=True)
 
-    # PANEL IZQUIERDO
-    st.markdown('<div class="left-side">', unsafe_allow_html=True)
-    st.image("modulos/imagenes/9e001816-7c44-4523-8a27-4b5bb730a1fa.png")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # PANEL DERECHO
-    st.markdown('<div class="right-side">', unsafe_allow_html=True)
-
-    st.markdown('<div class="title">Iniciar Sesión</div>', unsafe_allow_html=True)
+    st.write("### Iniciar Sesión")
 
     usuario = st.text_input("Usuario")
     contrasena = st.text_input("Contraseña", type="password")
 
     if st.button("Iniciar sesión"):
+        import mysql.connector
+        from modulos.conexion import obtener_conexion
 
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
@@ -105,9 +67,6 @@ def login():
         if datos:
             st.session_state["sesion_iniciada"] = True
             st.session_state["rol"] = datos["rol"]
-            st.success("Inicio de sesión exitoso.")
             st.rerun()
         else:
             st.error("Usuario o contraseña incorrectos.")
-
-    st.markdown('</div></div>', unsafe_allow_html=True)
