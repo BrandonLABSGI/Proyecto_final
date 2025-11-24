@@ -97,7 +97,7 @@ def interfaz_admin():
 #                      GESTIÓN DE ROLES
 # ============================================================
 def gestion_roles():
-    st.header("🎭 Gestión de roles")
+    st.header("🎭 Gestión deeeeeeeeeeee roles")
 
     con = obtener_conexion()
     cursor = con.cursor()
