@@ -177,7 +177,7 @@ def calcular_utilidad(fecha_inicio, fecha_fin):
 
 
 # ==========================================================
-# 9. DISTRIBUCIÓN PROPORCIONAL (NEGATIVOS CORREGIDOS)
+# 9. DISTRIBUCIÓN PROPORCIONAL (AHORROS NEGATIVOS CORREGIDOS)
 # ==========================================================
 def generar_tabla_distribucion(socias, utilidad_total):
     total_ahorros = sum(s["ahorro"] for s in socias)
@@ -187,9 +187,6 @@ def generar_tabla_distribucion(socias, utilidad_total):
     for s in socias:
         ahorro = s["ahorro"]
 
-        # -------------------------------------
-        # CORRECCIÓN: AHORRO NEGATIVO → CERO
-        # -------------------------------------
         if ahorro < 0:
             porcentaje = 0
             porcion = 0
@@ -213,9 +210,8 @@ def generar_tabla_distribucion(socias, utilidad_total):
     return tabla
 
 
-
 # ==========================================================
-# 10. ACTA EN HTML
+# 10. ACTA EN HTML (PARA MOSTRAR EN PANTALLA)
 # ==========================================================
 def generar_html_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
                       utilidad, intereses, multas, tabla):
@@ -265,26 +261,83 @@ def generar_html_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
     return html
 
 
+# ==========================================================
+# 11. NUEVO PDF PRO (TABLA REAL Y BONITA)
+# ==========================================================
+def generar_pdf_acta(inicio, fin, saldo_i, saldo_f,
+                     ingresos, egresos,
+                     utilidad, intereses, multas,
+                     tabla_dist):
 
-# ==========================================================
-# 11. GENERAR PDF
-# ==========================================================
-def generar_pdf(html):
-    from reportlab.platypus import SimpleDocTemplate, Paragraph
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
 
     buffer = io.BytesIO()
     styles = getSampleStyleSheet()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
 
-    story = [Paragraph(html, styles["Normal"])]
+    story = []
+
+    # Título
+    story.append(Paragraph("<b>ACTA DE CIERRE DEL CICLO — SOLIDARIDAD CVX</b>", styles["Title"]))
+    story.append(Spacer(1, 12))
+
+    # Datos generales
+    texto = f"""
+    <b>Inicio:</b> {inicio}<br/>
+    <b>Cierre:</b> {fin}<br/>
+    <b>Saldo inicial:</b> ${saldo_i:,.2f}<br/>
+    <b>Saldo final:</b> ${saldo_f:,.2f}<br/>
+    <b>Ingresos totales:</b> ${ingresos:,.2f}<br/>
+    <b>Egresos totales:</b> ${egresos:,.2f}<br/>
+    """
+    story.append(Paragraph("<b>1. Datos Generales</b>", styles["Heading2"]))
+    story.append(Paragraph(texto, styles["Normal"]))
+    story.append(Spacer(1, 12))
+
+    # Utilidades
+    texto2 = f"""
+    <b>Intereses:</b> ${intereses:,.2f}<br/>
+    <b>Multas:</b> ${multas:,.2f}<br/>
+    <b>Utilidad total:</b> ${utilidad:,.2f}<br/>
+    """
+    story.append(Paragraph("<b>2. Utilidades</b>", styles["Heading2"]))
+    story.append(Paragraph(texto2, styles["Normal"]))
+    story.append(Spacer(1, 12))
+
+    # Tabla de distribución
+    encabezado = ["ID", "Nombre", "Ahorro", "% Porción", "Monto final"]
+    data = [encabezado]
+
+    for f in tabla_dist:
+        data.append([
+            f["id"],
+            f["nombre"],
+            f"${f['ahorro']:,.2f}",
+            f"{f['porcentaje']:.2f}%",
+            f"${f['monto_final']:,.2f}"
+        ])
+
+    tabla = Table(data, colWidths=[40, 180, 70, 70, 80])
+    tabla.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
+        ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
+        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+        ("ALIGN", (0,0), (-1,-1), "CENTER"),
+        ("ALIGN", (1,1), (1,-1), "LEFT"),
+        ("BOTTOMPADDING", (0,0), (-1,0), 6),
+    ]))
+
+    story.append(Paragraph("<b>3. Distribución proporcional</b>", styles["Heading2"]))
+    story.append(tabla)
+
     doc.build(story)
 
     pdf = buffer.getvalue()
     buffer.close()
     return pdf
-
 
 
 # ==========================================================
@@ -312,7 +365,7 @@ def cierre_ciclo():
         return
 
     if pendientes and modo_prueba:
-        st.warning("⚠ MODO PRUEBA ACTIVADO: Los préstamos pendientes serán ignorados.")
+        st.warning("⚠️ Modo prueba: préstamos pendientes ignorados.")
 
     ingresos, egresos = obtener_totales(fecha_inicio, fecha_cierre)
     saldo_inicial = obtener_saldo_inicial(fecha_inicio)
@@ -354,7 +407,7 @@ def cierre_ciclo():
 
     # TAB 3 — DETALLE DIARIO
     with tab3:
-        st.subheader("📅 Detalle diario de caja")
+        st.subheader("📅 Detalle diario")
         if detalle_diario:
             df = pd.DataFrame(detalle_diario)
             df["fecha"] = df["fecha"].astype(str)
@@ -364,7 +417,7 @@ def cierre_ciclo():
 
     # TAB 4 — GRÁFICA
     with tab4:
-        st.subheader("📊 Gráfica del ciclo")
+        st.subheader("📊 Saldo final por día")
         if detalle_diario:
             df = pd.DataFrame(detalle_diario)
             df["fecha"] = df["fecha"].astype(str)
@@ -375,6 +428,7 @@ def cierre_ciclo():
     # TAB 5 — ACTA
     with tab5:
         st.subheader("📄 Acta del ciclo")
+
         html = generar_html_acta(
             fecha_inicio, fecha_cierre,
             saldo_inicial, saldo_final,
@@ -383,11 +437,17 @@ def cierre_ciclo():
             tabla_dist
         )
 
-        if st.button("📘 Ver Acta en pantalla"):
+        if st.button("📘 Ver acta en pantalla"):
             st.markdown(html, unsafe_allow_html=True)
 
         if st.button("⬇️ Descargar Acta en PDF"):
-            pdf = generar_pdf(html)
+            pdf = generar_pdf_acta(
+                fecha_inicio, fecha_cierre,
+                saldo_inicial, saldo_final,
+                ingresos, egresos,
+                utilidad_total, intereses, multas,
+                tabla_dist
+            )
             b64 = base64.b64encode(pdf).decode()
             st.markdown(
                 f'<a href="data:application/pdf;base64,{b64}" download="Acta_Cierre_CVX.pdf">📥 Descargar PDF</a>',
@@ -428,3 +488,7 @@ def cierre_ciclo():
         st.success("✅ Ciclo cerrado correctamente.")
         st.balloons()
         st.rerun()
+
+
+
+
