@@ -6,6 +6,33 @@ def login():
     st.set_page_config(page_title="Ingreso — Solidaridad CVX", layout="centered")
 
     # ============================
+    # ELIMINAR PADDING, HEADER Y FOOTER DE STREAMLIT
+    # ============================
+    st.markdown("""
+        <style>
+        /* eliminar todo el padding automático de streamlit */
+        .block-container {
+            padding-top: 0rem !important;
+            padding-bottom: 0rem !important;
+            padding-left: 0rem !important;
+            padding-right: 0rem !important;
+        }
+
+        /* quitar header y footer */
+        header, footer {
+            visibility: hidden !important;
+            height: 0px !important;
+        }
+
+        /* centrar todo el login */
+        body {
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # ============================
     # ESTILOS PROFESIONALES
     # ============================
     st.markdown("""
@@ -14,7 +41,7 @@ def login():
             /* Contenedor principal de la tarjeta */
             .login-container {
                 width: 900px;
-                margin: 60px auto;
+                margin: 50px auto;
                 background: #faf9f4;
                 border-radius: 18px;
                 box-shadow: 0px 4px 40px rgba(0,0,0,0.25);
@@ -70,10 +97,11 @@ def login():
                 background-color: #1b5e20 !important;
             }
 
-            /* Centrado absoluto */
+            /* Centrado absoluto del login */
             .center-box {
                 display: flex;
                 justify-content: center;
+                width: 100%;
             }
 
         </style>
@@ -84,12 +112,12 @@ def login():
     # ============================
     st.markdown('<div class="center-box"><div class="login-container">', unsafe_allow_html=True)
 
-    # -------- Imagen a la izquierda --------
+    # -------- Panel izquierdo: Imagen --------
     st.markdown('<div class="login-left">', unsafe_allow_html=True)
     st.image("modulos/imagenes/9e001816-7c44-4523-8a27-4b5bb730a1fa.png")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # -------- Formulario a la derecha --------
+    # -------- Panel derecho: Formulario --------
     st.markdown('<div class="login-right">', unsafe_allow_html=True)
 
     st.markdown('<div class="title">Iniciar Sesión</div>', unsafe_allow_html=True)
