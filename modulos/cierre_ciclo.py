@@ -20,7 +20,7 @@ def obtener_ciclo_activo():
     cur.execute("""
         SELECT * FROM ciclo_resumen
         WHERE fecha_cierre IS NULL
-       ORDER BY id_ciclo_resumen DESC
+        ORDER BY id_ciclo_resumen DESC
         LIMIT 1
     """)
 
@@ -325,7 +325,7 @@ def cierre_ciclo():
                 utilidad_total=%s,
                 monto_repartido=0,
                 estado='Cerrado'
-            WHERE id_resumen=%s
+            WHERE id_ciclo_resumen=%s
         """, (
             fecha_fin,
             saldo_inicial,
@@ -333,7 +333,7 @@ def cierre_ciclo():
             sum(s["ahorro"] for s in socias),
             intereses,
             utilidad_total,
-            ciclo["id_resumen"]
+            ciclo["id_ciclo_resumen"]
         ))
 
         con.commit()
