@@ -438,6 +438,8 @@ def gestion_grupos():
 
 
 
+import re
+
 # ============================================================
 #                   GESTIÓN DE EMPLEADOS
 # ============================================================
@@ -478,8 +480,8 @@ def gestion_empleados():
         nombres = st.text_input("Nombres")
         apellidos = st.text_input("Apellidos")
     with col2:
-        dui = st.text_input("DUI (formato: ########-#)")
-        telefono = st.text_input("Teléfono (formato: ####-####)")
+        dui = st.text_input("DUI (9 dígitos, sin guion)")
+        telefono = st.text_input("Teléfono (8 dígitos, sin guion)")
         distrito_sel = st.selectbox(
             "Distrito asignado",
             list(dict_distritos.keys()) if dict_distritos else ["(Sin distritos)"],
@@ -491,14 +493,22 @@ def gestion_empleados():
         list(dict_roles.keys()) if dict_roles else ["(No hay roles registrados)"],
     )
 
+    # ---------------------- CREAR EMPLEADO ----------------------
     if st.button("Crear empleado"):
-        # ------------------------------------------------------------------
-        # VALIDACIONES BÁSICAS
-        # ------------------------------------------------------------------
         errores = []
 
+        # Campos obligatorios
         if usuario.strip() == "" or contra.strip() == "":
             errores.append("Usuario y contraseña son obligatorios.")
+
+        if nombres.strip() == "" or apellidos.strip() == "":
+            errores.append("Nombres y apellidos son obligatorios.")
+
+        if dui.strip() == "":
+            errores.append("El campo DUI es obligatorio.")
+
+        if telefono.strip() == "":
+            errores.append("El campo Teléfono es obligatorio.")
 
         if not dict_roles or rol_sel not in dict_roles:
             errores.append("Debe seleccionar un rol válido.")
@@ -506,28 +516,24 @@ def gestion_empleados():
         if not dict_distritos or distrito_sel not in dict_distritos:
             errores.append("Debe seleccionar un distrito válido.")
 
-        # Normalizamos espacios
-        dui_clean = dui.strip()
-        tel_clean = telefono.strip()
+        # ---------- Validación de DUI (9 dígitos sin guion) ----------
+        dui_raw = dui.strip()
+        if not re.fullmatch(r"\d{9}", dui_raw):
+            errores.append("El DUI debe tener exactamente 9 dígitos numéricos, sin guiones ni espacios.")
 
-        # DUI: ########-#
-        if not re.fullmatch(r"\d{8}-\d", dui_clean):
-            errores.append("El DUI debe tener el formato ########-# (8 dígitos, guion y 1 dígito).")
+        # ---------- Validación de Teléfono (8 dígitos sin guion) ----------
+        tel_raw = telefono.strip()
+        if not re.fullmatch(r"\d{8}", tel_raw):
+            errores.append("El teléfono debe tener exactamente 8 dígitos numéricos, sin guiones ni espacios.")
 
-        # Teléfono: ####-####
-        if not re.fullmatch(r"\d{4}-\d{4}", tel_clean):
-            errores.append("El teléfono debe tener el formato ####-#### (4 dígitos, guion y 4 dígitos).")
-
+        # Si hay errores, los mostramos y no insertamos
         if errores:
-            # Mostramos todos los mensajes y NO insertamos
             for msg in errores:
                 st.warning(msg)
         else:
-            # ------------------------------------------------------------------
-            # INSERTAR EN BD (datos ya validados)
-            # ------------------------------------------------------------------
+            # Todo OK: insertamos
             try:
-                id_rol, rol_texto = dict_roles[rol_sel]   # (Id_Roles, 'Director', etc.)
+                id_rol, rol_texto = dict_roles[rol_sel]
                 id_distrito = dict_distritos[distrito_sel]
 
                 cursor.execute(
@@ -549,12 +555,12 @@ def gestion_empleados():
                     (
                         usuario.strip(),
                         contra,
-                        id_rol,          # FK a Roles
-                        rol_texto,       # texto ('Director','Promotora', etc.)
+                        id_rol,
+                        rol_texto,
                         nombres.strip(),
                         apellidos.strip(),
-                        dui_clean,
-                        tel_clean,
+                        dui_raw,   # solo dígitos → encaja con columna INT
+                        tel_raw,   # solo dígitos
                         id_distrito,
                         estado,
                     ),
@@ -564,14 +570,13 @@ def gestion_empleados():
             except Exception as e:
                 st.error(f"Error al crear empleado: {e}")
 
+    # ---------------------- LISTADO + FILTRO ----------------------
     st.markdown("### 📋 Empleados registrados")
 
-    # ------------------------------- Filtros -------------------------------
     st.subheader("🔍 Filtros")
-
     opciones_filtro = ["(Todos los roles)"]
     if roles:
-        opciones_filtro += [r[1] for r in roles]  # Tipo_de_rol
+        opciones_filtro += [r[1] for r in roles]
 
     rol_filtro = st.selectbox("Filtrar por rol", opciones_filtro)
 
@@ -611,7 +616,6 @@ def gestion_empleados():
 
     cursor.close()
     con.close()
-
 
 
 # ============================================================
