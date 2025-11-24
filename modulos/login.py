@@ -6,34 +6,41 @@ def login():
     st.set_page_config(page_title="Ingreso — Solidaridad CVX", layout="centered")
 
     # ============================
-    # IMAGEN CENTRADA
+    # ESTILOS
     # ============================
-    st.markdown(
-        """
-        <div style="display:flex; justify-content:center; margin-top:20px;">
-            <img src="modulos/imagenes/senoras.png" width="260">
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    st.markdown("""
+        <style>
+            .center-img { 
+                display: flex;
+                justify-content: center;
+                margin-bottom: 20px;
+            }
+        </style>
+    """, unsafe_allow_html=True)
 
     # ============================
-    # TÍTULO
+    # IMAGEN CENTRADA (AJUSTADA)
     # ============================
-    st.markdown(
-        "<h1 style='text-align:center; margin-top:10px;'>Bienvenida a Solidaridad CVX</h1>",
-        unsafe_allow_html=True
-    )
+    st.markdown('<div class="center-img">', unsafe_allow_html=True)
+    st.image("modulos/imagenes/senoras.png", width=260)  # <-- AJUSTE PERFECTO
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # ============================
-    # FORMULARIO
+    # TEXTO DE BIENVENIDA
+    # ============================
+    st.markdown("<h2 style='text-align:center;'>Bienvenida a Solidaridad CVX</h2>", unsafe_allow_html=True)
+
+    # ============================
+    # CAMPOS LOGIN
     # ============================
     usuario = st.text_input("Usuario")
     contrasena = st.text_input("Contraseña", type="password")
 
     if st.button("Iniciar sesión"):
+
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
+
         cursor.execute(
             "SELECT * FROM usuarios WHERE usuario = %s AND contrasena = %s",
             (usuario, contrasena)
@@ -43,6 +50,7 @@ def login():
         if datos:
             st.session_state["sesion_iniciada"] = True
             st.session_state["rol"] = datos["rol"]
+            st.success("Inicio de sesión exitoso.")
             st.rerun()
         else:
             st.error("Usuario o contraseña incorrectos.")
