@@ -3,7 +3,7 @@ from modulos.conexion import obtener_conexion
 
 def login():
 
-    st.set_page_config(page_title="Ingreso — Solidaridad CVX", layout="centered")
+    st.set_page_config(page_title="Bienvenida — Solidaridad CVX", layout="centered")
 
     # ============================
     # ESTILOS
@@ -14,65 +14,52 @@ def login():
                 background-color: #0d1117 !important;
             }
 
-            .title-text {
-                font-size: 32px;
+            .welcome-title {
+                font-size: 42px;
                 font-weight: 800;
                 text-align: center;
-                color: #0a3161;
-                margin-bottom: 20px;
+                color: #ffffff;
+                margin-top: 20px;
+                margin-bottom: 40px;
             }
 
-            .stTextInput>div>div>input,
-            .stPasswordInput>div>div>input {
-                background-color: white !important;
-                border-radius: 8px;
-                height: 45px;
-                border: 1px solid #d1d5db;
-                color: #000 !important;
+            .img-box {
+                display: flex;
+                justify-content: center;
+                margin-top: 10px;
             }
 
-            .stButton>button {
-                width: 100%;
-                height: 45px;
-                background-color: #2e7d32;
-                color: white;
-                border-radius: 8px;
-                font-size: 17px;
-                margin-top: 15px;
+            .img-box img {
+                width: 320px;               /* ⬅️ AJUSTA AQUÍ EL TAMAÑO */
+                border-radius: 18px;
+                box-shadow: 0px 4px 30px rgba(0,0,0,0.25);
             }
 
-            .stButton>button:hover {
-                background-color: #1b5e20 !important;
-            }
         </style>
     """, unsafe_allow_html=True)
 
     # ============================
-    # CENTRAR CONTENIDO
+    # IMAGEN DE SEÑORAS
     # ============================
-    st.markdown("<div style='display:flex; justify-content:center;'>", unsafe_allow_html=True)
-
-    # Imagen pequeña y centrada
-    st.image(
-        "modulos/imagenes/9e001816-7c44-4523-8a27-4b5bb730a1fa.png",
-        width=350
-    )
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # Título
-    st.markdown("<h2 class='title-text'>Bienvenida a Solidaridad CVX</h2>", unsafe_allow_html=True)
+    st.markdown('<div class="img-box">', unsafe_allow_html=True)
+    st.image("modulos/imagenes/9e001816-7c44-4523-8a27-4b5bb730a1fa.png")
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # ============================
-    # FORMULARIO LOGIN
+    # MENSAJE DE BIENVENIDA
+    # ============================
+    st.markdown('<div class="welcome-title">Bienvenida a Solidaridad CVX</div>', unsafe_allow_html=True)
+
+    # ============================
+    # FORMULARIO DE LOGIN
     # ============================
     usuario = st.text_input("Usuario")
     contrasena = st.text_input("Contraseña", type="password")
 
     if st.button("Iniciar sesión"):
-
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
+
         cursor.execute(
             "SELECT * FROM usuarios WHERE usuario = %s AND contrasena = %s",
             (usuario, contrasena)
@@ -82,7 +69,7 @@ def login():
         if datos:
             st.session_state["sesion_iniciada"] = True
             st.session_state["rol"] = datos["rol"]
-            st.success("Inicio de sesión exitoso.")
             st.rerun()
+
         else:
             st.error("Usuario o contraseña incorrectos.")
