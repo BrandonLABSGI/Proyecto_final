@@ -5,11 +5,13 @@ def login():
 
     st.set_page_config(page_title="Ingreso — Solidaridad CVX", layout="centered")
 
-    # ====== ESTILOS CSS PROFESIONALES ======
+    # ============================
+    # ESTILOS PROFESIONALES
+    # ============================
     st.markdown("""
         <style>
             .login-box {
-                width: 850px;
+                width: 880px;
                 max-width: 95%;
                 margin: 60px auto;
                 display: flex;
@@ -23,7 +25,6 @@ def login():
                 width: 50%;
                 background-color: #ffffff;
             }
-
             .left-panel img {
                 width: 100%;
                 height: 100%;
@@ -38,10 +39,10 @@ def login():
             }
 
             .cvx-title {
-                font-size: 28px;
+                font-size: 30px;
                 font-weight: 700;
                 color: #0a3161;
-                margin-bottom: 25px;
+                margin-bottom: 30px;
             }
 
             .stTextInput>div>div>input,
@@ -61,25 +62,29 @@ def login():
                 border-radius: 8px;
                 width: 100%;
             }
-
             .stButton>button:hover {
                 background-color: #1b5e20;
             }
         </style>
     """, unsafe_allow_html=True)
 
-    # ====== CONTENEDOR ======
+    # ============================
+    # CONTENEDOR PRINCIPAL
+    # ============================
     st.markdown('<div class="login-box">', unsafe_allow_html=True)
-
     left, right = st.columns([1, 1])
 
-    # ====== PANEL IZQUIERDO (IMAGEN) ======
+    # ============================
+    # PANEL IZQUIERDO – IMAGEN
+    # ============================
     with left:
         st.markdown('<div class="left-panel">', unsafe_allow_html=True)
-        st.image("/mnt/data/WhatsApp Image 2025-11-19 at 18.27.34.jpeg")
+        st.image("modulos/imagenes/9e001816-7c44-4523-8a27-4b5bb730a1fa.png")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # ====== PANEL DERECHO (FORMULARIO) ======
+    # ============================
+    # PANEL DERECHO – FORMULARIO
+    # ============================
     with right:
         st.markdown('<div class="right-panel">', unsafe_allow_html=True)
 
@@ -92,8 +97,10 @@ def login():
             con = obtener_conexion()
             cursor = con.cursor(dictionary=True)
 
-            cursor.execute("SELECT * FROM usuarios WHERE usuario = %s AND contrasena = %s",
-                           (usuario, contrasena))
+            cursor.execute(
+                "SELECT * FROM usuarios WHERE usuario = %s AND contrasena = %s",
+                (usuario, contrasena)
+            )
             datos = cursor.fetchone()
 
             if datos:
