@@ -1,397 +1,588 @@
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+import pandas as pd
+import io
+from openpyxl import Workbook
 import streamlit as st
+import mysql.connector
+from datetime import date
 from modulos.conexion import obtener_conexion
 
-
-# ============================================================
-# VALIDAR ACCESO SOLO PARA PROMOTORA
-# ============================================================
-def validar_promotora():
-    rol = st.session_state.get("rol", "")
-    if rol != "Promotora":
-        st.title("Acceso denegado")
-        st.warning("Solo las Promotoras pueden acceder a esta sección.")
-        st.stop()
-
-
-# ============================================================
-# INTERFAZ PRINCIPAL — MÓDULO DE PROMOTORA
-# ============================================================
+# ============================================
+#   VALIDACIÓN DE ACCESO PARA PROMOTORA
+# ============================================
 def interfaz_promotora():
 
-    validar_promotora()
+    # Validar sesión
+    if "sesion_iniciada" not in st.session_state or not st.session_state["sesion_iniciada"]:
+        st.error("Debe iniciar sesión para acceder.")
+        st.stop()
 
+    # Validar rol
+    rol = st.session_state.get("rol", "")
+    id_empleado = st.session_state.get("id_empleado", None)
+
+    if rol != "Promotora" or id_empleado is None:
+        st.error("Acceso denegado. Solo la promotora puede ingresar.")
+        st.stop()
+
+    # Obtener datos del empleado (promotora)
+    con = obtener_conexion()
+    cur = con.cursor(dictionary=True)
+    cur.execute("SELECT * FROM Empleado WHERE Id_Empleado = %s", (id_empleado,))
+    promotora = cur.fetchone()
     st.title("👩‍💼 Panel de Promotora — Solidaridad CVX")
+    st.caption("Supervisión, validación financiera y reportes del distrito asignado.")
+    st.button("Cerrar sesión", on_click=lambda: cerrar_sesion())
+    st.markdown("---")
+    menu = st.radio(
+        "Navegación",
+        ["Inicio", "Grupos", "Reportes", "Validaciones", "Alertas"],
+        horizontal=True
+    )
+    st.markdown("---")
+    if menu == "Inicio":
+        mostrar_dashboard_distrito(promotora)
 
-    st.write("Supervisión, validación financiera y reportes del distrito asignado.")
+    elif menu == "Grupos":
+        gestionar_grupos(promotora)
 
-    # ------------------------------------------------------------
-    # BOTÓN CERRAR SESIÓN
-    # ------------------------------------------------------------
+    elif menu == "Reportes":
+        mostrar_reportes(promotora)
+
+    elif menu == "Validaciones":
+        validar_informacion(promotora)
+
+    elif menu == "Alertas":
+        mostrar_alertas(promotora)
+def mostrar_dashboard_distrito(promotora):
+    st.subheader("Dashboard general del distrito")
+
+    st.info("Aquí irá el Dashboard consolidado del distrito.")
+def gestionar_grupos(promotora):
+
+    id_promotora = promotora["Id_Empleado"]
+
+    con = obtener_conexion()
+    cur = con.cursor(dictionary=True)
+
+    cur.execute("""
+        SELECT g.*, d.Nombre AS Distrito
+        FROM Grupo g
+        JOIN Distrito d ON d.Id_Distrito = g.Id_Distrito
+        WHERE g.Id_Promotora = %s
+    """, (id_promotora,))
+
+    grupos = cur.fetchall()
+
+    st.subheader("Grupos asignados")
+    st.write(f"Total grupos: {len(grupos)}")
+
+    for g in grupos:
+        with st.expander(f"📌 {g['Nombre_grupo']}"):
+            st.write(f"**Fecha inicio:** {g['Fecha_inicio']}")
+            st.write(f"**Tasa:** {g['Tasa_de_interes']}%")
+            st.write(f"**Periodicidad:** {g['Periodicidad_reuniones']}")
+            st.write(f"**Distrito:** {g['Distrito']}")
+def mostrar_reportes(promotora):
+    st.subheader("Reportes consolidados")
+    st.info("Aquí se generarán reportes PDF y Excel.")
+def validar_informacion(promotora):
+    st.subheader("Validación de información")
+    st.info("Aquí la promotora validará saldos, préstamos, caja y ciclos.")
+def mostrar_alertas(promotora):
+    st.subheader("Alertas del distrito")
+    st.info("Alertas de morosidad, cierres pendientes y anomalías.")
+def cerrar_sesion():
+    st.session_state.clear()
+    st.experimental_rerun()
+import streamlit as st
+from datetime import date
+from modulos.conexion import obtener_conexion
+
+# ================================================
+#   PANEL PRINCIPAL DE PROMOTORA
+# ================================================
+def interfaz_promotora():
+
+    # ---------------------------
+    # Validación de sesión
+    # ---------------------------
+    if "sesion_iniciada" not in st.session_state or not st.session_state["sesion_iniciada"]:
+        st.error("Debe iniciar sesión.")
+        st.stop()
+
+    rol = st.session_state.get("rol")
+    id_empleado = st.session_state.get("id_empleado")
+
+    if rol != "Promotora" or id_empleado is None:
+        st.error("Acceso denegado.")
+        st.stop()
+
+    # ---------------------------
+    # Datos completos de la promotora
+    # ---------------------------
+    con = obtener_conexion()
+    cur = con.cursor(dictionary=True)
+    cur.execute("SELECT * FROM Empleado WHERE Id_Empleado = %s", (id_empleado,))
+    promotora = cur.fetchone()
+
+    # ---------------------------
+    # Header del panel
+    # ---------------------------
+    st.title("👩‍💼 Panel de Promotora — Solidaridad CVX")
+    st.caption("Supervisión, validación financiera y reportes del distrito asignado.")
+
     if st.button("Cerrar sesión"):
-        st.session_state["sesion_iniciada"] = False
-        st.session_state["rol"] = None
-        st.rerun()
+        st.session_state.clear()
+        st.experimental_rerun()
 
     st.markdown("---")
 
-    # ============================================================
-    # MENÚ HORIZONTAL (Opción B minimalista)
-    # ============================================================
-    opcion = st.radio(
+    # ---------------------------
+    # Menú horizontal
+    # ---------------------------
+    menu = st.radio(
         "Navegación",
-        ["🏠 Inicio", "👥 Grupos", "📑 Reportes", "✔ Validaciones", "🚨 Alertas"],
+        ["Inicio", "Grupos", "Reportes", "Validaciones", "Alertas"],
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+
+    st.markdown("---")
+
+    # ---------------------------
+    # Llamado a las secciones
+    # ---------------------------
+    if menu == "Inicio":
+        dashboard_distrito(promotora)
+
+    elif menu == "Grupos":
+        gestionar_grupos(promotora)
+
+    elif menu == "Reportes":
+        reportes_consolidados(promotora)
+
+    elif menu == "Validaciones":
+        modulo_validaciones(promotora)
+
+    elif menu == "Alertas":
+        modulo_alertas(promotora)
+
+
+
+# =====================================================
+#   DASHBOARD GENERAL DEL DISTRITO (BÁSICO)
+# =====================================================
+
+def dashboard_distrito(promotora):
+    st.subheader("📊 Dashboard general del distrito")
+    st.info("Aquí irá el dashboard consolidado con KPIs, gráficas y estado financiero.")
+# =====================================================
+#   GESTIÓN DE GRUPOS ASIGNADOS A LA PROMOTORA
+# =====================================================
+
+def gestionar_grupos(promotora):
+
+    st.subheader("📁 Grupos asignados a su distrito")
+
+    id_promotora = promotora["Id_Empleado"]
+
+    con = obtener_conexion()
+    cur = con.cursor(dictionary=True)
+
+    # Obtener grupos asignados
+    cur.execute("""
+        SELECT g.*, d.Nombre AS Distrito
+        FROM Grupo g
+        JOIN Distrito d ON d.Id_Distrito = g.Id_Distrito
+        WHERE g.Id_Promotora = %s
+    """, (id_promotora,))
+
+    grupos = cur.fetchall()
+
+    if not grupos:
+        st.warning("No tiene grupos asignados.")
+        return
+
+    st.success(f"Total grupos asignados: {len(grupos)}")
+
+    # Mostrar cada grupo
+    for g in grupos:
+        with st.expander(f"📌 {g['Nombre_grupo']}"):
+            
+            st.write(f"**Distrito:** {g['Distrito']}")
+            st.write(f"**Fecha de inicio:** {g['Fecha_inicio']}")
+            st.write(f"**Tasa de interés:** {g['Tasa_de_interes']}%")
+            st.write(f"**Periodicidad reuniones:** {g['Periodicidad_reuniones']} días")
+
+            # ---------------------------
+            # RESUMEN FINANCIERO DEL GRUPO
+            # ---------------------------
+            st.markdown("### 💰 Resumen financiero")
+
+            # Caja actual del grupo
+            cur.execute("""
+                SELECT saldo_final 
+                FROM caja_reunion 
+                WHERE fecha = (SELECT MAX(fecha) FROM caja_reunion)
+            """)
+            caja = cur.fetchone()
+
+            saldo = caja["saldo_final"] if caja else 0
+            st.write(f"**Saldo actual de caja:** ${saldo:,.2f}")
+
+            # Préstamos vigentes
+            cur.execute("""
+                SELECT COUNT(*) AS total
+                FROM Prestamo
+                WHERE Id_Grupo = %s AND Estado_del_prestamo = 'Activo'
+            """, (g["Id_Grupo"],))
+            prestamos = cur.fetchone()["total"]
+
+            st.write(f"**Préstamos activos:** {prestamos}")
+
+            # Multas aplicadas
+            cur.execute("""
+                SELECT COUNT(*) AS total
+                FROM Multa
+                WHERE Id_Grupo = %s
+            """, (g["Id_Grupo"],))
+            multas = cur.fetchone()["total"]
+
+            st.write(f"**Multas aplicadas:** {multas}")
+
+            # Botón para expandir detalles
+            st.markdown("### 📂 Acciones")
+
+            cols = st.columns(4)
+
+            with cols[0]:
+                st.button(f"Socias — {g['Nombre_grupo']}", key=f"socia_{g['Id_Grupo']}")
+
+            with cols[1]:
+                st.button(f"Caja — {g['Nombre_grupo']}", key=f"caja_{g['Id_Grupo']}")
+
+            with cols[2]:
+                st.button(f"Ahorros — {g['Nombre_grupo']}", key=f"ahorros_{g['Id_Grupo']}")
+
+            with cols[3]:
+                st.button(f"Préstamos — {g['Nombre_grupo']}", key=f"prestamos_{g['Id_Grupo']}")
+# =====================================================
+#   REPORTES CONSOLIDADOS
+# =====================================================
+
+def reportes_consolidados(promotora):
+    st.subheader("📄 Reportes consolidados del distrito")
+    st.info("Aquí podrá generar reportes PDF y Excel por grupo o por distrito.")
+
+
+
+# =====================================================
+#   MÓDULO DE VALIDACIONES
+# =====================================================
+
+def modulo_validaciones(promotora):
+    st.subheader("✔ Validación de información financiera")
+    st.info("Validación de caja, préstamos, ciclos, ahorros y multas.")
+
+
+
+# =====================================================
+#   ALERTAS DEL DISTRITO
+# =====================================================
+
+def modulo_alertas(promotora):
+    st.subheader("🔔 Alertas automáticas del distrito")
+    st.info("Alertas de morosidad, cierres pendientes, anomalías financieras.")
+import plotly.express as px
+import pandas as pd
+
+# =====================================================
+#   DASHBOARD COMPLETO DEL DISTRITO
+# =====================================================
+
+def dashboard_distrito(promotora):
+
+    st.subheader("📊 Dashboard del distrito asignado")
+
+    con = obtener_conexion()
+    cur = con.cursor(dictionary=True)
+
+    distrito_id = promotora["Distrito"]
+    id_promotora = promotora["Id_Empleado"]
+
+    # ----------------------------------------------------
+    # 1) TOTAL DE GRUPOS
+    # ----------------------------------------------------
+    cur.execute("""SELECT COUNT(*) AS total 
+                   FROM Grupo 
+                   WHERE Id_Promotora = %s""",
+                   (id_promotora,))
+    total_grupos = cur.fetchone()["total"]
+
+    # ----------------------------------------------------
+    # 2) TOTAL DE SOCIAS
+    # ----------------------------------------------------
+    cur.execute("""
+        SELECT COUNT(*) AS total
+        FROM Socia s
+        JOIN Grupo g ON g.Id_Grupo = s.Id_Grupo
+        WHERE g.Id_Promotora = %s
+    """, (id_promotora,))
+    total_socias = cur.fetchone()["total"]
+
+    # ----------------------------------------------------
+    # 3) AHORRO TOTAL DEL DISTRITO
+    # ----------------------------------------------------
+    cur.execute("""
+        SELECT SUM(Monto_del_aporte) AS total
+        FROM Ahorro a
+        JOIN Grupo g ON g.Id_Grupo = a.Id_Grupo
+        WHERE g.Id_Promotora = %s
+    """, (id_promotora,))
+    ahorro_total = cur.fetchone()["total"] or 0
+
+    # ----------------------------------------------------
+    # 4) PRÉSTAMOS ACTIVOS
+    # ----------------------------------------------------
+    cur.execute("""
+        SELECT COUNT(*) AS total
+        FROM Prestamo p
+        JOIN Grupo g ON g.Id_Grupo = p.Id_Grupo
+        WHERE g.Id_Promotora = %s
+          AND p.Estado_del_prestamo = 'Activo'
+    """, (id_promotora,))
+    prestamos_activos = cur.fetchone()["total"]
+
+    # ----------------------------------------------------
+    # MOSTRAR TARJETAS KPI
+    # ----------------------------------------------------
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric("Grupos activos", total_grupos)
+    col2.metric("Total de socias", total_socias)
+    col3.metric("Ahorro total ($)", f"{ahorro_total:,.2f}")
+    col4.metric("Préstamos activos", prestamos_activos)
+
+    st.markdown("---")
+
+    # ----------------------------------------------------
+    # 5) COMPORTAMIENTO DE CAJA (últimas 6 reuniones)
+    # ----------------------------------------------------
+    cur.execute("""
+        SELECT fecha, saldo_final
+        FROM caja_reunion
+        ORDER BY fecha DESC
+        LIMIT 6
+    """)
+    caja = cur.fetchall()
+
+    if caja:
+        df_caja = pd.DataFrame(caja).sort_values("fecha")
+        fig = px.line(df_caja, x="fecha", y="saldo_final",
+                      title="📈 Evolución reciente de la caja",
+                      markers=True)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Sin datos de caja para mostrar.")
+
+    st.markdown("---")
+
+    # ----------------------------------------------------
+    # 6) DISTRIBUCIÓN DE PRÉSTAMOS
+    # ----------------------------------------------------
+    cur.execute("""
+        SELECT Estado_del_prestamo, COUNT(*) AS total
+        FROM Prestamo p
+        JOIN Grupo g ON g.Id_Grupo = p.Id_Grupo
+        WHERE g.Id_Promotora = %s
+        GROUP BY Estado_del_prestamo
+    """, (id_promotora,))
+    prestamos_data = cur.fetchall()
+
+    if prestamos_data:
+        df_p = pd.DataFrame(prestamos_data)
+        fig = px.pie(df_p, values="total", names="Estado_del_prestamo",
+                     title="🧮 Distribución de préstamos")
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No hay datos de préstamos para mostrar.")
+
+    st.markdown("---")
+
+    # ----------------------------------------------------
+    # 7) TOP 5 SOCIAS CON MÁS AHORRO
+    # ----------------------------------------------------
+    cur.execute("""
+        SELECT s.Nombre, SUM(a.Monto_del_aporte) AS total
+        FROM Ahorro a
+        JOIN Socia s ON s.Id_Socia = a.Id_Socia
+        JOIN Grupo g ON g.Id_Grupo = a.Id_Grupo
+        WHERE g.Id_Promotora = %s
+        GROUP BY s.Id_Socia
+        ORDER BY total DESC
+        LIMIT 5
+    """, (id_promotora,))
+    top_socias = cur.fetchall()
+
+    if top_socias:
+        df_top = pd.DataFrame(top_socias)
+        fig = px.bar(df_top, x="Nombre", y="total",
+                     title="💎 Top 5 socias con mayor ahorro")
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No hay movimientos de ahorro para mostrar.")
+# =====================================================
+#   MÓDULO COMPLETO DE VALIDACIONES PARA PROMOTORA
+# =====================================================
+
+def modulo_validaciones(promotora):
+
+    st.subheader("✔ Validación financiera y operativa del distrito")
+
+    con = obtener_conexion()
+    cur = con.cursor(dictionary=True)
+
+    # Obtener grupos asignados a la promotora (Empleado)
+    cur.execute("""
+        SELECT Id_Grupo, Nombre_grupo
+        FROM Grupo
+        WHERE Id_Promotora = %s
+    """, (promotora["Id_Empleado"],))
+    grupos = cur.fetchall()
+
+    if not grupos:
+        st.warning("No tiene grupos asignados.")
+        return
+
+    grupos_dict = {g["Nombre_grupo"]: g["Id_Grupo"] for g in grupos}
+
+    # Selector de grupo para validar
+    grupo_sel = st.selectbox("Seleccione un grupo:", grupos_dict.keys())
+    id_grupo = grupos_dict[grupo_sel]
+
+    st.markdown("---")
+
+    # Selector tipo de validación
+    tipo = st.radio(
+        "Seleccione el tipo de validación:",
+        ["Caja", "Préstamos", "Multas", "Ahorros", "Ciclo"],
         horizontal=True
     )
 
-    # ============================================================
-    # SECCIONES (vacías por ahora)
-    # se llenan en la SECCIÓN 2, 3, 4, 5 y 6
-    # ============================================================
+    if tipo == "Caja":
+        validar_caja(id_grupo, promotora["Id_Empleado"])
 
-    if opcion == "🏠 Inicio":
-        st.subheader("Dashboard general del distrito")
-        st.info("Aquí irá el Dashboard consolidado (SECCIÓN 2).")
+    elif tipo == "Préstamos":
+        validar_prestamos(id_grupo, promotora["Id_Empleado"])
 
-    elif opcion == "👥 Grupos":
-        st.subheader("Gestión de grupos supervisados")
-        st.info("Aquí irá la vista de grupos (SECCIÓN 3).")
+    elif tipo == "Multas":
+        validar_multas(id_grupo, promotora["Id_Empleado"])
 
-    elif opcion == "📑 Reportes":
-        st.subheader("Reportes consolidados")
-        st.info("Aquí irán los reportes PDF/Excel (SECCIÓN 5).")
+    elif tipo == "Ahorros":
+        validar_ahorros(id_grupo, promotora["Id_Empleado"])
 
-    elif opcion == "✔ Validaciones":
-        st.subheader("Validación de información financiera")
-        st.info("Aquí irán las validaciones de caja, préstamos y ciclos (SECCIÓN 4).")
+    elif tipo == "Ciclo":
+        validar_ciclo(id_grupo, promotora["Id_Empleado"])
 
-    elif opcion == "🚨 Alertas":
-        st.subheader("Alertas automáticas")
-        st.info("Aquí irán las alertas de mora, inconsistencias y cierres pendientes (SECCIÓN 6).")
-# ============================================================
-# SECCIÓN 2 — DASHBOARD (Inicio)
-# ============================================================
-
-def dashboard_inicio(id_promotora):
-
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    # ------------------------------------------------------------
-    # 1. GRUPOS SUPERVISADOS POR LA PROMOTORA
-    # ------------------------------------------------------------
-    cursor.execute("""
-        SELECT g.Id_Grupo, g.Nombre_grupo, g.Fecha_inicio, g.Id_Distrito
-        FROM Grupo g
-        WHERE g.Id_Promotora = %s
-    """, (id_promotora,))
-    grupos = cursor.fetchall()
-
-    if not grupos:
-        st.warning("No tienes grupos asignados todavía.")
-        return
-
-    # Lista de IDs de grupos
-    ids = [g["Id_Grupo"] for g in grupos]
-
-    # ------------------------------------------------------------
-    # 2. SOCIAS
-    # ------------------------------------------------------------
-    cursor.execute(f"""
-        SELECT Id_Grupo, COUNT(*) as total
-        FROM Socia
-        WHERE Id_Grupo IN ({','.join(['%s']*len(ids))})
-        GROUP BY Id_Grupo
-    """, ids)
-    socias_data = cursor.fetchall()
-    dict_socias = {row["Id_Grupo"]: row["total"] for row in socias_data}
-
-    # ------------------------------------------------------------
-    # 3. PRÉSTAMOS (activos y en mora)
-    # ------------------------------------------------------------
-    cursor.execute(f"""
-        SELECT Id_Grupo,
-               SUM(CASE WHEN Estado = 'Activo' THEN 1 ELSE 0 END) AS activos,
-               SUM(CASE WHEN Estado = 'Mora' THEN 1 ELSE 0 END) AS mora
-        FROM Prestamo
-        WHERE Id_Grupo IN ({','.join(['%s']*len(ids))})
-        GROUP BY Id_Grupo
-    """, ids)
-    prestamos_data = cursor.fetchall()
-    dict_prestamos = {row["Id_Grupo"]: row for row in prestamos_data}
-
-    # ------------------------------------------------------------
-    # 4. AHORROS
-    # ------------------------------------------------------------
-    cursor.execute(f"""
-        SELECT Id_Grupo, SUM(Monto) AS total
-        FROM Ahorro
-        WHERE Id_Grupo IN ({','.join(['%s']*len(ids))})
-        GROUP BY Id_Grupo
-    """, ids)
-    ahorros_data = cursor.fetchall()
-    dict_ahorros = {row["Id_Grupo"]: float(row["total"]) for row in ahorros_data}
-
-    # ------------------------------------------------------------
-    # 5. CAJA CONSOLIDADA (usando tabla caja_reunion)
-    # ------------------------------------------------------------
-    cursor.execute(f"""
-        SELECT Id_Grupo, SUM(saldo_final) AS caja
-        FROM caja_reunion
-        WHERE Id_Grupo IN ({','.join(['%s']*len(ids))})
-        GROUP BY Id_Grupo
-    """, ids)
-    caja_data = cursor.fetchall()
-    dict_caja = {row["Id_Grupo"]: float(row["caja"]) for row in caja_data}
-
-    cursor.close()
+    cur.close()
     con.close()
 
-    # ============================================================
-    # TARJETAS — KPIs PRINCIPALES
-    # ============================================================
-    total_grupos = len(grupos)
-    total_socias = sum(dict_socias.values())
-    total_prestamos_activos = sum(row["activos"] for row in dict_prestamos.values())
-    total_prestamos_mora = sum(row["mora"] for row in dict_prestamos.values())
-    total_caja = sum(dict_caja.values())
-    total_ahorro = sum(dict_ahorros.values())
-
-    col1, col2, col3 = st.columns(3)
-    col4, col5, col6 = st.columns(3)
-
-    col1.metric("📌 Grupos Activos", total_grupos)
-    col2.metric("👥 Total de Socias", total_socias)
-    col3.metric("💰 Caja Consolidada", f"${total_caja:,.2f}")
-
-    col4.metric("📘 Préstamos Activos", total_prestamos_activos)
-    col5.metric("⚠ Préstamos en Mora", total_prestamos_mora)
-    col6.metric("🏦 Total Ahorro", f"${total_ahorro:,.2f}")
-
-    st.markdown("---")
-    st.subheader("📋 Estado de los grupos supervisados")
-
-    # ============================================================
-    # TABLA RESUMIDA DE GRUPOS
-    # ============================================================
-    tabla = []
-
-    for g in grupos:
-        gid = g["Id_Grupo"]
-
-        socias = dict_socias.get(gid, 0)
-        caja = dict_caja.get(gid, 0)
-        ahorros = dict_ahorros.get(gid, 0)
-
-        prest = dict_prestamos.get(gid, {"activos": 0, "mora": 0})
-        activos = prest["activos"]
-        mora = prest["mora"]
-
-        # Calcular porcentaje de mora
-        total_pres = activos + mora
-        mora_pct = (mora / total_pres * 100) if total_pres > 0 else 0
-
-        # Estado visual
-        estado = obtener_estado_grupo(mora_pct)
-
-        tabla.append({
-            "Grupo": g["Nombre_grupo"],
-            "Miembros": socias,
-            "Caja": f"${caja:,.2f}",
-            "Ahorro": f"${ahorros:,.2f}",
-            "Préstamos activos": activos,
-            "Préstamos en mora": mora,
-            "Mora (%)": f"{mora_pct:.1f}%",
-            "Estado": estado
-        })
-
-    st.dataframe(tabla, hide_index=True)
 
 
-# ============================================================
-# FUNCIÓN PARA OBTENER EL ESTADO VISUAL DEL GRUPO
-# ============================================================
-def obtener_estado_grupo(mora_pct):
+# =====================================================
+#   VALIDAR CAJA
+# =====================================================
 
-    if mora_pct >= 20:
-        return "🔴 Alta mora"
-    elif mora_pct >= 10:
-        return "🟡 Mora moderada"
-    else:
-        return "🟢 Estable"
-# ============================================================
-# SECCIÓN 3 — VISTA DE GRUPOS
-# ============================================================
+def validar_caja(id_grupo, id_promotora):
 
-def vista_grupos(id_promotora):
+    st.subheader("💰 Validación de Caja por reunión")
 
     con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
+    cur = con.cursor(dictionary=True)
 
-    # ------------------------------------------------------------
-    # 1. GRUPOS SUPERVISADOS POR LA PROMOTORA
-    # ------------------------------------------------------------
-    cursor.execute("""
-        SELECT Id_Grupo, Nombre_grupo, Fecha_inicio, Id_Distrito
-        FROM Grupo
-        WHERE Id_Promotora = %s
-    """, (id_promotora,))
-    grupos = cursor.fetchall()
-
-    if not grupos:
-        st.warning("No tienes grupos asignados actualmente.")
-        return
-
-    # Selector de grupo
-    opciones = {g["Nombre_grupo"]: g["Id_Grupo"] for g in grupos}
-    nombre_sel = st.selectbox("Seleccione un grupo:", opciones.keys())
-    id_grupo = opciones[nombre_sel]
-
-    # ------------------------------------------------------------
-    # Cargar datos principales del grupo
-    # ------------------------------------------------------------
-    cursor.execute("SELECT * FROM Grupo WHERE Id_Grupo = %s", (id_grupo,))
-    grupo = cursor.fetchone()
-
-    # Obtener total de socias
-    cursor.execute("SELECT COUNT(*) AS total FROM Socia WHERE Id_Grupo = %s", (id_grupo,))
-    socias_total = cursor.fetchone()["total"]
-
-    # Ahorro total del grupo
-    cursor.execute("SELECT SUM(Monto) AS total FROM Ahorro WHERE Id_Grupo = %s", (id_grupo,))
-    ahorro_total = cursor.fetchone()["total"] or 0
-
-    # Caja total del grupo (suma de saldos finales)
-    cursor.execute("SELECT SUM(saldo_final) AS total FROM caja_reunion WHERE Id_Grupo = %s", (id_grupo,))
-    caja_total = cursor.fetchone()["total"] or 0
-
-    # Préstamos activos y en mora
-    cursor.execute("""
-        SELECT 
-            SUM(CASE WHEN Estado = 'Activo' THEN 1 ELSE 0 END) AS activos,
-            SUM(CASE WHEN Estado = 'Mora' THEN 1 ELSE 0 END) AS mora,
-            SUM(CASE WHEN Estado = 'Liquidado' THEN 1 ELSE 0 END) AS liquidados
-        FROM Prestamo
-        WHERE Id_Grupo = %s
-    """, (id_grupo,))
-    prest_data = cursor.fetchone()
-
-    cursor.close()
-    con.close()
-
-    # ------------------------------------------------------------
-    # RESUMEN DEL GRUPO
-    # ------------------------------------------------------------
-    st.markdown("### 📝 Resumen del grupo seleccionado")
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Miembros", socias_total)
-    col2.metric("Caja total", f"${caja_total:,.2f}")
-    col3.metric("Ahorro total", f"${ahorro_total:,.2f}")
-
-    col4, col5, col6 = st.columns(3)
-    col4.metric("Préstamos activos", prest_data["activos"])
-    col5.metric("En mora", prest_data["mora"])
-    col6.metric("Liquidados", prest_data["liquidados"])
-
-    st.markdown("---")
-
-    # ============================================================
-    # DETALLES DEL GRUPO — ACORDEÓN
-    # ============================================================
-
-    with st.expander("👥 Miembros y Ahorros"):
-        mostrar_ahorros_grupo(id_grupo)
-
-    with st.expander("📘 Préstamos del grupo"):
-        mostrar_prestamos_grupo(id_grupo)
-
-    with st.expander("💰 Caja y movimientos"):
-        mostrar_caja_grupo(id_grupo)
-
-    with st.expander("⚠ Multas aplicadas"):
-        mostrar_multas_grupo(id_grupo)
-
-    with st.expander("🗓 Asistencias y reuniones"):
-        mostrar_asistencias_grupo(id_grupo)
-
-    with st.expander("🔵 Estado del ciclo"):
-        mostrar_ciclo_grupo(id_grupo)
-
-
-
-# ============================================================
-# SUBSECCIONES DE DETALLES
-# ============================================================
-
-def mostrar_ahorros_grupo(id_grupo):
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    cursor.execute("""
-        SELECT s.Nombre AS Socia, a.Monto, a.Fecha_aporte
-        FROM Ahorro a
-        JOIN Socia s ON s.Id_Socia = a.Id_Socia
-        WHERE a.Id_Grupo = %s
-        ORDER BY a.Fecha_aporte DESC
-    """, (id_grupo,))
-    datos = cursor.fetchall()
-
-    cursor.close()
-    con.close()
-
-    if not datos:
-        st.info("No hay registros de ahorro.")
-        return
-
-    st.dataframe(datos, hide_index=True)
-
-
-
-def mostrar_prestamos_grupo(id_grupo):
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    cursor.execute("""
-        SELECT s.Nombre AS Socia, p.Monto, p.Interes, p.Cuota,
-               p.Estado, p.Fecha_inicio, p.Fecha_limite
-        FROM Prestamo p
-        JOIN Socia s ON s.Id_Socia = p.Id_Socia
-        WHERE p.Id_Grupo = %s
-        ORDER BY p.Fecha_inicio DESC
-    """, (id_grupo,))
-    datos = cursor.fetchall()
-
-    cursor.close()
-    con.close()
-
-    st.dataframe(datos, hide_index=True)
-
-
-
-def mostrar_caja_grupo(id_grupo):
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    cursor.execute("""
+    cur.execute("""
         SELECT fecha, saldo_inicial, ingresos, egresos, saldo_final
         FROM caja_reunion
         WHERE Id_Grupo = %s
         ORDER BY fecha DESC
     """, (id_grupo,))
-    datos = cursor.fetchall()
+    datos = cur.fetchall()
 
-    cursor.close()
-    con.close()
+    if not datos:
+        st.info("No existen registros de caja para este grupo.")
+        return
 
     st.dataframe(datos, hide_index=True)
 
+    observ = st.text_area("Observaciones", "")
+
+    if st.button("Validar Caja", type="primary"):
+        cur.execute("""
+            INSERT INTO Validaciones (Id_Grupo, Id_Promotora, Tipo, Fecha_validacion, Estado, Observaciones)
+            VALUES (%s, %s, 'Caja', NOW(), 'Validado', %s)
+        """, (id_grupo, id_promotora, observ))
+        con.commit()
+        st.success("Caja validada exitosamente.")
+
+    cur.close()
+    con.close()
 
 
-def mostrar_multas_grupo(id_grupo):
+
+# =====================================================
+#   VALIDAR PRÉSTAMOS
+# =====================================================
+
+def validar_prestamos(id_grupo, id_promotora):
+
+    st.subheader("📘 Validación de Préstamos")
+
     con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
+    cur = con.cursor(dictionary=True)
 
-    cursor.execute("""
+    cur.execute("""
+        SELECT s.Nombre AS Socia, p.Monto, p.Interes_porcentaje, p.Cuota,
+               p.Estado_del_prestamo, p.Fecha_inicio, p.Fecha_limite
+        FROM Prestamo p
+        JOIN Socia s ON s.Id_Socia = p.Id_Socia
+        WHERE p.Id_Grupo = %s
+        ORDER BY p.Fecha_inicio DESC
+    """, (id_grupo,))
+    datos = cur.fetchall()
+
+    st.dataframe(datos, hide_index=True)
+
+    observ = st.text_area("Observaciones del préstamo", "")
+
+    if st.button("Validar Préstamos", type="primary"):
+        cur.execute("""
+            INSERT INTO Validaciones (Id_Grupo, Id_Promotora, Tipo, Fecha_validacion, Estado, Observaciones)
+            VALUES (%s, %s, 'Prestamos', NOW(), 'Validado', %s)
+        """, (id_grupo, id_promotora, observ))
+        con.commit()
+        st.success("Préstamos validados correctamente.")
+
+    cur.close()
+    con.close()
+
+
+
+# =====================================================
+#   VALIDAR MULTAS
+# =====================================================
+
+def validar_multas(id_grupo, id_promotora):
+
+    st.subheader("⚠ Validación de Multas")
+
+    con = obtener_conexion()
+    cur = con.cursor(dictionary=True)
+
+    cur.execute("""
         SELECT s.Nombre AS Socia, t.Tipo_de_multa, m.Monto, m.Fecha_aplicacion
         FROM Multa m
         JOIN Socia s ON s.Id_Socia = m.Id_Socia
@@ -399,760 +590,876 @@ def mostrar_multas_grupo(id_grupo):
         WHERE m.Id_Grupo = %s
         ORDER BY m.Fecha_aplicacion DESC
     """, (id_grupo,))
-    datos = cursor.fetchall()
-
-    cursor.close()
-    con.close()
+    datos = cur.fetchall()
 
     st.dataframe(datos, hide_index=True)
 
+    observ = st.text_area("Observaciones de multas", "")
+
+    if st.button("Validar Multas", type="primary"):
+        cur.execute("""
+            INSERT INTO Validaciones (Id_Grupo, Id_Promotora, Tipo, Fecha_validacion, Estado, Observaciones)
+            VALUES (%s, %s, 'Multas', NOW(), 'Validado', %s)
+        """, (id_grupo, id_promotora, observ))
+        con.commit()
+        st.success("Multas validadas.")
+
+    cur.close()
+    con.close()
 
 
-def mostrar_asistencias_grupo(id_grupo):
+
+# =====================================================
+#   VALIDAR AHORROS
+# =====================================================
+
+def validar_ahorros(id_grupo, id_promotora):
+
+    st.subheader("🏦 Validación de Ahorros")
+
     con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
+    cur = con.cursor(dictionary=True)
 
-    cursor.execute("""
-        SELECT r.fecha, s.Nombre AS Socia, a.estado_asistencia
-        FROM Asistencia a
-        JOIN Reunion r ON r.Id_Reunion = a.Id_Reunion
+    cur.execute("""
+        SELECT s.Nombre AS Socia, SUM(a.Monto_del_aporte) AS Total_Ahorro
+        FROM Ahorro a
         JOIN Socia s ON s.Id_Socia = a.Id_Socia
         WHERE a.Id_Grupo = %s
-        ORDER BY r.fecha DESC
+        GROUP BY s.Id_Socia
+        ORDER BY Total_Ahorro DESC
     """, (id_grupo,))
-    datos = cursor.fetchall()
-
-    cursor.close()
-    con.close()
+    datos = cur.fetchall()
 
     st.dataframe(datos, hide_index=True)
 
+    observ = st.text_area("Observaciones del ahorro", "")
+
+    if st.button("Validar Ahorros", type="primary"):
+        cur.execute("""
+            INSERT INTO Validaciones (Id_Grupo, Id_Promotora, Tipo, Fecha_validacion, Estado, Observaciones)
+            VALUES (%s, %s, 'Ahorros', NOW(), 'Validado', %s)
+        """, (id_grupo, id_promotora, observ))
+        con.commit()
+        st.success("Ahorros validados.")
+
+    cur.close()
+    con.close()
 
 
-def mostrar_ciclo_grupo(id_grupo):
+
+# =====================================================
+#   VALIDAR CICLO
+# =====================================================
+
+def validar_ciclo(id_grupo, id_promotora):
+
+    st.subheader("🔵 Validación del Ciclo")
+
     con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
+    cur = con.cursor(dictionary=True)
 
-    cursor.execute("""
+    cur.execute("""
         SELECT Fecha_inicio, Fecha_fin, Estado
-        FROM Ciclo
-        WHERE Id_Grupo = %s
-        ORDER BY Fecha_inicio DESC
-    """, (id_grupo,))
-    datos = cursor.fetchall()
-
-    cursor.close()
-    con.close()
-
-    st.dataframe(datos, hide_index=True)
-# ============================================================
-# SECCIÓN 4 — VALIDACIONES FINANCIERAS
-# ============================================================
-
-def validaciones_financieras(id_promotora):
-
-    st.write("### ✔ Validación de Información Financiera y Técnica")
-
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    # ------------------------------------------------------------
-    # 1. GRUPOS DE LA PROMOTORA
-    # ------------------------------------------------------------
-    cursor.execute("""
-        SELECT Id_Grupo, Nombre_grupo
-        FROM Grupo
-        WHERE Id_Promotora = %s
-    """, (id_promotora,))
-    grupos = cursor.fetchall()
-
-    if not grupos:
-        st.warning("No hay grupos asignados.")
-        return
-
-    grupos_dict = {g["Nombre_grupo"]: g["Id_Grupo"] for g in grupos}
-
-    grupo_sel = st.selectbox("Seleccione un grupo para validar:", grupos_dict.keys())
-    id_grupo = grupos_dict[grupo_sel]
-
-    st.markdown("---")
-
-    # Panel de validación
-    tipo_validacion = st.radio(
-        "Seleccione el tipo de validación:",
-        ["Caja", "Préstamos", "Multas", "Cierre de ciclo"],
-        horizontal=True
-    )
-
-    # ------------------------------------------------------------
-    # VALIDAR CAJA
-    # ------------------------------------------------------------
-    if tipo_validacion == "Caja":
-        validar_caja(id_grupo, id_promotora)
-
-    # ------------------------------------------------------------
-    # VALIDAR PRÉSTAMOS
-    # ------------------------------------------------------------
-    elif tipo_validacion == "Préstamos":
-        validar_prestamos(id_grupo, id_promotora)
-
-    # ------------------------------------------------------------
-    # VALIDAR MULTAS
-    # ------------------------------------------------------------
-    elif tipo_validacion == "Multas":
-        validar_multas(id_grupo, id_promotora)
-
-    # ------------------------------------------------------------
-    # VALIDAR CIERRE
-    # ------------------------------------------------------------
-    elif tipo_validacion == "Cierre de ciclo":
-        validar_cierre(id_grupo, id_promotora)
-
-    cursor.close()
-    con.close()
-
-
-
-# ============================================================
-# VALIDAR CAJA
-# ============================================================
-def validar_caja(id_grupo, id_promotora):
-
-    st.subheader("💰 Validación de Caja")
-
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    cursor.execute("""
-        SELECT fecha, saldo_inicial, ingresos, egresos, saldo_final
-        FROM caja_reunion
-        WHERE Id_Grupo = %s
-        ORDER BY fecha DESC
-    """, (id_grupo,))
-    registros = cursor.fetchall()
-
-    st.dataframe(registros, hide_index=True)
-
-    observ = st.text_area("Observaciones:")
-
-    if st.button("Marcar como validado", type="primary"):
-        cursor.execute("""
-            INSERT INTO Validaciones(Id_Grupo, Id_Promotora, Tipo, Fecha_validacion, Estado, Observaciones)
-            VALUES(%s, %s, 'Caja', NOW(), 'Validado', %s)
-        """, (id_grupo, id_promotora, observ))
-        con.commit()
-        st.success("Caja validada exitosamente.")
-
-    cursor.close()
-    con.close()
-
-
-
-# ============================================================
-# VALIDAR PRÉSTAMOS
-# ============================================================
-def validar_prestamos(id_grupo, id_promotora):
-
-    st.subheader("📘 Validación de Préstamos")
-
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    cursor.execute("""
-        SELECT s.Nombre, p.Monto, p.Interes, p.Cuota, p.Estado, p.Fecha_inicio
-        FROM Prestamo p
-        JOIN Socia s ON s.Id_Socia = p.Id_Socia
-        WHERE p.Id_Grupo = %s
-    """, (id_grupo,))
-    prestamos = cursor.fetchall()
-
-    st.dataframe(prestamos, hide_index=True)
-
-    observ = st.text_area("Observaciones:")
-
-    if st.button("Validar préstamos", type="primary"):
-        cursor.execute("""
-            INSERT INTO Validaciones(Id_Grupo, Id_Promotora, Tipo, Fecha_validacion, Estado, Observaciones)
-            VALUES(%s, %s, 'Prestamos', NOW(), 'Validado', %s)
-        """, (id_grupo, id_promotora, observ))
-        con.commit()
-        st.success("Préstamos validados correctamente.")
-
-    cursor.close()
-    con.close()
-
-
-
-# ============================================================
-# VALIDAR MULTAS
-# ============================================================
-def validar_multas(id_grupo, id_promotora):
-
-    st.subheader("⚠ Validación de Multas")
-
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    cursor.execute("""
-        SELECT s.Nombre, t.Tipo_de_multa, m.Monto, m.Fecha_aplicacion
-        FROM Multa m
-        JOIN Socia s ON s.Id_Socia = m.Id_Socia
-        JOIN Tipo_de_multa t ON t.Id_Tipo_multa = m.Id_Tipo_multa
-        WHERE m.Id_Grupo = %s
-    """, (id_grupo,))
-    multas = cursor.fetchall()
-
-    st.dataframe(multas, hide_index=True)
-
-    observ = st.text_area("Observaciones:")
-
-    if st.button("Validar multas", type="primary"):
-        cursor.execute("""
-            INSERT INTO Validaciones(Id_Grupo, Id_Promotora, Tipo, Fecha_validacion, Estado, Observaciones)
-            VALUES(%s, %s, 'Multas', NOW(), 'Validado', %s)
-        """, (id_grupo, id_promotora, observ))
-        con.commit()
-        st.success("Multas validadas con éxito.")
-
-    cursor.close()
-    con.close()
-
-
-
-# ============================================================
-# VALIDAR CIERRE DE CICLO
-# ============================================================
-def validar_cierre(id_grupo, id_promotora):
-
-    st.subheader("🔵 Validación de Cierre de Ciclo")
-
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    cursor.execute("""
-        SELECT Fecha_inicio, Fecha_fin, Estado
-        FROM Ciclo
+        FROM ciclo
         WHERE Id_Grupo = %s
         ORDER BY Fecha_inicio DESC
         LIMIT 1
     """, (id_grupo,))
-    ciclo = cursor.fetchone()
+    ciclo = cur.fetchone()
 
     if ciclo:
-        st.write("### Estado del ciclo:")
         st.write(ciclo)
     else:
-        st.info("Este grupo no tiene un ciclo registrado.")
+        st.info("Este grupo no tiene ciclo registrado.")
 
-    observ = st.text_area("Observaciones del cierre:")
+    observ = st.text_area("Observaciones del ciclo", "")
 
-    if st.button("Validar cierre de ciclo", type="primary"):
-        cursor.execute("""
-            INSERT INTO Validaciones(Id_Grupo, Id_Promotora, Tipo, Fecha_validacion, Estado, Observaciones)
-            VALUES(%s, %s, 'Ciclo', NOW(), 'Validado', %s)
+    if st.button("Validar Ciclo", type="primary"):
+        cur.execute("""
+            INSERT INTO Validaciones (Id_Grupo, Id_Promotora, Tipo, Fecha_validacion, Estado, Observaciones)
+            VALUES (%s, %s, 'Ciclo', NOW(), 'Validado', %s)
         """, (id_grupo, id_promotora, observ))
         con.commit()
-        st.success("Cierre de ciclo validado correctamente.")
+        st.success("Ciclo validado correctamente.")
 
-    cursor.close()
+    cur.close()
     con.close()
-# ============================================================
-# SECCIÓN 5 — REPORTES PDF + EXCEL
-# ============================================================
+# =====================================================
+#   GESTIÓN COMPLETA DE GRUPOS PARA PROMOTORA
+# =====================================================
 
-import io
-import pandas as pd
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
+def gestionar_grupos(promotora):
 
+    # -------------------------------------------------
+    # Si el usuario ya seleccionó un grupo → mostrar detalles
+    # -------------------------------------------------
+    if "grupo_seleccionado" in st.session_state:
+        mostrar_detalle_grupo(st.session_state["grupo_seleccionado"])
+        return
 
-def reportes_consolidados(id_promotora):
-
-    st.write("### 📑 Reportes Consolidados del Distrito")
+    st.subheader("📁 Grupos asignados a la Promotora")
 
     con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
+    cur = con.cursor(dictionary=True)
 
-    # ------------------------------------------------------------
-    # GRUPOS SUPERVISADOS
-    # ------------------------------------------------------------
-    cursor.execute("""
+    # ID del empleado que es promotora
+    id_promotora = promotora["Id_Empleado"]
+
+    # -------------------------------------------------
+    # OBTENER TODOS LOS GRUPOS ASIGNADOS A ESTA PROMOTORA
+    # -------------------------------------------------
+    cur.execute("""
+        SELECT g.*, d.Nombre AS Distrito
+        FROM Grupo g
+        JOIN Distrito d ON d.Id_Distrito = g.Id_Distrito
+        WHERE g.Id_Promotora = %s
+        ORDER BY g.Nombre_grupo ASC
+    """, (id_promotora,))
+    grupos = cur.fetchall()
+
+    if not grupos:
+        st.warning("No tiene grupos asignados actualmente.")
+        return
+
+    # -------------------------------------------------
+    # RESUMEN GENERAL
+    # -------------------------------------------------
+    st.success(f"Total grupos asignados: {len(grupos)}")
+    st.markdown("---")
+
+    # -------------------------------------------------
+    # MOSTRAR CADA GRUPO EN EXPANDER
+    # -------------------------------------------------
+    for g in grupos:
+        with st.expander(f"📌 {g['Nombre_grupo']}"):
+
+            # INFORMACIÓN GENERAL
+            st.write(f"**Distrito:** {g['Distrito']}")
+            st.write(f"**Fecha de inicio:** {g['Fecha_inicio']}")
+            st.write(f"**Tasa de interés:** {g['Tasa_de_interes']}%")
+            st.write(f"**Periodicidad:** {g['Periodicidad_reuniones']} días")
+
+            # -------------------------------------------------
+            # RESUMEN FINANCIERO (Caja, Préstamos, Multas)
+            # -------------------------------------------------
+
+            st.markdown("### 💰 Resumen financiero")
+
+            # Caja (último saldo)
+            cur.execute("""
+                SELECT saldo_final 
+                FROM caja_reunion
+                WHERE Id_Grupo = %s
+                ORDER BY fecha DESC LIMIT 1
+            """, (g["Id_Grupo"],))
+            caja = cur.fetchone()
+            saldo = caja["saldo_final"] if caja else 0
+            st.write(f"**Saldo de caja actual:** ${saldo:,.2f}")
+
+            # Préstamos activos
+            cur.execute("""
+                SELECT COUNT(*) AS total
+                FROM Prestamo
+                WHERE Id_Grupo = %s AND Estado_del_prestamo = 'Activo'
+            """, (g["Id_Grupo"],))
+            prestamos = cur.fetchone()["total"]
+            st.write(f"**Préstamos activos:** {prestamos}")
+
+            # Multas aplicadas
+            cur.execute("""
+                SELECT COUNT(*) AS total
+                FROM Multa
+                WHERE Id_Grupo = %s
+            """, (g["Id_Grupo"],))
+            multas = cur.fetchone()["total"]
+            st.write(f"**Multas aplicadas:** {multas}")
+
+            # -------------------------------------------------
+            # BOTÓN PARA ABRIR EL DETALLE DEL GRUPO
+            # -------------------------------------------------
+
+            st.markdown("### 📂 Acciones disponibles")
+
+            if st.button(f"Ver detalles de {g['Nombre_grupo']}", key=f"ver_det_{g['Id_Grupo']}"):
+                st.session_state["grupo_seleccionado"] = g["Id_Grupo"]
+                st.experimental_rerun()
+
+    cur.close()
+    con.close()
+# =====================================================
+#   REPORTES COMPLETOS PARA PROMOTORA
+# =====================================================
+
+def reportes_consolidados(promotora):
+
+    st.subheader("📄 Generación de Reportes")
+
+    con = obtener_conexion()
+    cur = con.cursor(dictionary=True)
+
+    # Obtener grupos de la promotora
+    cur.execute("""
         SELECT Id_Grupo, Nombre_grupo
         FROM Grupo
         WHERE Id_Promotora = %s
-    """, (id_promotora,))
-    grupos = cursor.fetchall()
+        ORDER BY Nombre_grupo ASC
+    """, (promotora["Id_Empleado"],))
+    grupos = cur.fetchall()
 
     if not grupos:
-        st.warning("No tienes grupos asignados.")
+        st.warning("No tiene grupos asignados.")
         return
 
     grupos_dict = {g["Nombre_grupo"]: g["Id_Grupo"] for g in grupos}
 
-    grupo_sel = st.selectbox("Seleccione un grupo:", grupos_dict.keys())
-    id_grupo = grupos_dict[grupo_sel]
-
-    st.markdown("---")
-
-    # Tipo de reporte
-    tipo = st.radio(
+    tipo_reporte = st.radio(
         "Seleccione el tipo de reporte:",
-        ["Caja", "Préstamos", "Ahorros", "Asistencia"],
+        ["Reporte del Distrito", "Reporte por Grupo"],
         horizontal=True
     )
 
-    if tipo == "Caja":
-        generar_reporte_caja(id_grupo)
+    if tipo_reporte == "Reporte del Distrito":
+        reporte_distrito(promotora)
 
-    elif tipo == "Préstamos":
-        generar_reporte_prestamos(id_grupo)
+    else:
+        grupo_sel = st.selectbox("Seleccione el grupo:", grupos_dict.keys())
+        id_grupo = grupos_dict[grupo_sel]
+        reporte_grupo(id_grupo, grupo_sel)
+# =====================================================
+#   REPORTE CONSOLIDADO DEL DISTRITO
+# =====================================================
 
-    elif tipo == "Ahorros":
-        generar_reporte_ahorro(id_grupo)
+def reporte_distrito(promotora):
 
-    elif tipo == "Asistencia":
-        generar_reporte_asistencia(id_grupo)
-
-    cursor.close()
-    con.close()
-
-
-# ============================================================
-# REPORTE CAJA (PDF y Excel)
-# ============================================================
-def generar_reporte_caja(id_grupo):
-
-    st.subheader("💰 Reporte de Caja")
+    st.markdown("### 📊 Reporte consolidado del Distrito")
 
     con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
+    cur = con.cursor(dictionary=True)
 
-    cursor.execute("""
+    id_promotora = promotora["Id_Empleado"]
+
+    # 1) Socias totales
+    cur.execute("""
+        SELECT COUNT(*) AS total
+        FROM Socia s
+        JOIN Grupo g ON g.Id_Grupo = s.Id_Grupo
+        WHERE g.Id_Promotora = %s
+    """, (id_promotora,))
+    total_socias = cur.fetchone()["total"]
+
+    # 2) Ahorro total
+    cur.execute("""
+        SELECT SUM(a.Monto_del_aporte) AS total
+        FROM Ahorro a
+        JOIN Grupo g ON g.Id_Grupo = a.Id_Grupo
+        WHERE g.Id_Promotora = %s
+    """, (id_promotora,))
+    ahorro_total = cur.fetchone()["total"] or 0
+
+    # 3) Préstamos activos
+    cur.execute("""
+        SELECT COUNT(*) AS total
+        FROM Prestamo p
+        JOIN Grupo g ON g.Id_Grupo = p.Id_Grupo
+        WHERE g.Id_Promotora = %s AND p.Estado_del_prestamo='Activo'
+    """, (id_promotora,))
+    prestamos_activos = cur.fetchone()["total"]
+
+    st.write(f"**Total de socias:** {total_socias}")
+    st.write(f"**Ahorro total:** ${ahorro_total:,.2f}")
+    st.write(f"**Préstamos activos:** {prestamos_activos}")
+
+    st.markdown("---")
+
+    # -------------------------------
+    #  BOTONES DE EXPORTACIÓN
+    # -------------------------------
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("📄 Exportar PDF del Distrito"):
+            pdf = generar_pdf_distrito(promotora, total_socias, ahorro_total, prestamos_activos)
+            st.download_button(
+                label="Descargar PDF",
+                data=pdf,
+                file_name="Reporte_Distrito.pdf",
+                mime="application/pdf"
+            )
+
+    with col2:
+        if st.button("📊 Exportar Excel del Distrito"):
+            excel = generar_excel_distrito(promotora["Id_Empleado"])
+            st.download_button(
+                label="Descargar Excel",
+                data=excel,
+                file_name="Reporte_Distrito.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+def generar_pdf_distrito(promotora, total_socias, ahorro_total, prestamos_activos):
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+
+    styles = getSampleStyleSheet()
+    elementos = []
+
+    titulo = Paragraph(f"<b>Reporte Consolidado del Distrito</b>", styles["Title"])
+    elementos.append(titulo)
+
+    elementos.append(Paragraph(f"Promotora: {promotora['Nombre_empleado']}", styles["Normal"]))
+    elementos.append(Paragraph(f"Correo: {promotora['Correo']}", styles["Normal"]))
+    elementos.append(Paragraph("<br/>", styles["Normal"]))
+
+    data = [
+        ["Indicador", "Valor"],
+        ["Total Socias", total_socias],
+        ["Ahorro Total ($)", f"{ahorro_total:,.2f}"],
+        ["Préstamos Activos", prestamos_activos]
+    ]
+
+    tabla = Table(data)
+    tabla.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightblue),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("GRID", (0, 0), (-1, -1), 1, colors.black)
+    ]))
+
+    elementos.append(tabla)
+
+    doc.build(elementos)
+    buffer.seek(0)
+    return buffer
+def generar_excel_distrito(id_promotora):
+
+    con = obtener_conexion()
+    cur = con.cursor(dictionary=True)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Resumen"
+
+    # Datos de socias
+    cur.execute("""
+        SELECT s.Nombre, s.Telefono, s.Fecha_ingreso, g.Nombre_grupo
+        FROM Socia s
+        JOIN Grupo g ON g.Id_Grupo = s.Id_Grupo
+        WHERE g.Id_Promotora = %s
+    """, (id_promotora,))
+    socias = cur.fetchall()
+
+    ws.append(["Nombre", "Telefono", "Fecha de ingreso", "Grupo"])
+    for s in socias:
+        ws.append([s["Nombre"], s["Telefono"], s["Fecha_ingreso"], s["Nombre_grupo"]])
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output
+# =====================================================
+#   REPORTE COMPLETO POR GRUPO
+# =====================================================
+
+def reporte_grupo(id_grupo, nombre_grupo):
+
+    st.markdown(f"### 📘 Reporte completo del grupo: {nombre_grupo}")
+
+    con = obtener_conexion()
+    cur = con.cursor(dictionary=True)
+
+    # --------------------------------------------------
+    # 1) Caja
+    # --------------------------------------------------
+    cur.execute("""
         SELECT fecha, saldo_inicial, ingresos, egresos, saldo_final
         FROM caja_reunion
         WHERE Id_Grupo = %s
-        ORDER BY fecha DESC
+        ORDER BY fecha ASC
     """, (id_grupo,))
-    datos = cursor.fetchall()
+    caja = cur.fetchall()
 
-    cursor.close()
-    con.close()
+    df_caja = pd.DataFrame(caja)
 
-    if not datos:
-        st.info("No existen registros de caja para este grupo.")
-        return
+    # --------------------------------------------------
+    # 2) Ahorros
+    # --------------------------------------------------
+    cur.execute("""
+        SELECT s.Nombre AS Socia, a.Monto_del_aporte, a.Fecha
+        FROM Ahorro a
+        JOIN Socia s ON s.Id_Socia = a.Id_Socia
+        WHERE a.Id_Grupo = %s
+        ORDER BY a.Fecha DESC
+    """, (id_grupo,))
+    ahorros = cur.fetchall()
 
-    df = pd.DataFrame(datos)
+    df_ahorros = pd.DataFrame(ahorros)
 
-    st.dataframe(df, hide_index=True)
-
-    # ------------------------------------------------------------
-    # DESCARGAR EXCEL
-    # ------------------------------------------------------------
-    excel_buffer = io.BytesIO()
-    with pd.ExcelWriter(excel_buffer, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False, sheet_name="Caja")
-
-    st.download_button(
-        "📥 Descargar Excel",
-        data=excel_buffer.getvalue(),
-        file_name="Reporte_Caja.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-    # ------------------------------------------------------------
-    # DESCARGAR PDF
-    # ------------------------------------------------------------
-    pdf_buffer = io.BytesIO()
-    c = canvas.Canvas(pdf_buffer, pagesize=letter)
-
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, 760, "Reporte de Caja")
-
-    c.setFont("Helvetica", 10)
-    y = 730
-    for _, row in df.iterrows():
-        texto = f"{row['fecha']} | Inicial: {row['saldo_inicial']} | Ing: {row['ingresos']} | Egr: {row['egresos']} | Final: {row['saldo_final']}"
-        c.drawString(50, y, texto)
-        y -= 18
-        if y < 50:
-            c.showPage()
-            y = 750
-
-    c.save()
-
-    st.download_button(
-        "📄 Descargar PDF",
-        data=pdf_buffer.getvalue(),
-        file_name="Reporte_Caja.pdf",
-        mime="application/pdf"
-    )
-
-
-
-# ============================================================
-# REPORTE PRÉSTAMOS
-# ============================================================
-def generar_reporte_prestamos(id_grupo):
-
-    st.subheader("📘 Reporte de Préstamos")
-
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    cursor.execute("""
-        SELECT s.Nombre AS Socia, p.Monto, p.Interes, p.Cuota, 
-               p.Estado, p.Fecha_inicio, p.Fecha_limite
+    # --------------------------------------------------
+    # 3) Préstamos
+    # --------------------------------------------------
+    cur.execute("""
+        SELECT s.Nombre AS Socia, p.Monto, p.Interes_porcentaje,
+               p.Cuota, p.Estado_del_prestamo,
+               p.Fecha_inicio, p.Fecha_limite
         FROM Prestamo p
         JOIN Socia s ON s.Id_Socia = p.Id_Socia
         WHERE p.Id_Grupo = %s
         ORDER BY p.Fecha_inicio DESC
     """, (id_grupo,))
-    datos = cursor.fetchall()
+    prest = cur.fetchall()
 
-    cursor.close()
-    con.close()
+    df_prest = pd.DataFrame(prest)
 
-    if not datos:
-        st.info("No existen préstamos registrados.")
-        return
-
-    df = pd.DataFrame(datos)
-    st.dataframe(df, hide_index=True)
-
-    # Excel
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False, sheet_name="Prestamos")
-
-    st.download_button(
-        "📥 Descargar Excel",
-        data=buffer.getvalue(),
-        file_name="Reporte_Prestamos.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-    # PDF
-    pdf_buffer = io.BytesIO()
-    c = canvas.Canvas(pdf_buffer, pagesize=letter)
-
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, 760, "Reporte de Préstamos del Grupo")
-
-    c.setFont("Helvetica", 10)
-    y = 730
-    for _, row in df.iterrows():
-        texto = f"{row['Socia']} | ${row['Monto']} | {row['Estado']}"
-        c.drawString(50, y, texto)
-        y -= 18
-        if y < 60:
-            c.showPage()
-            y = 750
-
-    c.save()
-
-    st.download_button(
-        "📄 Descargar PDF",
-        data=pdf_buffer.getvalue(),
-        file_name="Reporte_Prestamos.pdf",
-        mime="application/pdf"
-    )
-
-
-
-# ============================================================
-# REPORTE AHORROS
-# ============================================================
-def generar_reporte_ahorro(id_grupo):
-
-    st.subheader("🏦 Reporte de Ahorros")
-
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    cursor.execute("""
-        SELECT s.Nombre AS Socia, a.Monto, a.Fecha_aporte
-        FROM Ahorro a
-        JOIN Socia s ON s.Id_Socia = a.Id_Socia
-        WHERE a.Id_Grupo = %s
-        ORDER BY a.Fecha_aporte DESC
+    # --------------------------------------------------
+    # 4) Multas
+    # --------------------------------------------------
+    cur.execute("""
+        SELECT s.Nombre AS Socia, t.Tipo_de_multa, m.Monto, m.Fecha_aplicacion
+        FROM Multa m
+        JOIN Socia s ON s.Id_Socia = m.Id_Socia
+        JOIN Tipo_de_multa t ON t.Id_Tipo_multa = m.Id_Tipo_multa
+        WHERE m.Id_Grupo = %s
+        ORDER BY m.Fecha_aplicacion DESC
     """, (id_grupo,))
-    datos = cursor.fetchall()
+    multas = cur.fetchall()
 
-    cursor.close()
-    con.close()
+    df_multas = pd.DataFrame(multas)
 
-    if not datos:
-        st.info("No hay ahorros registrados.")
-        return
-
-    df = pd.DataFrame(datos)
-    st.dataframe(df, hide_index=True)
-
-    # Excel
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False, sheet_name="Ahorro")
-
-    st.download_button(
-        "📥 Descargar Excel",
-        data=buffer.getvalue(),
-        file_name="Reporte_Ahorro.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-    # PDF
-    pdf = io.BytesIO()
-    c = canvas.Canvas(pdf, pagesize=letter)
-
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, 760, "Reporte de Ahorros del Grupo")
-
-    c.setFont("Helvetica", 10)
-    y = 730
-    for _, row in df.iterrows():
-        texto = f"{row['Fecha_aporte']} | {row['Socia']} | ${row['Monto']}"
-        c.drawString(50, y, texto)
-        y -= 18
-        if y < 50:
-            c.showPage()
-            y = 750
-
-    c.save()
-
-    st.download_button(
-        "📄 Descargar PDF",
-        data=pdf.getvalue(),
-        file_name="Reporte_Ahorro.pdf",
-        mime="application/pdf"
-    )
-
-
-
-# ============================================================
-# REPORTE ASISTENCIA
-# ============================================================
-def generar_reporte_asistencia(id_grupo):
-
-    st.subheader("🗓 Reporte de Asistencias")
-
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    cursor.execute("""
-        SELECT r.fecha, s.Nombre AS Socia, a.estado_asistencia
+    # --------------------------------------------------
+    # 5) Asistencias
+    # --------------------------------------------------
+    cur.execute("""
+        SELECT a.Fecha_asistencia, s.Nombre AS Socia, a.Estado
         FROM Asistencia a
-        JOIN Reunion r ON r.Id_Reunion = a.Id_Reunion
         JOIN Socia s ON s.Id_Socia = a.Id_Socia
         WHERE a.Id_Grupo = %s
-        ORDER BY r.fecha DESC
+        ORDER BY a.Fecha_asistencia DESC
     """, (id_grupo,))
-    datos = cursor.fetchall()
+    asist = cur.fetchall()
 
-    cursor.close()
-    con.close()
+    df_asist = pd.DataFrame(asist)
 
-    if not datos:
-        st.info("No existen registros de asistencia.")
-        return
-
-    df = pd.DataFrame(datos)
-    st.dataframe(df, hide_index=True)
-
-    # Excel
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False, sheet_name="Asistencia")
-
-    st.download_button(
-        "📥 Descargar Excel",
-        data=buffer.getvalue(),
-        file_name="Reporte_Asistencia.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-    # PDF
-    pdf = io.BytesIO()
-    c = canvas.Canvas(pdf, pagesize=letter)
-
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, 760, "Reporte de Asistencia del Grupo")
-
-    c.setFont("Helvetica", 10)
-    y = 730
-    for _, row in df.iterrows():
-        texto = f"{row['fecha']} | {row['Socia']} | {row['estado_asistencia']}"
-        c.drawString(50, y, texto)
-        y -= 18
-        if y < 60:
-            c.showPage()
-            y = 750
-
-    c.save()
-
-    st.download_button(
-        "📄 Descargar PDF",
-        data=pdf.getvalue(),
-        file_name="Reporte_Asistencia.pdf",
-        mime="application/pdf"
-    )
-# ============================================================
-# SECCIÓN 6 — ALERTAS AUTOMÁTICAS
-# ============================================================
-
-def alertas_criticas(id_promotora):
-
-    st.write("### 🚨 Alertas Automáticas del Distrito")
-
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    # ------------------------------------------------------------
-    # 1. OBTENER GRUPOS ASIGNADOS
-    # ------------------------------------------------------------
-    cursor.execute("""
-        SELECT Id_Grupo, Nombre_grupo
-        FROM Grupo
-        WHERE Id_Promotora = %s
-    """, (id_promotora,))
-    grupos = cursor.fetchall()
-
-    if not grupos:
-        st.info("No tienes grupos asignados.")
-        return
-
-    ids = [g["Id_Grupo"] for g in grupos]
-
-    # ============================================================
-    # ALERTA 1 — MOROSIDAD
-    # ============================================================
-    st.subheader("🔴 Alta Mora / 🟡 Mora Moderada")
-
-    cursor.execute(f"""
-        SELECT Id_Grupo,
-               SUM(CASE WHEN Estado = 'Mora' THEN 1 ELSE 0 END) AS mora,
-               SUM(CASE WHEN Estado IN ('Mora','Activo') THEN 1 ELSE 0 END) AS total
-        FROM Prestamo
-        WHERE Id_Grupo IN ({','.join(['%s']*len(ids))})
-        GROUP BY Id_Grupo
-    """, ids)
-    mora_data = cursor.fetchall()
-
-    alertas_mora = []
-    for row in mora_data:
-        total = row["total"] or 0
-        if total == 0:
-            continue
-        pct = (row["mora"] / total * 100)
-        if pct >= 20:
-            estado = "🔴 Alta mora"
-        elif pct >= 10:
-            estado = "🟡 Mora moderada"
-        else:
-            continue
-        alertas_mora.append({
-            "Id_Grupo": row["Id_Grupo"],
-            "Mora (%)": f"{pct:.1f}%",
-            "Estado": estado
-        })
-    st.dataframe(alertas_mora, hide_index=True)
+    st.success("Datos recopilados correctamente.")
 
     st.markdown("---")
 
-    # ============================================================
-    # ALERTA 2 — CAJA NEGATIVA O INCONSISTENTE
-    # ============================================================
-    st.subheader("💰 Caja Inconsistente o Negativa")
+    # --------------------------------------------------
+    #  BOTONES DE EXPORTACIÓN PDF / EXCEL
+    # --------------------------------------------------
+    col1, col2 = st.columns(2)
 
-    cursor.execute(f"""
-        SELECT Id_Grupo, fecha, saldo_inicial, ingresos, egresos, saldo_final
-        FROM caja_reunion
-        WHERE Id_Grupo IN ({','.join(['%s']*len(ids))})
-        ORDER BY fecha DESC
-    """, ids)
-    caja_rows = cursor.fetchall()
+    with col1:
+        if st.button("📄 Exportar PDF del Grupo"):
+            pdf = generar_pdf_grupo(nombre_grupo, df_caja, df_ahorros, df_prest, df_multas, df_asist)
+            st.download_button(
+                label="Descargar PDF",
+                data=pdf,
+                file_name=f"Reporte_{nombre_grupo}.pdf",
+                mime="application/pdf"
+            )
+
+    with col2:
+        if st.button("📊 Exportar Excel del Grupo"):
+            excel = generar_excel_grupo(nombre_grupo, df_caja, df_ahorros, df_prest, df_multas, df_asist)
+            st.download_button(
+                label="Descargar Excel",
+                data=excel,
+                file_name=f"Reporte_{nombre_grupo}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+def generar_pdf_grupo(nombre_grupo, df_caja, df_ahorros, df_prest, df_multas, df_asist):
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    elementos = []
+
+    # Título
+    elementos.append(Paragraph(f"<b>Reporte del Grupo: {nombre_grupo}</b>", styles["Title"]))
+    elementos.append(Paragraph("<br/>", styles["Normal"]))
+
+    # Función utilidad para convertir DF a tabla
+    def tabla_desde_df(df, titulo):
+        if df.empty:
+            return Paragraph(f"<b>{titulo}:</b> No hay datos.<br/><br/>", styles["Normal"])
+
+        elementos.append(Paragraph(f"<b>{titulo}</b>", styles["Heading2"]))
+        data = [df.columns.tolist()] + df.values.tolist()
+        tabla = Table(data)
+        tabla.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 1, colors.black),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightblue)
+        ]))
+        return tabla
+
+    # Agregar tablas
+    for titulo, df in [
+        ("Caja del Grupo", df_caja),
+        ("Ahorros", df_ahorros),
+        ("Préstamos", df_prest),
+        ("Multas", df_multas),
+        ("Asistencias", df_asist)
+    ]:
+        elementos.append(tabla_desde_df(df, titulo))
+        elementos.append(Paragraph("<br/>", styles["Normal"]))
+
+    doc.build(elementos)
+    buffer.seek(0)
+    return buffer
+def generar_excel_grupo(nombre_grupo, df_caja, df_ahorros, df_prest, df_multas, df_asist):
+
+    wb = Workbook()
+
+    # Crear hoja por cada módulo
+    hojas = {
+        "Caja": df_caja,
+        "Ahorros": df_ahorros,
+        "Prestamos": df_prest,
+        "Multas": df_multas,
+        "Asistencia": df_asist
+    }
+
+    for nombre, df in hojas.items():
+        ws = wb.create_sheet(nombre)
+        if df.empty:
+            ws.append(["No hay datos"])
+        else:
+            ws.append(df.columns.tolist())
+            for row in df.values.tolist():
+                ws.append(row)
+
+    # Eliminar hoja vacía inicial
+    if "Sheet" in wb.sheetnames:
+        del wb["Sheet"]
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output
+# =====================================================
+#   MÓDULO DE ALERTAS AUTOMÁTICAS
+# =====================================================
+
+def modulo_alertas(promotora):
+
+    st.subheader("🔔 Alertas del Distrito")
+
+    con = obtener_conexion()
+    cur = con.cursor(dictionary=True)
+
+    id_promotora = promotora["Id_Empleado"]
+
+    st.info("Las siguientes alertas se generan automáticamente con base en los datos reales del distrito.")
+
+    st.markdown("---")
+
+    # =====================================================
+    #   ALERTA 1 — MOROSIDAD ALTA
+    # =====================================================
+    st.markdown("### 🔴 Morosidad alta")
+
+    cur.execute("""
+        SELECT g.Nombre_grupo, s.Nombre AS Socia, p.Monto, 
+               p.Fecha_limite, p.Estado_del_prestamo
+        FROM Prestamo p
+        JOIN Socia s ON s.Id_Socia = p.Id_Socia
+        JOIN Grupo g ON g.Id_Grupo = s.Id_Grupo
+        WHERE g.Id_Promotora = %s
+          AND p.Estado_del_prestamo = 'En mora'
+        ORDER BY p.Fecha_limite ASC
+    """, (id_promotora,))
+    moras = cur.fetchall()
+
+    if moras:
+        st.error("Existen préstamos en mora.")
+        st.dataframe(moras, hide_index=True)
+    else:
+        st.success("No hay préstamos en mora.")
+
+    st.markdown("---")
+
+    # =====================================================
+    #   ALERTA 2 — CAJA ANÓMALA
+    # =====================================================
+    st.markdown("### 🟠 Caja inconsistente")
+
+    cur.execute("""
+        SELECT g.Nombre_grupo,
+               c.fecha,
+               c.saldo_inicial,
+               c.saldo_final,
+               c.ingresos,
+               c.egresos
+        FROM caja_reunion c
+        JOIN Grupo g ON g.Id_Grupo = c.Id_Grupo
+        WHERE g.Id_Promotora = %s
+        ORDER BY c.fecha DESC
+    """, (id_promotora,))
+    cajas = cur.fetchall()
 
     alertas_caja = []
-    for row in caja_rows:
-        final = float(row["saldo_final"])
-        calc = float(row["saldo_inicial"] + row["ingresos"] - row["egresos"])
+    for c in cajas:
+        # Caja negativa
+        if c["saldo_final"] < 0:
+            alertas_caja.append(c)
+        # Saltos bruscos (más del 40%)
+        if c["saldo_inicial"] > 0:
+            variacion = abs(c["saldo_final"] - c["saldo_inicial"]) / c["saldo_inicial"]
+            if variacion > 0.40:
+                alertas_caja.append(c)
 
-        if final < 0 or abs(final - calc) > 0.01:
-            alertas_caja.append({
-                "Id_Grupo": row["Id_Grupo"],
-                "Fecha": row["fecha"],
-                "Saldo Final": final,
-                "Esperado": calc,
-                "Alerta": "❌ Caja inconsistente"
-            })
-
-    st.dataframe(alertas_caja, hide_index=True)
-
-    st.markdown("---")
-
-    # ============================================================
-    # ALERTA 3 — GASTOS INUSUALES
-    # ============================================================
-    st.subheader("📉 Gastos Inusuales")
-
-    cursor.execute(f"""
-        SELECT Id_Grupo, SUM(Monto) AS total
-        FROM Gastos_grupo
-        WHERE Id_Grupo IN ({','.join(['%s']*len(ids))})
-        GROUP BY Id_Grupo
-    """, ids)
-    gastos = cursor.fetchall()
-    dict_gastos = {row["Id_Grupo"]: float(row["total"]) for row in gastos}
-
-    cursor.execute(f"""
-        SELECT Id_Grupo, SUM(ingresos) AS ingresos
-        FROM caja_reunion
-        WHERE Id_Grupo IN ({','.join(['%s']*len(ids))})
-        GROUP BY Id_Grupo
-    """, ids)
-    ingresos = cursor.fetchall()
-    dict_ingresos = {row["Id_Grupo"]: float(row["ingresos"]) for row in ingresos}
-
-    alertas_gastos = []
-    for gid in ids:
-        g_total = dict_gastos.get(gid, 0)
-        i_total = dict_ingresos.get(gid, 0)
-
-        if g_total > max(i_total * 0.8, 200):  # criterio simple
-            alertas_gastos.append({
-                "Id_Grupo": gid,
-                "Gastos": g_total,
-                "Ingresos": i_total,
-                "Alerta": "⚠ Gastos excesivos"
-            })
-
-    st.dataframe(alertas_gastos, hide_index=True)
+    if alertas_caja:
+        st.warning("Se encontraron anomalías en la caja.")
+        st.dataframe(alertas_caja, hide_index=True)
+    else:
+        st.success("No hay alertas de caja.")
 
     st.markdown("---")
 
-    # ============================================================
-    # ALERTA 4 — CICLO PENDIENTE DE CIERRE
-    # ============================================================
-    st.subheader("🕒 Ciclos Pendientes de Cierre")
+    # =====================================================
+    #   ALERTA 3 — AHORROS BAJOS
+    # =====================================================
+    st.markdown("### 🟡 Ahorros insuficientes o nulos")
 
-    cursor.execute(f"""
-        SELECT Id_Grupo, Fecha_inicio, Fecha_fin, Estado
-        FROM Ciclo
-        WHERE Id_Grupo IN ({','.join(['%s']*len(ids))})
-    """, ids)
-    ciclos = cursor.fetchall()
+    cur.execute("""
+        SELECT g.Nombre_grupo, s.Nombre AS Socia
+        FROM Socia s
+        JOIN Grupo g ON g.Id_Grupo = s.Id_Grupo
+        LEFT JOIN Ahorro a ON a.Id_Socia = s.Id_Socia
+        WHERE g.Id_Promotora = %s
+        GROUP BY s.Id_Socia
+        HAVING SUM(a.Monto_del_aporte) IS NULL
+           OR SUM(a.Monto_del_aporte) = 0
+    """, (id_promotora,))
+    ahorros_bajos = cur.fetchall()
 
-    alertas_ciclo = []
+    if ahorros_bajos:
+        st.warning("Hay socias sin ahorros registrados.")
+        st.dataframe(ahorros_bajos, hide_index=True)
+    else:
+        st.success("Todas las socias tienen algún ahorro registrado.")
+
+    st.markdown("---")
+
+    # =====================================================
+    #   ALERTA 4 — REUNIONES NO REGISTRADAS
+    # =====================================================
+    st.markdown("### 🔵 Grupos sin reuniones recientes")
+
+    cur.execute("""
+        SELECT g.Nombre_grupo, MAX(r.Fecha_reunion) AS ultima
+        FROM Grupo g
+        LEFT JOIN Reunion r ON r.Id_Grupo = g.Id_Grupo
+        WHERE g.Id_Promotora = %s
+        GROUP BY g.Id_Grupo
+    """, (id_promotora,))
+    reuniones = cur.fetchall()
+
+    sin_reunion = []
+    for r in reuniones:
+        if not r["ultima"]:
+            sin_reunion.append({"Nombre_grupo": r["Nombre_grupo"], "ultima": "Sin registros"})
+        else:
+            dias = (date.today() - r["ultima"]).days
+            if dias > 30:
+                sin_reunion.append(r)
+
+    if sin_reunion:
+        st.warning("Hay grupos sin reuniones recientes.")
+        st.dataframe(sin_reunion, hide_index=True)
+    else:
+        st.success("Todos los grupos llevan reuniones al día.")
+
+    st.markdown("---")
+
+    # =====================================================
+    #   ALERTA 5 — CICLOS PRÓXIMOS A CERRAR
+    # =====================================================
+    st.markdown("### 🟣 Ciclos próximos a cerrar")
+
+    cur.execute("""
+        SELECT g.Nombre_grupo, c.Fecha_fin, c.Estado
+        FROM ciclo c
+        JOIN Grupo g ON g.Id_Grupo = c.Id_Grupo
+        WHERE g.Id_Promotora = %s
+        ORDER BY c.Fecha_fin ASC
+    """, (id_promotora,))
+    ciclos = cur.fetchall()
+
+    proximos = []
     for c in ciclos:
-        if c["Estado"] == "Pendiente":
-            alertas_ciclo.append({
-                "Id_Grupo": c["Id_Grupo"],
-                "Fecha Inicio": c["Fecha_inicio"],
-                "Fecha Fin": c["Fecha_fin"],
-                "Estado": "🔵 Pendiente de cierre"
-            })
+        if c["Fecha_fin"]:
+            dias = (c["Fecha_fin"] - date.today()).days
+            if 0 <= dias <= 15:
+                proximos.append(c)
 
-    st.dataframe(alertas_ciclo, hide_index=True)
+    if proximos:
+        st.warning("Ciclos próximos a cerrar.")
+        st.dataframe(proximos, hide_index=True)
+    else:
+        st.success("No hay ciclos por cerrar en el corto plazo.")
+# =====================================================
+#   SECCIÓN 7 — SEGURIDAD Y MANEJO DE ERRORES
+# =====================================================
 
-    cursor.close()
-    con.close()
+import pandas as pd
+import streamlit as st
+import traceback
+
+
+# =====================================================
+#   7.1 — EJECUTOR SEGURO DE CONSULTAS SQL
+# =====================================================
+
+def safe_query(query, params=None, fetch="all", error_msg="Error al obtener datos"):
+    """
+    Ejecuta consultas SQL con manejo de excepciones y conexión segura.
+    fetch = "all" → fetchall()
+    fetch = "one" → fetchone()
+    """
+
+    try:
+        con = obtener_conexion()
+        cur = con.cursor(dictionary=True)
+
+        cur.execute(query, params or ())
+
+        if fetch == "one":
+            result = cur.fetchone()
+        else:
+            result = cur.fetchall()
+
+        cur.close()
+        con.close()
+        return result
+
+    except Exception as e:
+        st.error(f"❌ {error_msg}")
+        st.caption(f"Detalles del error: {str(e)}")
+        st.stop()
+
+
+# =====================================================
+#   7.2 — DATAFRAME SEGURO
+#   (prevenir errores cuando la BD devuelve vacío)
+# =====================================================
+
+def safe_df(data, empty_msg="No hay datos disponibles."):
+    """
+    Convierte un resultado SQL en DataFrame seguro.
+    Si está vacío, muestra mensaje sin romper el flujo.
+    """
+    if not data:
+        st.info(empty_msg)
+        return pd.DataFrame()  # DF vacío pero válido
+
+    return pd.DataFrame(data)
+
+
+# =====================================================
+#   7.3 — GENERADOR PDF SEGURO
+# =====================================================
+
+def safe_pdf(builder_function, *args, **kwargs):
+    """
+    Envuelve funciones que generan PDFs para evitar errores de datos vacíos.
+    """
+    try:
+        pdf = builder_function(*args, **kwargs)
+        return pdf
+    except Exception as e:
+        st.error("❌ Error al generar PDF.")
+        st.caption(str(e))
+        st.code(traceback.format_exc())
+        return None
+
+
+# =====================================================
+#   7.4 — GENERADOR EXCEL SEGURO
+# =====================================================
+
+def safe_excel(builder_function, *args, **kwargs):
+    """
+    Envuelve funciones que generan Excel para evitar errores silenciosos.
+    """
+    try:
+        excel = builder_function(*args, **kwargs)
+        return excel
+    except Exception as e:
+        st.error("❌ Error al generar archivo Excel.")
+        st.caption(str(e))
+        st.code(traceback.format_exc())
+        return None
+
+
+# =====================================================
+#   7.5 — VALIDAR ROL Y SESIÓN
+# =====================================================
+
+def validar_acceso_promotora():
+    """
+    Evita accesos no autorizados o sesiones caducadas.
+    """
+    if "sesion_iniciada" not in st.session_state or not st.session_state["sesion_iniciada"]:
+        st.error("Debe iniciar sesión.")
+        st.stop()
+
+    if st.session_state.get("rol") != "Promotora":
+        st.error("Acceso denegado.")
+        st.stop()
+
+    if not st.session_state.get("id_empleado"):
+        st.error("No se encontró el ID del empleado.")
+        st.stop()
+
+
+# =====================================================
+#   7.6 — LIMPIEZA DEL ESTADO DE NAVEGACIÓN
+# =====================================================
+
+def limpiar_estado_grupo():
+    """Limpia la selección de grupo al cambiar de sección."""
+    if "grupo_seleccionado" in st.session_state:
+        del st.session_state["grupo_seleccionado"]
+
+
+# =====================================================
+#   7.7 — PROTECCIÓN DEL MÓDULO DE REPORTES
+# =====================================================
+
+def validar_dataset_para_reporte(df, tipo="Reporte"):
+    """Evita que se genere PDF/Excel cuando no hay datos."""
+    if df.empty:
+        st.warning(f"⚠ No hay datos suficientes para generar el {tipo}.")
+        return False
+    return True
+
+
+# =====================================================
+#   7.8 — CONTROL DE ERRORES PARA TABS DEL GRUPO
+# =====================================================
+
+def safe_show_tab(func, *args):
+    """
+    Envuelve cada tab (Caja, Ahorros, Préstamos...) para evitar que un error interno
+    colapse toda la página.
+    """
+    try:
+        func(*args)
+    except Exception as e:
+        st.error("❌ Ocurrió un error al cargar esta sección.")
+        st.caption(str(e))
+        st.code(traceback.format_exc())
+
+
+# =====================================================
+#   7.9 — FUNCIONES SEGURO PARA SECCIONES DEL GRUPO
+# =====================================================
+
+def safe_section(query, params, empty_msg):
+    """Consulta y muestra tabla segura en una sola línea."""
+    data = safe_query(query, params)
+    df = safe_df(data, empty_msg)
+    if not df.empty:
+        st.dataframe(df, hide_index=True)
+    return df  # Para reportes si se necesita
