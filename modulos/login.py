@@ -1,92 +1,109 @@
 import streamlit as st
-import mysql.connector
 from modulos.conexion import obtener_conexion
-
-# ============================================================
-# LOGIN TIPO APLICATIVO MÓVIL — SISTEMA CVX
-# ============================================================
 
 def login():
 
-    st.markdown(
-        """
+    st.set_page_config(page_title="Ingreso — Solidaridad CVX", layout="centered")
+
+    # ====== ESTILOS CSS PROFESIONALES ======
+    st.markdown("""
         <style>
-        .login-box {
-            background-color: #111418;
-            padding: 25px;
-            border-radius: 18px;
-            width: 90%;
-            max-width: 380px;
-            margin: auto;
-            box-shadow: 0px 0px 12px rgba(255,255,255,0.08);
-        }
-        .title {
-            text-align: center;
-            color: white;
-            font-size: 28px;
-            font-weight: 600;
-            margin-bottom: 10px;
-        }
-        .logo {
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
-            width: 110px;
-            margin-bottom: 10px;
-        }
+            .login-box {
+                width: 850px;
+                max-width: 95%;
+                margin: 60px auto;
+                display: flex;
+                background: #faf9f4;
+                border-radius: 18px;
+                overflow: hidden;
+                box-shadow: 0px 4px 40px rgba(0,0,0,0.15);
+            }
+
+            .left-panel {
+                width: 50%;
+                background-color: #ffffff;
+            }
+
+            .left-panel img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                border-right: 1px solid #ececec;
+            }
+
+            .right-panel {
+                padding: 45px 40px;
+                width: 50%;
+                background-color: #faf9f4;
+            }
+
+            .cvx-title {
+                font-size: 28px;
+                font-weight: 700;
+                color: #0a3161;
+                margin-bottom: 25px;
+            }
+
+            .stTextInput>div>div>input,
+            .stPasswordInput>div>div>input {
+                background-color: #ffffff;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                padding: 10px;
+                height: 45px;
+            }
+
+            .stButton>button {
+                background-color: #2e7d32;
+                color: white;
+                font-size: 17px;
+                height: 45px;
+                border-radius: 8px;
+                width: 100%;
+            }
+
+            .stButton>button:hover {
+                background-color: #1b5e20;
+            }
         </style>
-        """,
-        unsafe_allow_html=True
-    )
+    """, unsafe_allow_html=True)
 
-    st.markdown("<div class='login-box'>", unsafe_allow_html=True)
+    # ====== CONTENEDOR ======
+    st.markdown('<div class="login-box">', unsafe_allow_html=True)
 
-    # ----------------------------------------------------
-    # LOGO Y TÍTULO DE LOGIN
-    # ----------------------------------------------------
-    st.markdown(
-        "<img class='logo' src='https://i.imgur.com/B4HqfUU.png'>",
-        unsafe_allow_html=True
-    )
+    left, right = st.columns([1, 1])
 
-    st.markdown("<div class='title'>Inicio de sesión</div>", unsafe_allow_html=True)
+    # ====== PANEL IZQUIERDO (IMAGEN) ======
+    with left:
+        st.markdown('<div class="left-panel">', unsafe_allow_html=True)
+        st.image("/mnt/data/WhatsApp Image 2025-11-19 at 18.27.34.jpeg")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # ----------------------------------------------------
-    # FORMULARIO DE LOGIN
-    # ----------------------------------------------------
-    usuario = st.text_input("👤 Usuario")
-    contra = st.text_input("🔒 Contraseña", type="password")
+    # ====== PANEL DERECHO (FORMULARIO) ======
+    with right:
+        st.markdown('<div class="right-panel">', unsafe_allow_html=True)
 
-    if st.button("Ingresar", use_container_width=True):
-        if usuario.strip() == "" or contra.strip() == "":
-            st.warning("Debe ingresar usuario y contraseña.")
-        else:
-            try:
-                con = obtener_conexion()
-                cursor = con.cursor(dictionary=True)
+        st.markdown('<div class="cvx-title">Iniciar Sesión</div>', unsafe_allow_html=True)
 
-                cursor.execute("""
-                    SELECT Usuario, Contra, Rol
-                    FROM Empleado
-                    WHERE Usuario=%s AND Contra=%s
-                    LIMIT 1
-                """, (usuario, contra))
+        usuario = st.text_input("Usuario")
+        contrasena = st.text_input("Contraseña", type="password")
 
-                row = cursor.fetchone()
+        if st.button("Iniciar sesión"):
+            con = obtener_conexion()
+            cursor = con.cursor(dictionary=True)
 
-                if row:
-                    st.session_state["sesion_iniciada"] = True
-                    st.session_state["usuario"] = row["Usuario"]
-                    st.session_state["rol"] = row["Rol"]
+            cursor.execute("SELECT * FROM usuarios WHERE usuario = %s AND contrasena = %s",
+                           (usuario, contrasena))
+            datos = cursor.fetchone()
 
-                    st.success("Ingreso exitoso. Redirigiendo…")
-                    st.rerun()
+            if datos:
+                st.session_state["sesion_iniciada"] = True
+                st.session_state["rol"] = datos["rol"]
+                st.success("Inicio de sesión exitoso.")
+                st.rerun()
+            else:
+                st.error("Usuario o contraseña incorrectos.")
 
-                else:
-                    st.error("Usuario o contraseña incorrectos.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-            except mysql.connector.Error:
-                st.error("Error al conectar con la base de datos.")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
+    st.markdown('</div>', unsafe_allow_html=True)
