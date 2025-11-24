@@ -9,9 +9,8 @@ st.set_page_config(page_title="Login", page_icon="👥", layout="wide")
 # =====================================================
 # FUNCIÓN PARA CENTRAR UNA IMAGEN LOCAL
 # =====================================================
-def centered_image(img_filename, width=260):
+def centered_image(img_filename, width=280):
 
-    # Ruta absoluta correcta (login.py → modulos)
     img_path = os.path.join(os.path.dirname(__file__), "imagenes", img_filename)
 
     if not os.path.exists(img_path):
@@ -33,16 +32,17 @@ def centered_image(img_filename, width=260):
 
 
 # =====================================================
-# CONEXIÓN A LA BASE DE DATOS (CORREGIDO)
+# FUNCIÓN CORREGIDA DE CONEXIÓN A MYSQL
+# **USANDO TUS CREDENCIALES NUEVAS**
 # =====================================================
 def obtener_conexion():
     try:
         con = mysql.connector.connect(
-            host=os.getenv("MYSQL_ADDON_HOST"),
-            user=os.getenv("MYSQL_ADDON_USER"),
-            password=os.getenv("MYSQL_ADDON_PASSWORD"),
-            database=os.getenv("MYSQL_ADDON_DB"),
-            port=int(os.getenv("MYSQL_ADDON_PORT", 3306))  # ← FIX
+            host="btcfcbzptdyxq4f8afmu-mysql.services.clever-cloud.com",
+            user="unruixx62rfqfqi5",
+            password="tHsn5wIjxSzedGOsZmtL",
+            database="btcfcbzptdyxq4f8afmu",
+            port=3306  # Puerto correcto
         )
         return con
     except Exception as e:
@@ -55,7 +55,7 @@ def obtener_conexion():
 # =====================================================
 def login():
 
-    centered_image("senoras.png", width=280)
+    centered_image("senoras.png", width=260)
 
     st.markdown(
         "<h1 style='text-align:center; margin-bottom: 25px;'>Bienvenida a Solidaridad CVX</h1>",
@@ -100,7 +100,9 @@ def login():
 
         user = cursor.fetchone()
 
-        
+        cursor.close()
+        con.close()
+
         if user:
             st.success("Inicio de sesión exitoso 🎉")
 
