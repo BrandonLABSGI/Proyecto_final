@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from modulos.conexion import obtener_conexion
+import re
+
 
 
 # ============================================================
@@ -436,7 +438,6 @@ def gestion_grupos():
 
 
 
-
 # ============================================================
 #                   GESTIÓN DE EMPLEADOS
 # ============================================================
@@ -450,16 +451,14 @@ def gestion_empleados():
     try:
         cursor.execute("SELECT Id_Roles, Tipo_de_rol FROM Roles ORDER BY Id_Roles ASC")
         roles = cursor.fetchall()
-        # Guardamos ID y texto del rol
-        #   clave visible:  "3 - Director"
-        #   valor interno:  (3, "Director")
+        # clave visible -> "3 - Director", valor -> (3, "Director")
         dict_roles = {f"{r[0]} - {r[1]}": (r[0], r[1]) for r in roles} if roles else {}
     except Exception as e:
         st.error(f"Error al cargar roles: {e}")
         dict_roles = {}
         roles = []
 
-    # Cargar distritos para asignar al empleado
+    # Cargar distritos
     try:
         cursor.execute(
             "SELECT Id_Distrito, Nombre_distrito FROM Distrito ORDER BY Id_Distrito ASC"
@@ -479,8 +478,8 @@ def gestion_empleados():
         nombres = st.text_input("Nombres")
         apellidos = st.text_input("Apellidos")
     with col2:
-        dui = st.text_input("DUI")
-        telefono = st.text_input("Teléfono")
+        dui = st.text_input("DUI (formato: ########-#)")
+        telefono = st.text_input("Teléfono (formato: ####-####)")
         distrito_sel = st.selectbox(
             "Distrito asignado",
             list(dict_distritos.keys()) if dict_distritos else ["(Sin distritos)"],
@@ -493,18 +492,44 @@ def gestion_empleados():
     )
 
     if st.button("Crear empleado"):
+        # ------------------------------------------------------------------
+        # VALIDACIONES BÁSICAS
+        # ------------------------------------------------------------------
+        errores = []
+
         if usuario.strip() == "" or contra.strip() == "":
-            st.warning("Usuario y contraseña son obligatorios.")
-        elif not dict_roles or rol_sel not in dict_roles:
-            st.warning("Debe seleccionar un rol válido.")
-        elif not dict_distritos or distrito_sel not in dict_distritos:
-            st.warning("Debe seleccionar un distrito válido.")
+            errores.append("Usuario y contraseña son obligatorios.")
+
+        if not dict_roles or rol_sel not in dict_roles:
+            errores.append("Debe seleccionar un rol válido.")
+
+        if not dict_distritos or distrito_sel not in dict_distritos:
+            errores.append("Debe seleccionar un distrito válido.")
+
+        # Normalizamos espacios
+        dui_clean = dui.strip()
+        tel_clean = telefono.strip()
+
+        # DUI: ########-#
+        if not re.fullmatch(r"\d{8}-\d", dui_clean):
+            errores.append("El DUI debe tener el formato ########-# (8 dígitos, guion y 1 dígito).")
+
+        # Teléfono: ####-####
+        if not re.fullmatch(r"\d{4}-\d{4}", tel_clean):
+            errores.append("El teléfono debe tener el formato ####-#### (4 dígitos, guion y 4 dígitos).")
+
+        if errores:
+            # Mostramos todos los mensajes y NO insertamos
+            for msg in errores:
+                st.warning(msg)
         else:
+            # ------------------------------------------------------------------
+            # INSERTAR EN BD (datos ya validados)
+            # ------------------------------------------------------------------
             try:
                 id_rol, rol_texto = dict_roles[rol_sel]   # (Id_Roles, 'Director', etc.)
                 id_distrito = dict_distritos[distrito_sel]
 
-                # IMPORTANTE: ahora también insertamos Id_Rol
                 cursor.execute(
                     """
                     INSERT INTO Empleado(
@@ -522,14 +547,14 @@ def gestion_empleados():
                     VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     """,
                     (
-                        usuario,
+                        usuario.strip(),
                         contra,
-                        id_rol,      # FK a Roles
-                        rol_texto,   # texto ('Director','Promotora', etc.)
-                        nombres,
-                        apellidos,
-                        dui,
-                        telefono,
+                        id_rol,          # FK a Roles
+                        rol_texto,       # texto ('Director','Promotora', etc.)
+                        nombres.strip(),
+                        apellidos.strip(),
+                        dui_clean,
+                        tel_clean,
                         id_distrito,
                         estado,
                     ),
@@ -541,19 +566,14 @@ def gestion_empleados():
 
     st.markdown("### 📋 Empleados registrados")
 
-    # -------------------------------
-    # Filtro por rol
-    # -------------------------------
+    # ------------------------------- Filtros -------------------------------
     st.subheader("🔍 Filtros")
 
     opciones_filtro = ["(Todos los roles)"]
     if roles:
         opciones_filtro += [r[1] for r in roles]  # Tipo_de_rol
 
-    rol_filtro = st.selectbox(
-        "Filtrar por rol",
-        opciones_filtro
-    )
+    rol_filtro = st.selectbox("Filtrar por rol", opciones_filtro)
 
     try:
         sql = """
@@ -591,6 +611,7 @@ def gestion_empleados():
 
     cursor.close()
     con.close()
+
 
 
 # ============================================================
