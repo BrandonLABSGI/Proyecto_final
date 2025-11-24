@@ -2,55 +2,43 @@ import streamlit as st
 from modulos.conexion import obtener_conexion
 
 def login():
+    st.set_page_config(page_title="Login", layout="wide")
 
-    st.markdown(
-        """
-        <style>
-            .center {
-                display: flex;
-                justify-content: center;
-                margin-top: 20px;
-                margin-bottom: 10px;
-            }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
+    # ==== CONTENEDOR GENERAL ====
+    with st.container():
+        st.markdown("""
+            <div style='text-align:center; margin-top:20px;'>
+                <img src='modulos/imagenes/senoras.png' style='width:280px; border-radius:15px;'/>
+            </div>
+        """, unsafe_allow_html=True)
 
-    # -------------------------------
-    #   MOSTRAR SOLO LA IMAGEN
-    # -------------------------------
-    st.markdown('<div class="center">', unsafe_allow_html=True)
-    st.image("modulos/imagenes/senoras.png", width=320)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # -------------------------------
-    #   TÍTULO
-    # -------------------------------
-    st.markdown(
-        "<h2 style='text-align:center; color:white;'>Bienvenida a Solidaridad CVX</h2>",
-        unsafe_allow_html=True
-    )
-
-    # -------------------------------
-    #   FORMULARIO LOGIN
-    # -------------------------------
-    usuario = st.text_input("Usuario")
-    contrasena = st.text_input("Contraseña", type="password")
-
-    if st.button("Iniciar sesión"):
-        con = obtener_conexion()
-        cursor = con.cursor(dictionary=True)
-        cursor.execute(
-            "SELECT * FROM usuarios WHERE usuario = %s AND contrasena = %s",
-            (usuario, contrasena)
+        # Título centrado
+        st.markdown(
+            "<h2 style='text-align:center; margin-top:10px;'>Bienvenida a Solidaridad CVX</h2>",
+            unsafe_allow_html=True
         )
-        datos = cursor.fetchone()
 
-        if datos:
-            st.success("Inicio de sesión exitoso 🎉")
-            st.session_state["sesion_iniciada"] = True
-            st.session_state["rol"] = datos["rol"]
-            st.rerun()
-        else:
-            st.error("Usuario o contraseña incorrectos")
+        # FORMULARIO
+        st.write("")
+        st.write("")
+
+        usuario = st.text_input("Usuario")
+        contraseña = st.text_input("Contraseña", type="password")
+
+        if st.button("Iniciar sesión"):
+            con = obtener_conexion()
+            cursor = con.cursor(dictionary=True)
+
+            cursor.execute(
+                "SELECT * FROM usuarios WHERE usuario=%s AND contrasena=%s",
+                (usuario, contraseña)
+            )
+            datos = cursor.fetchone()
+
+            if datos:
+                st.session_state["sesion_iniciada"] = True
+                st.session_state["rol"] = datos["rol"]
+                st.success("Inicio de sesión exitoso")
+                st.experimental_rerun()
+            else:
+                st.error("Usuario o contraseña incorrectos.")
