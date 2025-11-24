@@ -438,10 +438,6 @@ def gestion_grupos():
 
 
 
-
-
-
-
 # ============================================================
 #                   GESTIÓN DE EMPLEADOS
 # ============================================================
@@ -481,28 +477,9 @@ def gestion_empleados():
         contra = st.text_input("Contraseña", type="password")
         nombres = st.text_input("Nombres")
         apellidos = st.text_input("Apellidos")
-
     with col2:
-        # Usamos keys para poder limpiar en session_state
-        dui_raw = st.text_input("DUI (9 dígitos, sin guion)", key="dui_input")
-        tel_raw = st.text_input("Teléfono (8 dígitos, sin guion)", key="tel_input")
-
-        # ---- DUI: solo números, máximo 9 ----
-        dui_digits = re.sub(r"\D", "", dui_raw or "")
-        if len(dui_digits) > 9:
-            dui_digits = dui_digits[:9]
-        if dui_digits != dui_raw:
-            st.session_state["dui_input"] = dui_digits
-        dui = dui_digits  # valor “oficial” a usar
-
-        # ---- Teléfono: solo números, máximo 8 ----
-        tel_digits = re.sub(r"\D", "", tel_raw or "")
-        if len(tel_digits) > 8:
-            tel_digits = tel_digits[:8]
-        if tel_digits != tel_raw:
-            st.session_state["tel_input"] = tel_digits
-        telefono = tel_digits  # valor “oficial” a usar
-
+        dui = st.text_input("DUI (9 dígitos, sin guion)")
+        telefono = st.text_input("Teléfono (8 dígitos, sin guion)")
         distrito_sel = st.selectbox(
             "Distrito asignado",
             list(dict_distritos.keys()) if dict_distritos else ["(Sin distritos)"],
@@ -538,11 +515,13 @@ def gestion_empleados():
             errores.append("Debe seleccionar un distrito válido.")
 
         # ---------- Validación de DUI (9 dígitos sin guion) ----------
-        if not re.fullmatch(r"\d{9}", dui):
+        dui_raw = dui.strip()
+        if not re.fullmatch(r"\d{9}", dui_raw):
             errores.append("El DUI debe tener exactamente 9 dígitos numéricos, sin guiones ni espacios.")
 
         # ---------- Validación de Teléfono (8 dígitos sin guion) ----------
-        if not re.fullmatch(r"\d{8}", telefono):
+        tel_raw = telefono.strip()
+        if not re.fullmatch(r"\d{8}", tel_raw):
             errores.append("El teléfono debe tener exactamente 8 dígitos numéricos, sin guiones ni espacios.")
 
         # Si hay errores, los mostramos y no insertamos
@@ -578,8 +557,8 @@ def gestion_empleados():
                         rol_texto,
                         nombres.strip(),
                         apellidos.strip(),
-                        dui,        # ya es solo números y máx 9
-                        telefono,   # solo números y máx 8
+                        dui_raw,   # solo dígitos → encaja con columna INT
+                        tel_raw,   # solo dígitos
                         id_distrito,
                         estado,
                     ),
@@ -635,6 +614,13 @@ def gestion_empleados():
 
     cursor.close()
     con.close()
+
+
+
+
+
+
+
 
 # ============================================================
 #                   RESUMEN GENERAL (VISTA GLOBAL)
