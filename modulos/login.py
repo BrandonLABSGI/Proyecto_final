@@ -1,122 +1,91 @@
 import streamlit as st
-import base64
-import os
 import mysql.connector
+from modulos.conexion import obtener_conexion
 
-st.set_page_config(page_title="Login", page_icon="👥", layout="wide")
+# ============================================================
+# LOGIN TIPO APLICATIVO MÓVIL — SISTEMA CVX
+# ============================================================
 
-
-# =====================================================
-# FUNCIÓN PARA CENTRAR UNA IMAGEN LOCAL
-# =====================================================
-def centered_image(img_filename, width=280):
-
-    img_path = os.path.join(os.path.dirname(__file__), "imagenes", img_filename)
-
-    if not os.path.exists(img_path):
-        st.error(f"No se encontró la imagen: {img_path}")
-        return
-
-    with open(img_path, "rb") as img_file:
-        img_bytes = img_file.read()
-        img_base64 = base64.b64encode(img_bytes).decode()
+def login():
 
     st.markdown(
-        f"""
-        <div style="display:flex; justify-content:center; margin-top:20px;">
-            <img src="data:image/png;base64,{img_base64}" width="{width}">
-        </div>
+        """
+        <style>
+        .login-box {
+            background-color: #111418;
+            padding: 25px;
+            border-radius: 18px;
+            width: 90%;
+            max-width: 380px;
+            margin: auto;
+            box-shadow: 0px 0px 12px rgba(255,255,255,0.08);
+        }
+        .title {
+            text-align: center;
+            color: white;
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .logo {
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+            width: 110px;
+            margin-bottom: 10px;
+        }
+        </style>
         """,
         unsafe_allow_html=True
     )
 
+    st.markdown("<div class='login-box'>", unsafe_allow_html=True)
 
-# =====================================================
-# FUNCIÓN CORREGIDA DE CONEXIÓN A MYSQL
-# **USANDO TUS CREDENCIALES NUEVAS**
-# =====================================================
-def obtener_conexion():
-    try:
-        con = mysql.connector.connect(
-            host="btcfcbzptdyxq4f8afmu-mysql.services.clever-cloud.com",
-            user="unruixx62rfqfqi5",
-            password="tHsn5wIjxSzedGOsZmtL",
-            database="btcfcbzptdyxq4f8afmu",
-            port=3306  # Puerto correcto
-        )
-        return con
-    except Exception as e:
-        st.error(f"❌ Error al conectar a la base de datos: {e}")
-        return None
-
-
-# =====================================================
-# INTERFAZ DE LOGIN
-# =====================================================
-def login():
-
-    centered_image("senoras.png", width=260)
-
+    # ----------------------------------------------------
+    # LOGO Y TÍTULO DE LOGIN
+    # ----------------------------------------------------
     st.markdown(
-        "<h1 style='text-align:center; margin-bottom: 25px;'>Bienvenida a Solidaridad CVX</h1>",
+        "<img class='logo' src='https://i.imgur.com/B4HqfUU.png'>",
         unsafe_allow_html=True
     )
 
-    # Campos más cortos
-    field_width = 0.55  
+    st.markdown("<div class='title'>Inicio de sesión</div>", unsafe_allow_html=True)
 
-    # ========== USUARIO ==========
-    col1, col2, col3 = st.columns([1 - field_width, field_width, 1 - field_width])
-    with col2:
-        usuario = st.text_input("Usuario")
+    # ----------------------------------------------------
+    # FORMULARIO DE LOGIN
+    # ----------------------------------------------------
+    usuario = st.text_input("👤 Usuario")
+    contra = st.text_input("🔒 Contraseña", type="password")
 
-    # ========== CONTRASEÑA ==========
-    col1, col2, col3 = st.columns([1 - field_width, field_width, 1 - field_width])
-    with col2:
-        contrasena = st.text_input("Contraseña", type="password")
-
-    # ========== BOTÓN ==========
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
-        btn = st.button("Iniciar sesión")
-
-    # ========== VALIDACIÓN ==========
-    if btn:
-
-        if usuario.strip() == "" or contrasena.strip() == "":
-            st.warning("Por favor complete todos los campos.")
-            return
-
-        con = obtener_conexion()
-        if con is None:
-            return
-
-        cursor = con.cursor(dictionary=True)
-
-        cursor.execute(
-            "SELECT * FROM usuarios WHERE usuario = %s AND contrasenia = %s",
-            (usuario, contrasena)
-        )
-
-        user = cursor.fetchone()
-
-        cursor.close()
-        con.close()
-
-        if user:
-            st.success("Inicio de sesión exitoso 🎉")
-
-            # Guardar sesión
-            st.session_state["sesion_iniciada"] = True
-            st.session_state["rol"] = user["rol"]
-            st.session_state["usuario"] = user["usuario"]
-
-            st.rerun()
+    if st.button("Ingresar", use_container_width=True):
+        if usuario.strip() == "" or contra.strip() == "":
+            st.warning("Debe ingresar usuario y contraseña.")
         else:
-            st.error("❌ Usuario o contraseña incorrectos.")
+            try:
+                con = obtener_conexion()
+                cursor = con.cursor(dictionary=True)
 
+                cursor.execute("""
+                    SELECT Usuario, Contra, Rol
+                    FROM Empleado
+                    WHERE Usuario=%s AND Contra=%s
+                    LIMIT 1
+                """, (usuario, contra))
 
-# =====================================================
-# EJECUTAR LOGIN
-# =====================================================
-login()
+                row = cursor.fetchone()
+
+                if row:
+                    st.session_state["sesion_iniciada"] = True
+                    st.session_state["usuario"] = row["Usuario"]
+                    st.session_state["rol"] = row["Rol"]
+
+                    st.success("Ingreso exitoso. Redirigiendo…")
+                    st.rerun()
+
+                else:
+                    st.error("Usuario o contraseña incorrectos.")
+
+            except mysql.connector.Error:
+                st.error("Error al conectar con la base de datos.")
+
+    st.markdown("</div>", unsafe_allow_html=True)
