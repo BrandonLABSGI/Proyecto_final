@@ -220,6 +220,181 @@ def gestion_distritos():
     cursor.close()
     con.close()
 
+
+
+# ============================================================
+#                   GESTIÓN DE PROMOTORAS
+# ============================================================
+def gestion_promotoras():
+    st.header("👩‍💼 Gestión de promotoras")
+
+    con = obtener_conexion()
+    cursor = con.cursor()
+
+    # --------------------------------------------------------
+    # Obtener Id_Roles correspondiente a 'Promotora'
+    # --------------------------------------------------------
+    try:
+        cursor.execute(
+            "SELECT Id_Roles FROM Roles WHERE Tipo_de_rol = 'Promotora' LIMIT 1"
+        )
+        row = cursor.fetchone()
+        if not row:
+            st.error("No existe el rol 'Promotora' en la tabla Roles.")
+            cursor.close()
+            con.close()
+            return
+        id_rol_promotora = row[0]
+    except Exception as e:
+        st.error(f"Error al obtener el rol 'Promotora': {e}")
+        cursor.close()
+        con.close()
+        return
+
+    # --------------------------------------------------------
+    # Cargar distritos
+    # --------------------------------------------------------
+    try:
+        cursor.execute(
+            "SELECT Id_Distrito, Nombre_distrito FROM Distrito ORDER BY Id_Distrito ASC"
+        )
+        distritos = cursor.fetchall()
+        dict_distritos = {f"{d[0]} - {d[1]}": d[0] for d in distritos} if distritos else {}
+    except Exception as e:
+        st.error(f"Error al cargar distritos: {e}")
+        dict_distritos = {}
+
+    st.subheader("➕ Registrar nueva promotora")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        usuario = st.text_input("Usuario (para inicio de sesión)", key="promo_usuario")
+        contra = st.text_input("Contraseña", type="password", key="promo_contra")
+        nombres = st.text_input("Nombres", key="promo_nombres")
+        apellidos = st.text_input("Apellidos", key="promo_apellidos")
+    with col2:
+        dui = st.text_input("DUI (9 dígitos, sin guion)", key="promo_dui")
+        telefono = st.text_input("Teléfono (8 dígitos, sin guion)", key="promo_tel")
+        distrito_sel = st.selectbox(
+            "Distrito base",
+            list(dict_distritos.keys()) if dict_distritos else ["(Sin distritos)"],
+            key="promo_distrito"
+        )
+        estado = st.selectbox("Estado", ["Activo", "Inactivo"], key="promo_estado")
+
+    # ---------------------- CREAR PROMOTORA ----------------------
+    if st.button("Registrar promotora"):
+        errores = []
+
+        # Campos obligatorios
+        if usuario.strip() == "" or contra.strip() == "":
+            errores.append("Usuario y contraseña son obligatorios.")
+
+        if nombres.strip() == "" or apellidos.strip() == "":
+            errores.append("Nombres y apellidos son obligatorios.")
+
+        if dui.strip() == "":
+            errores.append("El campo DUI es obligatorio.")
+
+        if telefono.strip() == "":
+            errores.append("El campo Teléfono es obligatorio.")
+
+        if not dict_distritos or distrito_sel not in dict_distritos:
+            errores.append("Debe seleccionar un distrito válido.")
+
+        # ---------- Validación de DUI (9 dígitos sin guion) ----------
+        dui_raw = dui.strip()
+        if not re.fullmatch(r"\d{9}", dui_raw):
+            errores.append(
+                "El DUI debe tener exactamente 9 dígitos numéricos, sin guiones ni espacios."
+            )
+
+        # ---------- Validación de Teléfono (8 dígitos sin guion) ----------
+        tel_raw = telefono.strip()
+        if not re.fullmatch(r"\d{8}", tel_raw):
+            errores.append(
+                "El teléfono debe tener exactamente 8 dígitos numéricos, sin guiones ni espacios."
+            )
+
+        # Si hay errores, los mostramos y no insertamos
+        if errores:
+            for msg in errores:
+                st.warning(msg)
+        else:
+            try:
+                id_distrito = dict_distritos[distrito_sel]
+
+                cursor.execute(
+                    """
+                    INSERT INTO Empleado(
+                        Usuario,
+                        Contra,
+                        Id_Rol,
+                        Rol,
+                        Nombres,
+                        Apellidos,
+                        DUI,
+                        Telefono,
+                        Distrito,
+                        Estado
+                    )
+                    VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    """,
+                    (
+                        usuario.strip(),
+                        contra,
+                        id_rol_promotora,   # FK a Roles
+                        "Promotora",        # texto de rol
+                        nombres.strip(),
+                        apellidos.strip(),
+                        dui_raw,
+                        tel_raw,
+                        id_distrito,
+                        estado,
+                    ),
+                )
+                con.commit()
+                st.success("Promotora registrada correctamente.")
+            except Exception as e:
+                st.error(f"Error al registrar promotora: {e}")
+
+    # ---------------------- LISTADO DE PROMOTORAS ----------------------
+    st.markdown("### 📋 Promotoras registradas")
+
+    try:
+        cursor.execute(
+            """
+            SELECT e.Id_Empleado,
+                   e.Usuario,
+                   e.Nombres,
+                   e.Apellidos,
+                   d.Nombre_distrito,
+                   e.Estado
+            FROM Empleado e
+            LEFT JOIN Distrito d ON e.Distrito = d.Id_Distrito
+            WHERE e.Rol = 'Promotora'
+               OR e.Id_Rol = %s
+            ORDER BY e.Id_Empleado ASC
+            """,
+            (id_rol_promotora,),
+        )
+        promotoras = cursor.fetchall()
+
+        if promotoras:
+            df = pd.DataFrame(
+                promotoras,
+                columns=["ID", "Usuario", "Nombres", "Apellidos", "Distrito", "Estado"],
+            )
+            st.dataframe(df, use_container_width=True)
+        else:
+            st.info("No hay promotoras registradas.")
+    except Exception as e:
+        st.error(f"Error al consultar promotoras: {e}")
+
+    cursor.close()
+    con.close()
+
+
 # ============================================================
 #                     GESTIÓN DE GRUPOS
 # ============================================================
