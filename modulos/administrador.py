@@ -17,7 +17,7 @@ def interfaz_admin():
         return
 
     st.title("🛡️ Panel del Administrador")
-    st.caption("Gestione roles, distritos, grupos y empleados del sistema.")
+    #st.caption("Gestione roles, distritos, grupos y empleados del sistema.")
 
     # --------------------------------------------------------
     # Métricas generales (tarjetas superiores)
@@ -49,7 +49,7 @@ def interfaz_admin():
 
         col1.metric("🏙 Distritos", total_distritos)
         col2.metric("👥 Grupos", total_grupos)
-        col3.metric("👩‍💼 Promotoras", total_promotoras)
+        col3.metric("👩‍💼 Promotores", total_promotoras)
         col4.metric("🧑‍💻 Empleados", total_empleados)
 
     except Exception as e:
@@ -99,7 +99,7 @@ def interfaz_admin():
 #                      GESTIÓN DE ROLES
 # ============================================================
 def gestion_roles():
-    st.header("🎭 Gestión deeeeeeeeeeee roles")
+    st.header("🎭 Gestión de roles")
 
     con = obtener_conexion()
     cursor = con.cursor()
@@ -226,7 +226,7 @@ def gestion_distritos():
 #                   GESTIÓN DE PROMOTORAS
 # ============================================================
 def gestion_promotoras():
-    st.header("👩‍💼 Gestión de promotoras")
+    st.header("👩‍💼 Gestión de promotores")
 
     con = obtener_conexion()
     cursor = con.cursor()
@@ -264,7 +264,7 @@ def gestion_promotoras():
         st.error(f"Error al cargar distritos: {e}")
         dict_distritos = {}
 
-    st.subheader("➕ Registrar nueva promotora")
+    st.subheader("➕ Registrar nuevo promotor")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -359,7 +359,7 @@ def gestion_promotoras():
                 st.error(f"Error al registrar promotora: {e}")
 
     # ---------------------- LISTADO DE PROMOTORAS ----------------------
-    st.markdown("### 📋 Promotoras registradas")
+    st.markdown("### 📋 Promotores registrados")
 
     try:
         cursor.execute(
