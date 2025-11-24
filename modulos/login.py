@@ -10,107 +10,109 @@ def login():
     # ============================
     st.markdown("""
         <style>
-            .login-box {
-                width: 880px;
-                max-width: 95%;
+
+            /* Contenedor principal de la tarjeta */
+            .login-container {
+                width: 900px;
                 margin: 60px auto;
-                display: flex;
                 background: #faf9f4;
                 border-radius: 18px;
+                box-shadow: 0px 4px 40px rgba(0,0,0,0.25);
                 overflow: hidden;
-                box-shadow: 0px 4px 40px rgba(0,0,0,0.15);
+                display: flex;
             }
 
-            .left-panel {
+            /* Panel izquierdo */
+            .login-left {
                 width: 50%;
                 background-color: #ffffff;
             }
-            .left-panel img {
+            .login-left img {
                 width: 100%;
                 height: 100%;
                 object-fit: cover;
-                border-right: 1px solid #ececec;
             }
 
-            .right-panel {
-                padding: 45px 40px;
+            /* Panel derecho */
+            .login-right {
                 width: 50%;
-                background-color: #faf9f4;
+                padding: 50px 45px;
+                background: #faf9f4;
             }
 
-            .cvx-title {
-                font-size: 30px;
-                font-weight: 700;
+            .title {
+                font-size: 32px;
+                font-weight: 800;
+                margin-bottom: 25px;
                 color: #0a3161;
-                margin-bottom: 30px;
             }
 
             .stTextInput>div>div>input,
             .stPasswordInput>div>div>input {
-                background-color: #ffffff;
-                border: 1px solid #d1d5db;
+                background-color: white !important;
                 border-radius: 8px;
-                padding: 10px;
                 height: 45px;
+                border: 1px solid #d1d5db;
+                color: #000 !important;
             }
 
             .stButton>button {
+                width: 100%;
+                height: 45px;
                 background-color: #2e7d32;
                 color: white;
-                font-size: 17px;
-                height: 45px;
                 border-radius: 8px;
-                width: 100%;
+                font-size: 17px;
+                margin-top: 15px;
             }
+
             .stButton>button:hover {
-                background-color: #1b5e20;
+                background-color: #1b5e20 !important;
             }
+
+            /* Centrado absoluto */
+            .center-box {
+                display: flex;
+                justify-content: center;
+            }
+
         </style>
     """, unsafe_allow_html=True)
 
     # ============================
-    # CONTENEDOR PRINCIPAL
+    # TARJETA LOGIN
     # ============================
-    st.markdown('<div class="login-box">', unsafe_allow_html=True)
-    left, right = st.columns([1, 1])
+    st.markdown('<div class="center-box"><div class="login-container">', unsafe_allow_html=True)
 
-    # ============================
-    # PANEL IZQUIERDO – IMAGEN
-    # ============================
-    with left:
-        st.markdown('<div class="left-panel">', unsafe_allow_html=True)
-        st.image("modulos/imagenes/9e001816-7c44-4523-8a27-4b5bb730a1fa.png")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    # ============================
-    # PANEL DERECHO – FORMULARIO
-    # ============================
-    with right:
-        st.markdown('<div class="right-panel">', unsafe_allow_html=True)
-
-        st.markdown('<div class="cvx-title">Iniciar Sesión</div>', unsafe_allow_html=True)
-
-        usuario = st.text_input("Usuario")
-        contrasena = st.text_input("Contraseña", type="password")
-
-        if st.button("Iniciar sesión"):
-            con = obtener_conexion()
-            cursor = con.cursor(dictionary=True)
-
-            cursor.execute(
-                "SELECT * FROM usuarios WHERE usuario = %s AND contrasena = %s",
-                (usuario, contrasena)
-            )
-            datos = cursor.fetchone()
-
-            if datos:
-                st.session_state["sesion_iniciada"] = True
-                st.session_state["rol"] = datos["rol"]
-                st.success("Inicio de sesión exitoso.")
-                st.rerun()
-            else:
-                st.error("Usuario o contraseña incorrectos.")
-
-        st.markdown('</div>', unsafe_allow_html=True)
-
+    # -------- Imagen a la izquierda --------
+    st.markdown('<div class="login-left">', unsafe_allow_html=True)
+    st.image("modulos/imagenes/9e001816-7c44-4523-8a27-4b5bb730a1fa.png")
     st.markdown('</div>', unsafe_allow_html=True)
+
+    # -------- Formulario a la derecha --------
+    st.markdown('<div class="login-right">', unsafe_allow_html=True)
+
+    st.markdown('<div class="title">Iniciar Sesión</div>', unsafe_allow_html=True)
+
+    usuario = st.text_input("Usuario")
+    contrasena = st.text_input("Contraseña", type="password")
+
+    if st.button("Iniciar sesión"):
+
+        con = obtener_conexion()
+        cursor = con.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT * FROM usuarios WHERE usuario = %s AND contrasena = %s",
+            (usuario, contrasena)
+        )
+        datos = cursor.fetchone()
+
+        if datos:
+            st.session_state["sesion_iniciada"] = True
+            st.session_state["rol"] = datos["rol"]
+            st.success("Inicio de sesión exitoso.")
+            st.rerun()
+        else:
+            st.error("Usuario o contraseña incorrectos.")
+
+    st.markdown('</div></div></div>', unsafe_allow_html=True)
