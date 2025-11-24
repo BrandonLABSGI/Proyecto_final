@@ -6,35 +6,25 @@ import mysql.connector
 st.set_page_config(page_title="Login", page_icon="👥", layout="wide")
 
 
-# ----------------------------------------------
-# CONEXIÓN A LA BASE DE DATOS
-# ----------------------------------------------
-def obtener_conexion():
-    return mysql.connector.connect(
-        host="btcfcbzptdyxq4f8afmu-mysql.services.clever-cloud.com",
-        user="ur33wxlwydbj7zja",
-        password="DqjzqFj2pA3j2eS4U7kF",
-        database="btcfcbzptdyxq4f8afmu"
-    )
-
-
-# ----------------------------------------------
-# FUNCIÓN PARA CENTRAR UNA IMAGEN LOCAL
-# ----------------------------------------------
+# =====================================================
+# FUNCIÓN PARA CENTRAR IMAGEN LOCAL
+# =====================================================
 def centered_image(img_path, width=280):
-    full_path = os.path.join("modulos", "imagenes", img_path)
 
-    if not os.path.exists(full_path):
-        st.error(f"No se encontró la imagen: {full_path}")
+    # RUTA ABSOLUTA SEGURA
+    abs_path = os.path.join(os.path.dirname(__file__), img_path)
+
+    if not os.path.exists(abs_path):
+        st.error(f"No se encontró la imagen: {abs_path}")
         return
 
-    with open(full_path, "rb") as img_file:
+    with open(abs_path, "rb") as img_file:
         img_bytes = img_file.read()
         base64_img = base64.b64encode(img_bytes).decode()
 
     st.markdown(
         f"""
-        <div style="display:flex; justify-content:center; margin-top:10px; margin-bottom:5px;">
+        <div style="display:flex; justify-content:center; margin-top:15px; margin-bottom:5px;">
             <img src="data:image/png;base64,{base64_img}" width="{width}">
         </div>
         """,
@@ -42,86 +32,79 @@ def centered_image(img_path, width=280):
     )
 
 
-# ----------------------------------------------
-# VERIFICAR USUARIO EN BD
-# ----------------------------------------------
-def validar_usuario(usuario, contraseña):
+# =====================================================
+# FUNCIÓN CORREGIDA PARA CONECTAR A MYSQL
+# =====================================================
+def obtener_conexion():
     try:
-        con = obtener_conexion()
-        cursor = con.cursor(dictionary=True)
+        con = mysql.connector.connect(
+            host=os.getenv("MYSQL_ADDON_HOST"),
+            user=os.getenv("MYSQL_ADDON_USER"),
+            password=os.getenv("MYSQL_ADDON_PASSWORD"),
+            database=os.getenv("MYSQL_ADDON_DB"),
+            port=os.getenv("MYSQL_ADDON_PORT")
+        )
+        return con
 
-        query = """
-            SELECT * FROM usuarios
-            WHERE usuario = %s AND contraseña = %s
-        """
-        cursor.execute(query, (usuario, contraseña))
-        result = cursor.fetchone()
-
-        cursor.close()
-        con.close()
-
-        return result  # None si no existe
-
-    except Exception as e:
-        st.error(f"Error al conectar a la base de datos: {e}")
+    except mysql.connector.Error as err:
+        st.error(f"❌ Error al conectar a la base de datos: {err}")
         return None
 
 
-# ----------------------------------------------
+# =====================================================
 # INTERFAZ DE LOGIN
-# ----------------------------------------------
+# =====================================================
 def login():
 
-    centered_image("senoras.png", width=280)
+    # Imagen centrada
+    centered_image("imagenes/senoras.png", width=260)
 
+    # Título
     st.markdown(
         "<h1 style='text-align: center; margin-bottom: 40px;'>Bienvenida a Solidaridad CVX</h1>",
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
-    # Tamaño reducido de los campos
-    field_width = 0.70  
+    field_width = 0.50  # → barras más cortas y centradas
 
-    # Usuario
-    st.write("")
+    # ---------------- CAMPO USUARIO ----------------
     col1, col2, col3 = st.columns([1 - field_width, field_width, 1 - field_width])
     with col2:
         usuario = st.text_input("Usuario")
 
-    # Contraseña
-    st.write("")
+    # ---------------- CAMPO CONTRASEÑA ----------------
     col1, col2, col3 = st.columns([1 - field_width, field_width, 1 - field_width])
     with col2:
         contraseña = st.text_input("Contraseña", type="password")
 
-    # Botón centrado
-    st.write("")
-    col1, col2, col3 = st.columns([1,1,1])
+    # ---------------- BOTÓN LOGIN ----------------
+    col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        ingresar = st.button("Iniciar sesión")
+        login_btn = st.button("Iniciar sesión")
 
-    # --------------------------
-    # VALIDAR LOGIN
-    # --------------------------
-    if ingresar:
-        if usuario.strip() == "" or contraseña.strip() == "":
-            st.warning("Por favor completa todos los campos.")
+    # ================= VALIDACIÓN ==================
+    if login_btn:
+
+        con = obtener_conexion()
+        if con is None:
             return
 
-        datos = validar_usuario(usuario, contraseña)
+        cursor = con.cursor(dictionary=True)
 
-        if datos:
-            st.success("Inicio de sesión exitoso 🎉")
+        cursor.execute(
+            "SELECT * FROM usuarios WHERE usuario = %s AND contrasenia = %s",
+            (usuario, contraseña)
+        )
+        user = cursor.fetchone()
 
-            # guardar sesión
+        if user:
+            st.success("✅ Inicio de sesión exitoso.")
             st.session_state["sesion_iniciada"] = True
-            st.session_state["usuario"] = datos["usuario"]
-            st.session_state["rol"] = datos["rol"]
-
+            st.session_state["rol"] = user["rol"]
             st.rerun()
 
         else:
-            st.error("Usuario o contraseña incorrectos.")
+            st.error("❌ Usuario o contraseña incorrectos.")
 
 
 # Ejecutar login
