@@ -177,27 +177,41 @@ def calcular_utilidad(fecha_inicio, fecha_fin):
 
 
 # ==========================================================
-# 9. DISTRIBUCIÓN PROPORCIONAL
+# 9. DISTRIBUCIÓN PROPORCIONAL (NEGATIVOS CORREGIDOS)
 # ==========================================================
 def generar_tabla_distribucion(socias, utilidad_total):
     total_ahorros = sum(s["ahorro"] for s in socias)
+
     tabla = []
 
     for s in socias:
-        porcentaje = (s["ahorro"] / total_ahorros) if total_ahorros > 0 else 0
-        porcion = round(porcentaje * utilidad_total, 2)
-        monto_final = round(s["ahorro"] + porcion, 2)
+        ahorro = s["ahorro"]
+
+        # -------------------------------------
+        # CORRECCIÓN: AHORRO NEGATIVO → CERO
+        # -------------------------------------
+        if ahorro < 0:
+            porcentaje = 0
+            porcion = 0
+            monto_final = 0
+            ahorro_visible = 0
+        else:
+            porcentaje = (ahorro / total_ahorros) if total_ahorros > 0 else 0
+            porcion = round(porcentaje * utilidad_total, 2)
+            monto_final = round(ahorro + porcion, 2)
+            ahorro_visible = ahorro
 
         tabla.append({
             "id": s["Id_Socia"],
             "nombre": s["Nombre"],
-            "ahorro": s["ahorro"],
-            "porcentaje": round(porcentaje * 100,2),
+            "ahorro": ahorro_visible,
+            "porcentaje": round(porcentaje * 100, 2),
             "porcion": porcion,
             "monto_final": monto_final
         })
 
     return tabla
+
 
 
 # ==========================================================
@@ -227,6 +241,7 @@ def generar_html_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
     <p><b>Utilidad total:</b> ${utilidad:,.2f}</p>
 
     <h3>3. Distribución proporcional</h3>
+
     <table border=1 cellpadding=5 cellspacing=0>
         <tr>
             <th>ID</th><th>Nombre</th><th>Ahorro</th>
@@ -273,7 +288,7 @@ def generar_pdf(html):
 
 
 # ==========================================================
-# 12. INTERFAZ PRINCIPAL CIERRE DE CICLO
+# 12. INTERFAZ PRINCIPAL — CIERRE DE CICLO
 # ==========================================================
 def cierre_ciclo():
 
@@ -288,7 +303,6 @@ def cierre_ciclo():
     fecha_cierre = date.today().strftime("%Y-%m-%d")
 
     pendientes = prestamos_pendientes()
-
     modo_prueba = st.toggle("🧪 Modo prueba (ignorar préstamos pendientes)")
 
     if pendientes and not modo_prueba:
@@ -300,10 +314,6 @@ def cierre_ciclo():
     if pendientes and modo_prueba:
         st.warning("⚠ MODO PRUEBA ACTIVADO: Los préstamos pendientes serán ignorados.")
 
-    # ------------------------------------------------------------------
-    # Cálculos principales
-    # ------------------------------------------------------------------
-
     ingresos, egresos = obtener_totales(fecha_inicio, fecha_cierre)
     saldo_inicial = obtener_saldo_inicial(fecha_inicio)
     saldo_final = obtener_saldo_final(fecha_inicio, fecha_cierre)
@@ -311,55 +321,40 @@ def cierre_ciclo():
     utilidad_total, intereses, multas = calcular_utilidad(fecha_inicio, fecha_cierre)
     detalle_diario = obtener_detalle_diario(fecha_inicio, fecha_cierre)
     socias = obtener_ahorros_por_socia(fecha_inicio, fecha_cierre)
+
     tabla_dist = generar_tabla_distribucion(socias, utilidad_total)
 
-    # ==========================================================
+    # ======================================================
     # TABS
-    # ==========================================================
+    # ======================================================
     tab1, tab2, tab3, tab4, tab5 = st.tabs(
         ["📘 Resumen", "📋 Auditoría", "📅 Detalle Diario", "📊 Gráfica", "📄 Acta"]
     )
 
-
-    # ==========================================================
     # TAB 1 — RESUMEN
-    # ==========================================================
     with tab1:
         st.subheader("📘 Resumen del ciclo")
-
         st.write(f"**Fecha inicio:** {fecha_inicio}")
         st.write(f"**Fecha cierre:** {fecha_cierre}")
-
         st.write(f"**Saldo inicial:** ${saldo_inicial:,.2f}")
         st.write(f"**Saldo final:** ${saldo_final:,.2f}")
-
         st.write(f"**Ingresos:** ${ingresos:,.2f}")
         st.write(f"**Egresos:** ${egresos:,.2f}")
-
         st.write(f"**Intereses:** ${intereses:,.2f}")
         st.write(f"**Multas:** ${multas:,.2f}")
         st.write(f"**Utilidad total:** ${utilidad_total:,.2f}")
 
-
-    # ==========================================================
     # TAB 2 — AUDITORÍA
-    # ==========================================================
     with tab2:
         st.subheader("📋 Auditoría de ingresos y egresos por día")
-
         if detalle_diario:
-            df = pd.DataFrame(detalle_diario)
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(pd.DataFrame(detalle_diario), use_container_width=True)
         else:
             st.info("No hay movimientos en este ciclo.")
 
-
-    # ==========================================================
     # TAB 3 — DETALLE DIARIO
-    # ==========================================================
     with tab3:
         st.subheader("📅 Detalle diario de caja")
-
         if detalle_diario:
             df = pd.DataFrame(detalle_diario)
             df["fecha"] = df["fecha"].astype(str)
@@ -367,13 +362,9 @@ def cierre_ciclo():
         else:
             st.info("Sin movimientos para mostrar.")
 
-
-    # ==========================================================
-    # TAB 4 — GRÁFICA (sin matplotlib)
-    # ==========================================================
+    # TAB 4 — GRÁFICA
     with tab4:
-        st.subheader("📊 Gráfica del ciclo (Saldo final por día)")
-
+        st.subheader("📊 Gráfica del ciclo")
         if detalle_diario:
             df = pd.DataFrame(detalle_diario)
             df["fecha"] = df["fecha"].astype(str)
@@ -381,13 +372,9 @@ def cierre_ciclo():
         else:
             st.info("No hay datos para graficar.")
 
-
-    # ==========================================================
     # TAB 5 — ACTA
-    # ==========================================================
     with tab5:
         st.subheader("📄 Acta del ciclo")
-
         html = generar_html_acta(
             fecha_inicio, fecha_cierre,
             saldo_inicial, saldo_final,
@@ -407,12 +394,9 @@ def cierre_ciclo():
                 unsafe_allow_html=True
             )
 
-
-    # ==========================================================
-    # BOTÓN FINAL — CERRAR CICLO
-    # ==========================================================
     st.markdown("---")
 
+    # BOTÓN FINAL — CERRAR CICLO
     if st.button("🔐 Cerrar ciclo ahora (definitivo)"):
 
         con = obtener_conexion()
