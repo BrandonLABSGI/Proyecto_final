@@ -4,7 +4,7 @@ from modulos.conexion import obtener_conexion
 def login():
     st.set_page_config(page_title="Ingreso — Solidaridad CVX", layout="centered")
 
-    # Quitar header/footer que Streamlit agrega
+    # Quitar header/footer
     st.markdown("""
         <style>
             header, footer {visibility: hidden;}
@@ -15,14 +15,10 @@ def login():
     # ================================
     #  IMAGEN PRINCIPAL DEL LOGIN
     # ================================
-    st.image("/mnt/data/A_2D_digital_illustration_login_screen_for_Solidar.png", use_column_width=True)
+    st.image("modulos/imagenes/9e001816-7c44-4523-8a27-4b5bb730a1fa.png", use_column_width=True)
 
-    # ================================
-    #  FORMULARIO POSICIONADO DEBAJO
-    #  (NO se duplica, NO se mueve)
-    # ================================
-    st.write("")  # pequeño espacio invisible
-    st.write("")  
+    st.write("")
+    st.write("")
 
     usuario = st.text_input("Usuario")
     contrasena = st.text_input("Contraseña", type="password")
