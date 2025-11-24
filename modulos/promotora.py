@@ -30,11 +30,11 @@ def obtener_id_promotora():
 
 
 # ============================================================
-# PANEL PRINCIPAL PROMOTORA
+# PANEL PRINCIPAL PROMOTORA — MENÚ HORIZONTAL NUEVO
 # ============================================================
 def interfaz_promotora():
 
-    st.title("👩‍🦰 Panel de Promotora")
+    st.title("👩‍🦰 Panel de Promotora — Solidaridad CVX")
 
     # VALIDAR USUARIO
     id_promotora = obtener_id_promotora()
@@ -42,37 +42,40 @@ def interfaz_promotora():
         st.error("⚠ No se pudo validar la promotora. Verifica el usuario.")
         return
 
-    st.sidebar.title("Menú de Gestión")
-    opcion = st.sidebar.radio(
-        "Seleccione una opción:",
-        [
-            "Crear grupo",
-            "Ver grupos",
-            "Editar grupo",
-            "Eliminar grupo"
-        ]
-    )
+    # --------- MENÚ HORIZONTAL ---------
+    tabs = st.tabs([
+        "➕ Crear grupo",
+        "📋 Ver grupos",
+        "✏️ Editar grupo",
+        "🗑️ Eliminar grupo"
+    ])
 
-    if opcion == "Crear grupo":
+    # ========== OPCIÓN 1: CREAR GRUPO ==========
+    with tabs[0]:
+        st.subheader("➕ Crear Grupo Nuevo")
         crear_grupo(id_promotora)
 
-    elif opcion == "Ver grupos":
+    # ========== OPCIÓN 2: VER GRUPOS ==========
+    with tabs[1]:
+        st.subheader("📋 Grupos Asignados")
         ver_grupos(id_promotora)
 
-    elif opcion == "Editar grupo":
+    # ========== OPCIÓN 3: EDITAR GRUPO ==========
+    with tabs[2]:
+        st.subheader("✏️ Editar Grupo")
         editar_grupo(id_promotora)
 
-    elif opcion == "Eliminar grupo":
+    # ========== OPCIÓN 4: ELIMINAR GRUPO ==========
+    with tabs[3]:
+        st.subheader("🗑️ Eliminar Grupo")
         eliminar_grupo(id_promotora)
 
 
 
 # ============================================================
-# CREAR GRUPO
+# CREAR GRUPO — CONTENIDO COMPLETO
 # ============================================================
 def crear_grupo(id_promotora):
-
-    st.header("🆕 Crear Grupo Nuevo")
 
     nombre = st.text_input("Nombre del grupo")
     tasa = st.number_input("Tasa de interés (%)", min_value=0.0, step=0.1)
@@ -82,7 +85,7 @@ def crear_grupo(id_promotora):
     fecha_inicio = st.date_input("Fecha de inicio", value=date.today())
     distrito = st.number_input("ID del distrito", min_value=1, step=1)
 
-    if st.button("Crear grupo"):
+    if st.button("Crear grupo", type="primary"):
         con = obtener_conexion()
         cursor = con.cursor()
 
@@ -102,7 +105,7 @@ def crear_grupo(id_promotora):
         cursor.close()
         con.close()
 
-        st.success("Grupo creado correctamente.")
+        st.success("✅ Grupo creado correctamente.")
         st.rerun()
 
 
@@ -111,8 +114,6 @@ def crear_grupo(id_promotora):
 # VER GRUPOS
 # ============================================================
 def ver_grupos(id_promotora):
-
-    st.header("📋 Grupos asignados")
 
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
@@ -143,8 +144,6 @@ def ver_grupos(id_promotora):
 # ============================================================
 def editar_grupo(id_promotora):
 
-    st.header("✏️ Editar Grupo")
-
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
@@ -164,11 +163,9 @@ def editar_grupo(id_promotora):
     sel = st.selectbox("Selecciona un grupo:", opciones.keys())
     id_grupo = opciones[sel]
 
-    # Cargar datos actuales
     cursor.execute("SELECT * FROM Grupo WHERE Id_Grupo=%s", (id_grupo,))
     grupo = cursor.fetchone()
 
-    # Inputs
     nombre = st.text_input("Nombre", grupo["Nombre_grupo"])
     tasa = st.number_input("Tasa", value=float(grupo["Tasa_de_interes"]))
     periodicidad = st.number_input("Periodicidad", value=grupo["Periodicidad_de_reuniones"])
@@ -176,7 +173,7 @@ def editar_grupo(id_promotora):
     reglas = st.text_area("Reglas", grupo["Reglas_de_prestamo"])
     distrito = st.number_input("Distrito", value=grupo["Id_Distrito"])
 
-    if st.button("Actualizar"):
+    if st.button("Actualizar grupo", type="primary"):
         cursor.execute("""
             UPDATE Grupo
             SET Nombre_grupo=%s, Tasa_de_interes=%s, Periodicidad_de_reuniones=%s,
@@ -198,8 +195,6 @@ def editar_grupo(id_promotora):
 # ============================================================
 def eliminar_grupo(id_promotora):
 
-    st.header("🗑️ Eliminar Grupo")
-
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
@@ -219,11 +214,11 @@ def eliminar_grupo(id_promotora):
     sel = st.selectbox("Seleccione el grupo a eliminar:", opciones.keys())
     id_eliminar = opciones[sel]
 
-    if st.button("Eliminar definitivamente"):
+    if st.button("Eliminar definitivamente", type="primary"):
         cursor.execute("DELETE FROM Grupo WHERE Id_Grupo=%s", (id_eliminar,))
         con.commit()
 
-        st.error("Grupo eliminado permanentemente.")
+        st.error("❌ Grupo eliminado permanentemente.")
         st.rerun()
 
     cursor.close()
