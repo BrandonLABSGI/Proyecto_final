@@ -50,7 +50,7 @@ def interfaz_promotora():
 
     if opcion == "🏠 Inicio":
         st.subheader("Dashboard general del distrito")
-        #st.info("Aquí irá el Dashboard consolidado (SECCIÓN 2).")
+        st.info("Aquí irá el Dashboard consolidado (SECCIÓN 2).")
 
     elif opcion == "👥 Grupos":
         st.subheader("Gestión de grupos supervisados")
