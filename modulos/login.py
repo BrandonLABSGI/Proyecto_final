@@ -10,33 +10,16 @@ def login():
     # ============================
     st.markdown("""
         <style>
-            .card {
-                width: 850px;
-                margin: 50px auto;
-                background: #ffffff;
-                border-radius: 18px;
-                padding: 25px;
-                box-shadow: 0px 4px 40px rgba(0,0,0,0.20);
+            body {
+                background-color: #0d1117 !important;
             }
 
-            .welcome {
-                font-size: 30px;
+            .title-text {
+                font-size: 32px;
                 font-weight: 800;
+                text-align: center;
                 color: #0a3161;
-                text-align: center;
-                margin-top: 20px;
-                margin-bottom: 10px;
-            }
-
-            .subtitle {
-                font-size: 18px;
-                text-align: center;
-                color: #444444;
-                margin-bottom: 25px;
-            }
-
-            .login-box {
-                margin-top: 25px;
+                margin-bottom: 20px;
             }
 
             .stTextInput>div>div>input,
@@ -44,7 +27,7 @@ def login():
                 background-color: white !important;
                 border-radius: 8px;
                 height: 45px;
-                border: 1px solid #cccccc;
+                border: 1px solid #d1d5db;
                 color: #000 !important;
             }
 
@@ -55,7 +38,7 @@ def login():
                 color: white;
                 border-radius: 8px;
                 font-size: 17px;
-                margin-top: 18px;
+                margin-top: 15px;
             }
 
             .stButton>button:hover {
@@ -65,24 +48,29 @@ def login():
     """, unsafe_allow_html=True)
 
     # ============================
-    # TARJETA CENTRAL
+    # CENTRAR CONTENIDO
     # ============================
-    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown("<div style='display:flex; justify-content:center;'>", unsafe_allow_html=True)
 
-    # Imagen
-    st.image("modulos/imagenes/ilustracion.png", use_column_width=True)
+    # Imagen pequeña y centrada
+    st.image(
+        "modulos/imagenes/9e001816-7c44-4523-8a27-4b5bb730a1fa.png",
+        width=350
+    )
 
-    # Bienvenida
-    st.markdown('<div class="welcome">Bienvenida a Solidaridad CVX</div>', unsafe_allow_html=True)
-    st.markdown('<div class="subtitle">Sistema exclusivo para socias</div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Título
+    st.markdown("<h2 class='title-text'>Bienvenida a Solidaridad CVX</h2>", unsafe_allow_html=True)
 
     # ============================
-    # FORMULARIO PARA INGRESO
+    # FORMULARIO LOGIN
     # ============================
     usuario = st.text_input("Usuario")
     contrasena = st.text_input("Contraseña", type="password")
 
     if st.button("Iniciar sesión"):
+
         con = obtener_conexion()
         cursor = con.cursor(dictionary=True)
         cursor.execute(
@@ -98,5 +86,3 @@ def login():
             st.rerun()
         else:
             st.error("Usuario o contraseña incorrectos.")
-
-    st.markdown('</div>', unsafe_allow_html=True)
