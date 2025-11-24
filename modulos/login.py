@@ -1,59 +1,54 @@
 import streamlit as st
 import base64
 
+# =====================================================
+# CONVERTIR IMAGEN A BASE64
+# =====================================================
+def load_image_base64():
+    image_path = "modulos/imagenes/50513df8-1b40-4a28-a72d-1ab6a202cfc6.png"
+    with open(image_path, "rb") as f:
+        encoded = base64.b64encode(f.read()).decode()
+    return encoded
+
+
+# =====================================================
+# LOGIN
+# =====================================================
 def login():
+
     st.set_page_config(page_title="Ingreso — Solidaridad CVX", layout="centered")
 
-    # ============================
-    # Cargar imagen embebida BASE64
-    # ============================
-    encoded_image = """
-    iVBORw0KGgoAAAANSUhEUgAAAoAAAAHgCAYAAADx...
-    """  # ← Te pongo abajo la imagen real
-
-    # Convertir a HTML IMG
-    image_html = f"""
-        <img src="data:image/png;base64,{encoded_image}"
-             style="width:100%; border-radius:18px; box-shadow:0 4px 40px rgba(0,0,0,0.25);" />
-    """
-
-    # ============================
-    # Estilos globales
-    # ============================
+    # Ocultar header/footer
     st.markdown("""
         <style>
             header, footer {visibility: hidden !important;}
-            .block-container {padding-top: 10px !important;}
-            label { font-size: 18px !important; color: white !important; }
-            .stTextInput>div>div>input, .stPasswordInput>div>div>input {
-                background: #ffffff !important;
-                border-radius: 10px !important;
-                height: 45px !important;
-                font-size: 18px !important;
-            }
-            .stButton>button {
-                width: 100%;
-                background: #2e7d32;
-                font-size: 18px;
-                height: 45px;
-                border-radius: 10px;
-                color: white;
-            }
-            .stButton>button:hover {
-                background: #1b5e20 !important;
-            }
+            .block-container {padding-top: 30px !important;}
         </style>
     """, unsafe_allow_html=True)
 
-    st.markdown(image_html, unsafe_allow_html=True)
+    # Cargar la imagen en base64
+    img_base64 = load_image_base64()
 
+    # Mostrar imagen
+    st.markdown(
+        f"""
+        <div style="display:flex; justify-content:center;">
+            <img src="data:image/png;base64,{img_base64}"
+                 style="width:90%; max-width:900px; border-radius:20px;" />
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.write("")  
     st.write("### Iniciar Sesión")
 
+    # Campos de login
     usuario = st.text_input("Usuario")
     contrasena = st.text_input("Contraseña", type="password")
 
     if st.button("Iniciar sesión"):
-        import mysql.connector
+
         from modulos.conexion import obtener_conexion
 
         con = obtener_conexion()
