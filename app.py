@@ -3,7 +3,7 @@ import streamlit as st
 from modulos.login import login
 from modulos.directiva import interfaz_directiva
 from modulos.promotora import interfaz_promotora
-# from modulos.administrador import interfaz_admin  # ← LO DESACTIVAMOS PARA EVITAR EL ERROR
+from modulos.administrador import interfaz_admin  # ← LO DESACTIVAMOS PARA EVITAR EL ERROR
 
 
 # -------------------------------
@@ -33,10 +33,9 @@ if st.session_state["sesion_iniciada"]:
     elif rol == "Promotora":
         interfaz_promotora()
 
-    # ADMINISTRADOR – dejar mientras no existe el módulo
+     # ADMINISTRADOR
     elif rol == "Administrador":
-        st.title("🛠 Panel del Administrador (en construcción)")
-        st.info("Este panel aún no está disponible.")
+        interfaz_admin()
 
     else:
         st.error(f"❌ Rol no reconocido: {rol}")
