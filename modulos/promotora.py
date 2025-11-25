@@ -476,8 +476,12 @@ def validar_prestamos(id_grupo, id_promotora):
     cursor = con.cursor(dictionary=True)
 
     cursor.execute("""
-        SELECT s.Nombre, p.Monto_prestado AS Monto, p.Interes_total, p.Cuotas,
-               p.Estado_del_prestamo AS Estado
+        SELECT 
+            s.Nombre, 
+            p.`Monto prestado` AS Monto, 
+            p.Interes_total, 
+            p.Cuotas,
+            p.Estado_del_prestamo AS Estado
         FROM Prestamo p
         JOIN Socia s ON s.Id_Socia = p.Id_Socia
         WHERE p.Id_Grupo = %s
@@ -498,6 +502,7 @@ def validar_prestamos(id_grupo, id_promotora):
 
     cursor.close()
     con.close()
+
 
 
 def validar_multas(id_grupo, id_promotora):
