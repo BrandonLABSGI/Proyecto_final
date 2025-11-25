@@ -368,6 +368,7 @@ def mostrar_multas_grupo(id_grupo):
 
 
 
+
 def mostrar_asistencias_grupo(id_grupo):
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
