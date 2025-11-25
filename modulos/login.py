@@ -3,7 +3,7 @@ import mysql.connector
 from modulos.conexion import obtener_conexion
 
 # ============================================================
-# LOGIN TIPO APLICATIVO MÓVIL — SISTEMA CVX
+# LOGIN — SISTEMA CVX
 # ============================================================
 
 def login():
@@ -41,9 +41,6 @@ def login():
 
     st.markdown("<div class='login-box'>", unsafe_allow_html=True)
 
-    # ----------------------------------------------------
-    # LOGO Y TÍTULO DE LOGIN
-    # ----------------------------------------------------
     st.markdown(
         "<img class='logo' src='https://i.imgur.com/B4HqfUU.png'>",
         unsafe_allow_html=True
@@ -52,7 +49,7 @@ def login():
     st.markdown("<div class='title'>Inicio de sesión</div>", unsafe_allow_html=True)
 
     # ----------------------------------------------------
-    # FORMULARIO DE LOGIN
+    # FORMULARIO
     # ----------------------------------------------------
     usuario = st.text_input("👤 Usuario")
     contra = st.text_input("🔒 Contraseña", type="password")
@@ -66,7 +63,7 @@ def login():
                 cursor = con.cursor(dictionary=True)
 
                 cursor.execute("""
-                    SELECT Usuario, Contra, Rol
+                    SELECT Id_Empleado, Usuario, Contra, Rol
                     FROM Empleado
                     WHERE Usuario=%s AND Contra=%s
                     LIMIT 1
@@ -78,6 +75,7 @@ def login():
                     st.session_state["sesion_iniciada"] = True
                     st.session_state["usuario"] = row["Usuario"]
                     st.session_state["rol"] = row["Rol"]
+                    st.session_state["id_empleado"] = row["Id_Empleado"]  # <<--- IMPORTANTE
 
                     st.success("Ingreso exitoso. Redirigiendo…")
                     st.rerun()
