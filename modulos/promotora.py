@@ -372,24 +372,29 @@ def mostrar_multas_grupo(id_grupo):
 
 
 
-
-
 def mostrar_asistencias_grupo(id_grupo):
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    cursor.execute("""
-        SELECT a.Fecha, s.Nombre, a.Estado_asistencia
+    sql = """
+        SELECT 
+            a.Fecha,
+            s.Nombre,
+            a.Estado_asistencia
         FROM Asistencia a
         JOIN Socia s ON s.Id_Socia = a.Id_Socia
-        WHERE a.Id_Grupo = %s
+        JOIN Reunion r ON r.Id_Reunion = a.Id_Reunion
+        WHERE r.Id_Grupo = %s
         ORDER BY a.Fecha DESC
-    """, (id_grupo,))
+    """
+
+    cursor.execute(sql, (id_grupo,))
     datos = cursor.fetchall()
 
     cursor.close()
     con.close()
     st.dataframe(datos, hide_index=True)
+
 
 
 # ============================================================
