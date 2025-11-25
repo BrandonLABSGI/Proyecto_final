@@ -308,7 +308,7 @@ def mostrar_prestamos_grupo(id_grupo):
             p.Interes_total,
             p.Cuotas,
             p.Estado_del_prestamo AS Estado,
-            p.`Fecha del préstamo` AS Fecha_inicio
+            p.Fecha_prestamo AS Fecha_inicio
         FROM Prestamo p
         JOIN Socia s ON s.Id_Socia = p.Id_Socia
         WHERE p.Id_Grupo = %s
@@ -319,6 +319,7 @@ def mostrar_prestamos_grupo(id_grupo):
     cursor.close()
     con.close()
     st.dataframe(datos, hide_index=True)
+
 
 
 def mostrar_caja_grupo(id_grupo):
