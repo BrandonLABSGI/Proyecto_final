@@ -78,24 +78,16 @@ def dashboard_inicio(id_promotora):
     if not grupos:
         st.warning("No tienes grupos asignados todavía.")
         return
-# 1. VALIDAR GRUPOS ASIGNADOS
-if not grupos:
-    st.warning("No tienes grupos asignados todavía.")
-    return
 
-# Extraer lista de IDs
-ids = [g["Id_Grupo"] for g in grupos]
+    # Extraer IDs
+    ids = [g["Id_Grupo"] for g in grupos]
+    if not ids:
+        st.warning("No existen grupos para este usuario.")
+        return
 
-# Validar que existan IDs válidos
-if not ids:
-    st.warning("No existen grupos para este usuario.")
-    return
+    formato_ids = ",".join(["%s"] * len(ids))
 
-# Construir placeholders seguros para IN (%s, %s, %s)
-formato_ids = ','.join(['%s'] * len(ids))
-
-
-    # SOCIAS
+    # =========================== SOCIAS ============================
     cursor.execute(f"""
         SELECT Id_Grupo, COUNT(*) AS total
         FROM Socia
@@ -105,11 +97,11 @@ formato_ids = ','.join(['%s'] * len(ids))
     socias_data = cursor.fetchall()
     dict_socias = {r["Id_Grupo"]: r["total"] for r in socias_data}
 
-    # PRÉSTAMOS
+    # =========================== PRÉSTAMOS ============================
     cursor.execute(f"""
         SELECT Id_Grupo,
-               SUM(CASE WHEN Estado = 'Activo' THEN 1 ELSE 0 END) AS activos,
-               SUM(CASE WHEN Estado = 'Mora' THEN 1 ELSE 0 END) AS mora
+               SUM(CASE WHEN Estado='Activo' THEN 1 ELSE 0 END) AS activos,
+               SUM(CASE WHEN Estado='Mora' THEN 1 ELSE 0 END) AS mora
         FROM Prestamo
         WHERE Id_Grupo IN ({formato_ids})
         GROUP BY Id_Grupo
@@ -117,7 +109,7 @@ formato_ids = ','.join(['%s'] * len(ids))
     prest_data = cursor.fetchall()
     dict_prest = {r["Id_Grupo"]: r for r in prest_data}
 
-    # AHORROS
+    # =========================== AHORROS ============================
     cursor.execute(f"""
         SELECT Id_Grupo, SUM(Monto) AS total
         FROM Ahorro
@@ -127,7 +119,7 @@ formato_ids = ','.join(['%s'] * len(ids))
     ahorro_rows = cursor.fetchall()
     dict_ahorros = {r["Id_Grupo"]: float(r["total"]) for r in ahorro_rows}
 
-    # CAJA
+    # =========================== CAJA ============================
     cursor.execute(f"""
         SELECT Id_Grupo, SUM(saldo_final) AS caja
         FROM caja_reunion
@@ -140,6 +132,7 @@ formato_ids = ','.join(['%s'] * len(ids))
     cursor.close()
     con.close()
 
+    # =========================== MÉTRICAS ============================
     total_grupos = len(grupos)
     total_socias = sum(dict_socias.values())
     total_activos = sum(r["activos"] for r in dict_prest.values())
@@ -586,7 +579,6 @@ def generar_reporte_caja(id_grupo):
     df = pd.DataFrame(datos)
     st.dataframe(df, hide_index=True)
 
-    # Excel
     excel = io.BytesIO()
     with pd.ExcelWriter(excel, engine="xlsxwriter") as writer:
         df.to_excel(writer, index=False, sheet_name="Caja")
@@ -595,7 +587,6 @@ def generar_reporte_caja(id_grupo):
                        file_name="Caja.xlsx",
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-    # PDF
     pdf = io.BytesIO()
     c = canvas.Canvas(pdf, pagesize=letter)
     c.setFont("Helvetica", 10)
@@ -793,9 +784,8 @@ def alertas_criticas(id_promotora):
         st.info("Sin grupos.")
         return
 
-    formato_ids = ','.join(['%s'] * len(ids))
+    formato_ids = ",".join(["%s"] * len(ids))
 
-    # ALERTA MORA
     cursor.execute(f"""
         SELECT Id_Grupo,
                SUM(CASE WHEN Estado='Mora' THEN 1 ELSE 0 END) AS mora,
