@@ -347,12 +347,12 @@ def mostrar_multas_grupo(id_grupo):
     cursor.execute("""
         SELECT 
             s.Nombre,
-            t.Tipo_de_multa,
+            t.`Tipo de multa` AS Tipo,
             m.Monto,
             m.Fecha_aplicacion,
             m.Estado
         FROM Multa m
-        JOIN tipo_de_multa t ON t.Id_Tipo_multa = m.Id_Tipo_multa
+        JOIN `Tipo de multa` t ON t.Id_Tipo_multa = m.Id_Tipo_multa
         JOIN Socia s ON s.Id_Socia = m.Id_Socia
         JOIN Asistencia a ON a.Id_Asistencia = m.Id_Asistencia
         WHERE a.Id_Grupo = %s
@@ -364,6 +364,7 @@ def mostrar_multas_grupo(id_grupo):
     cursor.close()
     con.close()
     st.dataframe(datos, hide_index=True)
+
 
 
 
