@@ -512,7 +512,7 @@ def validar_multas(id_grupo, id_promotora):
 
     st.dataframe(datos, hide_index=True)
 
-    obs = st.text_area("Observaciones:")    
+    obs = st.text_area("Observaciones:")
 
     if st.button("Validar multas"):
         cursor.execute("""
@@ -524,6 +524,7 @@ def validar_multas(id_grupo, id_promotora):
 
     cursor.close()
     con.close()
+
 
 
 # ============================================================
