@@ -79,14 +79,12 @@ def dashboard_inicio(id_promotora):
         st.warning("No tienes grupos asignados todavía.")
         return
 
-    # Extraer lista de IDs
     ids = [g["Id_Grupo"] for g in grupos]
 
     if not ids:
         st.warning("No existen grupos para este usuario.")
         return
 
-    # Placeholders para IN
     formato_ids = ",".join(["%s"] * len(ids))
 
     # =====================
@@ -102,12 +100,12 @@ def dashboard_inicio(id_promotora):
     dict_socias = {r["Id_Grupo"]: r["total"] for r in socias_data}
 
     # =====================
-    # PRESTAMOS
+    # PRÉSTAMOS
     # =====================
     cursor.execute(f"""
         SELECT Id_Grupo,
-               SUM(CASE WHEN Estado = 'Activo' THEN 1 ELSE 0 END) AS activos,
-               SUM(CASE WHEN Estado = 'Mora' THEN 1 ELSE 0 END) AS mora
+               SUM(CASE WHEN Estado_del_prestamo = 'Activo' THEN 1 ELSE 0 END) AS activos,
+               SUM(CASE WHEN Estado_del_prestamo = 'Mora' THEN 1 ELSE 0 END) AS mora
         FROM Prestamo
         WHERE Id_Grupo IN ({formato_ids})
         GROUP BY Id_Grupo
@@ -119,7 +117,7 @@ def dashboard_inicio(id_promotora):
     # AHORROS
     # =====================
     cursor.execute(f"""
-        SELECT Id_Grupo, SUM(Monto) AS total
+        SELECT Id_Grupo, SUM(Monto_del_aporte) AS total
         FROM Ahorro
         WHERE Id_Grupo IN ({formato_ids})
         GROUP BY Id_Grupo
@@ -144,8 +142,8 @@ def dashboard_inicio(id_promotora):
 
     total_grupos = len(grupos)
     total_socias = sum(dict_socias.values())
-    total_activos = sum(r["activos"] for r in dict_prest.values())
-    total_mora = sum(r["mora"] for r in dict_prest.values())
+    total_activos = sum(r.get("activos", 0) for r in dict_prest.values())
+    total_mora = sum(r.get("mora", 0) for r in dict_prest.values())
     total_ahorro = sum(dict_ahorros.values())
     total_caja = sum(dict_caja.values())
 
@@ -171,13 +169,14 @@ def dashboard_inicio(id_promotora):
         soc = dict_socias.get(gid, 0)
         cah = dict_caja.get(gid, 0)
         aho = dict_ahorros.get(gid, 0)
-
         p = dict_prest.get(gid, {"activos": 0, "mora": 0})
-        act = p["activos"]
-        mor = p["mora"]
+
+        act = p.get("activos", 0)
+        mor = p.get("mora", 0)
 
         total_pres = act + mor
         mora_pct = (mor / total_pres * 100) if total_pres > 0 else 0
+
         estado = obtener_estado_grupo(mora_pct)
 
         tabla.append({
@@ -194,9 +193,6 @@ def dashboard_inicio(id_promotora):
     st.dataframe(tabla, hide_index=True)
 
 
-# ============================================================
-# ESTADO GRUPO
-# ============================================================
 def obtener_estado_grupo(mora_pct):
     if mora_pct >= 20:
         return "🔴 Alta mora"
@@ -208,7 +204,6 @@ def obtener_estado_grupo(mora_pct):
 
 # ============================================================
 # SECCIÓN 3 — VISTA DE GRUPOS
-# (Las funciones siguientes NO las modifico porque no son la causa del error)
 # ============================================================
 def vista_grupos(id_promotora):
 
@@ -233,7 +228,7 @@ def vista_grupos(id_promotora):
     cursor.execute("SELECT COUNT(*) AS total FROM Socia WHERE Id_Grupo = %s", (gid,))
     socias_total = cursor.fetchone()["total"]
 
-    cursor.execute("SELECT SUM(Monto) AS total FROM Ahorro WHERE Id_Grupo = %s", (gid,))
+    cursor.execute("SELECT SUM(Monto_del_aporte) AS total FROM Ahorro WHERE Id_Grupo = %s", (gid,))
     ahorro_total = cursor.fetchone()["total"] or 0
 
     cursor.execute("SELECT SUM(saldo_final) AS total FROM caja_reunion WHERE Id_Grupo = %s", (gid,))
@@ -241,9 +236,9 @@ def vista_grupos(id_promotora):
 
     cursor.execute("""
         SELECT 
-            SUM(CASE WHEN Estado='Activo' THEN 1 ELSE 0 END) AS activos,
-            SUM(CASE WHEN Estado='Mora' THEN 1 ELSE 0 END) AS mora,
-            SUM(CASE WHEN Estado='Liquidado' THEN 1 ELSE 0 END) AS liquidados
+            SUM(CASE WHEN Estado_del_prestamo='Activo' THEN 1 ELSE 0 END) AS activos,
+            SUM(CASE WHEN Estado_del_prestamo='Mora' THEN 1 ELSE 0 END) AS mora,
+            SUM(CASE WHEN Estado_del_prestamo='Liquidado' THEN 1 ELSE 0 END) AS liquidados
         FROM Prestamo
         WHERE Id_Grupo = %s
     """, (gid,))
@@ -283,14 +278,14 @@ def vista_grupos(id_promotora):
 
 
 # ============================================================
-# 🔍 FUNCIONES DE DETALLE (NO modificadas)
+# FUNCIONES DE DETALLE
 # ============================================================
 def mostrar_ahorros_grupo(id_grupo):
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
     cursor.execute("""
-        SELECT s.Nombre, a.Monto, a.Fecha_aporte
+        SELECT s.Nombre, a.Monto_del_aporte AS Monto, a.Fecha_del_aporte
         FROM Ahorro a
         JOIN Socia s ON s.Id_Socia = a.Id_Socia
         WHERE a.Id_Grupo = %s
@@ -307,8 +302,8 @@ def mostrar_prestamos_grupo(id_grupo):
     cursor = con.cursor(dictionary=True)
 
     cursor.execute("""
-        SELECT s.Nombre, p.Monto, p.Interes, p.Cuota,
-               p.Estado, p.Fecha_inicio, p.Fecha_limite
+        SELECT s.Nombre, p.Monto_prestado AS Monto, p.Interes_total, p.Cuotas,
+               p.Estado_del_prestamo AS Estado, p.Fecha_del_préstamo AS Fecha_inicio
         FROM Prestamo p
         JOIN Socia s ON s.Id_Socia = p.Id_Socia
         WHERE p.Id_Grupo = %s
@@ -374,7 +369,7 @@ def mostrar_asistencias_grupo(id_grupo):
 
 
 # ============================================================
-# SECCIÓN 4 — VALIDACIONES FINANCIERAS
+# VALIDACIONES
 # ============================================================
 def validaciones_financieras(id_promotora):
 
@@ -417,9 +412,6 @@ def validaciones_financieras(id_promotora):
     con.close()
 
 
-# ============================================================
-# VALIDAR CAJA
-# ============================================================
 def validar_caja(id_grupo, id_promotora):
 
     con = obtener_conexion()
@@ -449,16 +441,14 @@ def validar_caja(id_grupo, id_promotora):
     con.close()
 
 
-# ============================================================
-# VALIDAR PRÉSTAMOS
-# ============================================================
 def validar_prestamos(id_grupo, id_promotora):
 
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
     cursor.execute("""
-        SELECT s.Nombre, p.Monto, p.Interes, p.Cuota, p.Estado
+        SELECT s.Nombre, p.Monto_prestado AS Monto, p.Interes_total, p.Cuotas,
+               p.Estado_del_prestamo AS Estado
         FROM Prestamo p
         JOIN Socia s ON s.Id_Socia = p.Id_Socia
         WHERE p.Id_Grupo = %s
@@ -481,9 +471,6 @@ def validar_prestamos(id_grupo, id_promotora):
     con.close()
 
 
-# ============================================================
-# VALIDAR MULTAS
-# ============================================================
 def validar_multas(id_grupo, id_promotora):
 
     con = obtener_conexion()
@@ -515,258 +502,7 @@ def validar_multas(id_grupo, id_promotora):
 
 
 # ============================================================
-# REPORTES CONSOLIDADOS
-# ============================================================
-def reportes_consolidados(id_promotora):
-
-    st.write("### 📑 Reportes Consolidados del Distrito")
-
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    cursor.execute("""
-        SELECT Id_Grupo, Nombre_grupo
-        FROM Grupo
-        WHERE Id_Promotora = %s
-    """, (id_promotora,))
-    grupos = cursor.fetchall()
-
-    if not grupos:
-        st.warning("No hay grupos asignados.")
-        return
-
-    dict_g = {g["Nombre_grupo"]: g["Id_Grupo"] for g in grupos}
-
-    sel = st.selectbox("Seleccione un grupo:", dict_g.keys())
-    gid = dict_g[sel]
-
-    tipo = st.radio(
-        "Seleccione el reporte:",
-        ["Caja", "Préstamos", "Ahorros", "Asistencia"],
-        horizontal=True
-    )
-
-    if tipo == "Caja":
-        generar_reporte_caja(gid)
-    elif tipo == "Préstamos":
-        generar_reporte_prestamos(gid)
-    elif tipo == "Ahorros":
-        generar_reporte_ahorro(gid)
-    elif tipo == "Asistencia":
-        generar_reporte_asistencia(gid)
-
-    cursor.close()
-    con.close()
-
-
-# ============================================================
-# REPORTES PDF & EXCEL
-# ============================================================
-def generar_reporte_caja(id_grupo):
-
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    cursor.execute("""
-        SELECT fecha, saldo_inicial, ingresos, egresos, saldo_final
-        FROM caja_reunion
-        WHERE Id_Grupo = %s
-    """, (id_grupo,))
-    datos = cursor.fetchall()
-
-    cursor.close()
-    con.close()
-
-    if not datos:
-        st.info("No hay datos.")
-        return
-
-    df = pd.DataFrame(datos)
-    st.dataframe(df, hide_index=True)
-
-    # Excel
-    excel = io.BytesIO()
-    with pd.ExcelWriter(excel, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False, sheet_name="Caja")
-
-    st.download_button("📥 Excel", excel.getvalue(),
-                       file_name="Caja.xlsx",
-                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-    # PDF
-    pdf = io.BytesIO()
-    c = canvas.Canvas(pdf, pagesize=letter)
-    c.setFont("Helvetica", 10)
-
-    y = 750
-    for _, row in df.iterrows():
-        c.drawString(40, y, str(row.to_dict()))
-        y -= 16
-        if y < 60:
-            c.showPage()
-            c.setFont("Helvetica", 10)
-            y = 750
-
-    c.save()
-
-    st.download_button("📄 PDF", pdf.getvalue(),
-                       file_name="Caja.pdf",
-                       mime="application/pdf")
-
-
-def generar_reporte_prestamos(id_grupo):
-
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    cursor.execute("""
-        SELECT s.Nombre, p.Monto, p.Interes, p.Cuota, p.Estado
-        FROM Prestamo p
-        JOIN Socia s ON s.Id_Socia = p.Id_Socia
-        WHERE p.Id_Grupo = %s
-    """, (id_grupo,))
-    datos = cursor.fetchall()
-
-    cursor.close()
-    con.close()
-
-    if not datos:
-        st.info("No hay datos.")
-        return
-
-    df = pd.DataFrame(datos)
-    st.dataframe(df, hide_index=True)
-
-    excel = io.BytesIO()
-    with pd.ExcelWriter(excel, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False, sheet_name="Prestamos")
-
-    st.download_button("📥 Excel", excel.getvalue(),
-                       file_name="Prestamos.xlsx",
-                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-    pdf = io.BytesIO()
-    c = canvas.Canvas(pdf, pagesize=letter)
-    c.setFont("Helvetica", 10)
-
-    y = 750
-    for _, row in df.iterrows():
-        c.drawString(40, y, str(row.to_dict()))
-        y -= 16
-        if y < 60:
-            c.showPage()
-            c.setFont("Helvetica", 10)
-            y = 750
-
-    c.save()
-
-    st.download_button("📄 PDF", pdf.getvalue(),
-                       file_name="Prestamos.pdf",
-                       mime="application/pdf")
-
-
-def generar_reporte_ahorro(id_grupo):
-
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    cursor.execute("""
-        SELECT s.Nombre, a.Monto, a.Fecha_aporte
-        FROM Ahorro a
-        JOIN Socia s ON s.Id_Socia = a.Id_Socia
-        WHERE a.Id_Grupo = %s
-    """, (id_grupo,))
-    datos = cursor.fetchall()
-
-    cursor.close()
-    con.close()
-
-    if not datos:
-        st.info("No hay datos.")
-        return
-
-    df = pd.DataFrame(datos)
-    st.dataframe(df, hide_index=True)
-
-    excel = io.BytesIO()
-    with pd.ExcelWriter(excel, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False, sheet_name="Ahorro")
-
-    st.download_button("📥 Excel", excel.getvalue(),
-                       file_name="Ahorro.xlsx",
-                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-    pdf = io.BytesIO()
-    c = canvas.Canvas(pdf, pagesize=letter)
-    c.setFont("Helvetica", 10)
-
-    y = 750
-    for _, row in df.iterrows():
-        c.drawString(40, y, str(row.to_dict()))
-        y -= 16
-        if y < 50:
-            c.showPage()
-            y = 750
-
-    c.save()
-
-    st.download_button("📄 PDF", pdf.getvalue(),
-                       file_name="Ahorro.pdf",
-                       mime="application/pdf")
-
-
-def generar_reporte_asistencia(id_grupo):
-
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-
-    cursor.execute("""
-        SELECT a.Fecha, s.Nombre, a.Estado_asistencia
-        FROM Asistencia a
-        JOIN Socia s ON s.Id_Socia = a.Id_Socia
-        WHERE a.Id_Grupo = %s
-    """, (id_grupo,))
-    datos = cursor.fetchall()
-
-    cursor.close()
-    con.close()
-
-    if not datos:
-        st.info("No hay datos.")
-        return
-
-    df = pd.DataFrame(datos)
-    st.dataframe(df, hide_index=True)
-
-    excel = io.BytesIO()
-    with pd.ExcelWriter(excel, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False, sheet_name="Asistencia")
-
-    st.download_button("📥 Excel", excel.getvalue(),
-                       file_name="Asistencia.xlsx",
-                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-    pdf = io.BytesIO()
-    c = canvas.Canvas(pdf, pagesize=letter)
-    c.setFont("Helvetica", 10)
-
-    y = 750
-    for _, row in df.iterrows():
-        c.drawString(40, y, str(row.to_dict()))
-        y -= 16
-        if y < 60:
-            c.showPage()
-            y = 750
-
-    c.save()
-
-    st.download_button("📄 PDF", pdf.getvalue(),
-                       file_name="Asistencia.pdf",
-                       mime="application/pdf")
-
-
-# ============================================================
-# SECCIÓN 6 — ALERTAS AUTOMÁTICAS
+# ALERTAS AUTOMÁTICAS
 # ============================================================
 def alertas_criticas(id_promotora):
 
@@ -787,6 +523,7 @@ def alertas_criticas(id_promotora):
         return
 
     ids = [g["Id_Grupo"] for g in grupos]
+
     if len(ids) == 0:
         st.info("Sin grupos.")
         return
@@ -795,7 +532,7 @@ def alertas_criticas(id_promotora):
 
     cursor.execute(f"""
         SELECT Id_Grupo,
-               SUM(CASE WHEN Estado='Mora' THEN 1 ELSE 0 END) AS mora,
+               SUM(CASE WHEN Estado_del_prestamo='Mora' THEN 1 ELSE 0 END) AS mora,
                COUNT(*) AS total
         FROM Prestamo
         WHERE Id_Grupo IN ({formato_ids})
