@@ -302,12 +302,18 @@ def mostrar_prestamos_grupo(id_grupo):
     cursor = con.cursor(dictionary=True)
 
     cursor.execute("""
-        SELECT s.Nombre, p.Monto_prestado AS Monto, p.Interes_total, p.Cuotas,
-               p.Estado_del_prestamo AS Estado, p.Fecha_del_préstamo AS Fecha_inicio
+        SELECT 
+            s.Nombre, 
+            p.Monto_prestado AS Monto,
+            p.Interes_total,
+            p.Cuotas,
+            p.Estado_del_prestamo AS Estado,
+            p.`Fecha del préstamo` AS Fecha_inicio
         FROM Prestamo p
         JOIN Socia s ON s.Id_Socia = p.Id_Socia
         WHERE p.Id_Grupo = %s
     """, (id_grupo,))
+    
     datos = cursor.fetchall()
 
     cursor.close()
