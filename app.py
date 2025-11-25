@@ -15,9 +15,12 @@ if "sesion_iniciada" not in st.session_state:
 if "rol" not in st.session_state:
     st.session_state["rol"] = None
 
+if "id_empleado" not in st.session_state:
+    st.session_state["id_empleado"] = None
+
 
 # ============================================================
-# FUNCIÓN PARA VALIDAR EL ACCESO
+# VALIDACIÓN GENERAL
 # ============================================================
 def acceso_restringido(rol_requerido):
     rol_actual = st.session_state.get("rol", None)
@@ -34,7 +37,7 @@ def acceso_restringido(rol_requerido):
 
 
 # ============================================================
-# LÓGICA PRINCIPAL
+# LÓGICA PRINCIPAL DE NAVEGACIÓN
 # ============================================================
 
 if st.session_state["sesion_iniciada"]:
@@ -56,13 +59,13 @@ if st.session_state["sesion_iniciada"]:
         acceso_restringido("Administrador")
         interfaz_admin()
 
+    # ROL DESCONOCIDO
     else:
         st.error(f"❌ Rol no reconocido: {rol}")
         st.session_state.clear()
         st.rerun()
 
-
-    # CERRAR SESIÓN
+    # BOTÓN CERRAR SESIÓN (SIEMPRE DISPONIBLE)
     if st.sidebar.button("Cerrar sesión"):
         st.session_state.clear()
         st.rerun()
