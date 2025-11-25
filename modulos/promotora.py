@@ -344,7 +344,7 @@ def mostrar_multas_grupo(id_grupo):
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    cursor.execute("""
+    sql = """
         SELECT 
             s.Nombre,
             t.`Tipo de multa` AS Tipo,
@@ -357,13 +357,15 @@ def mostrar_multas_grupo(id_grupo):
         JOIN Asistencia a ON a.Id_Asistencia = m.Id_Asistencia
         WHERE a.Id_Grupo = %s
         ORDER BY m.Id_Multa DESC
-    """, (id_grupo,))
-    
+    """
+
+    cursor.execute(sql, (id_grupo,))
     datos = cursor.fetchall()
 
     cursor.close()
     con.close()
     st.dataframe(datos, hide_index=True)
+
 
 
 
