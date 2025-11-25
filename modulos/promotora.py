@@ -21,21 +21,26 @@ def interfaz_promotora():
     validar_promotora()
 
     st.title("👩‍💼 Panel de Promotora — Solidaridad CVX")
-
     st.write("Supervisión, validación financiera y reportes del distrito asignado.")
+
+    # ID DE LA PROMOTORA LOGUEADA
+    id_promotora = st.session_state.get("id_empleado", None)
+
+    if not id_promotora:
+        st.error("No se pudo obtener el ID de la promotora. Vuelva a iniciar sesión.")
+        st.stop()
 
     # ------------------------------------------------------------
     # BOTÓN CERRAR SESIÓN
     # ------------------------------------------------------------
     if st.button("Cerrar sesión"):
-        st.session_state["sesion_iniciada"] = False
-        st.session_state["rol"] = None
+        st.session_state.clear()
         st.rerun()
 
     st.markdown("---")
 
     # ============================================================
-    # MENÚ HORIZONTAL (Opción B minimalista)
+    # MENÚ HORIZONTAL
     # ============================================================
     opcion = st.radio(
         "Navegación",
@@ -44,29 +49,24 @@ def interfaz_promotora():
     )
 
     # ============================================================
-    # SECCIONES (vacías por ahora)
-    # se llenan en la SECCIÓN 2, 3, 4, 5 y 6
+    # SECCIONES REALES
     # ============================================================
 
     if opcion == "🏠 Inicio":
-        st.subheader("Dashboard general del distrito")
-        st.info("Aquí irá el Dashboard consolidado (SECCIÓN 2).")
+        dashboard_inicio(id_promotora)
 
     elif opcion == "👥 Grupos":
-        st.subheader("Gestión de grupos supervisados")
-        st.info("Aquí irá la vista de grupos (SECCIÓN 3).")
+        vista_grupos(id_promotora)
 
     elif opcion == "📑 Reportes":
-        st.subheader("Reportes consolidados")
-        st.info("Aquí irán los reportes PDF/Excel (SECCIÓN 5).")
+        reportes_consolidados(id_promotora)
 
     elif opcion == "✔ Validaciones":
-        st.subheader("Validación de información financiera")
-        st.info("Aquí irán las validaciones de caja, préstamos y ciclos (SECCIÓN 4).")
+        validaciones_financieras(id_promotora)
 
     elif opcion == "🚨 Alertas":
-        st.subheader("Alertas automáticas")
-        st.info("Aquí irán las alertas de mora, inconsistencias y cierres pendientes (SECCIÓN 6).")
+        alertas_criticas(id_promotora)
+
 # ============================================================
 # SECCIÓN 2 — DASHBOARD (Inicio)
 # ============================================================
