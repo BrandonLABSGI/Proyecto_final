@@ -21,7 +21,7 @@ def validar_promotora():
 # INTERFAZ PRINCIPAL — MÓDULO DE PROMOTORA
 # ============================================================
 def interfaz_promotora():
-
+  
     validar_promotora()
 
     st.title("👩‍💼 Panel de Promotora — Solidaridad CVX")
@@ -58,6 +58,16 @@ def interfaz_promotora():
 
     elif opcion == "🚨 Alertas":
         alertas_criticas(id_promotora)
+
+
+
+# ← PEGAR AQUÍ
+def reportes_consolidados(id_promotora):
+    st.subheader("📑 Reportes Consolidados")
+    st.info("Esta sección estará disponible próximamente.")
+
+  
+
 
 
 # ============================================================
