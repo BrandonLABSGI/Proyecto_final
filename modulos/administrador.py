@@ -4,46 +4,31 @@ from datetime import date
 from modulos.conexion import obtener_conexion
 import re
 
-
-
 # ============================================================
 #              PANEL PRINCIPAL DEL ADMINISTRADOR
 # ============================================================
 def interfaz_admin():
-    # Seguridad: solo usuarios con rol "Administrador"
     rol = st.session_state.get("rol", "")
     if rol != "Administrador":
         st.error("⛔ No tiene permisos para acceder al panel de administrador.")
         return
 
     st.title("🛡️ Panel del Administrador")
-    #st.caption("Gestione roles, distritos, grupos y empleados del sistema.")
 
-    # --------------------------------------------------------
-    # Métricas generales (tarjetas superiores)
-    # --------------------------------------------------------
-
-        # --------------------------------------------------------
-    # Métricas generales (tarjetas superiores)
-    # --------------------------------------------------------
     col1, col2, col3, col4 = st.columns(4)
     try:
         con = obtener_conexion()
         cur = con.cursor()
 
-        # Distritos
         cur.execute("SELECT COUNT(*) FROM Distrito")
         total_distritos = cur.fetchone()[0]
 
-        # Grupos
         cur.execute("SELECT COUNT(*) FROM Grupo")
         total_grupos = cur.fetchone()[0]
 
-        # Promotoras = empleados cuyo Rol sea 'Promotora'
         cur.execute("SELECT COUNT(*) FROM Empleado WHERE Rol = 'Promotora'")
         total_promotoras = cur.fetchone()[0]
 
-        # Empleados totales
         cur.execute("SELECT COUNT(*) FROM Empleado")
         total_empleados = cur.fetchone()[0]
 
@@ -61,13 +46,8 @@ def interfaz_admin():
         except:
             pass
 
-  
-
     st.markdown("---")
 
-    # --------------------------------------------------------
-    # Menú lateral de administración
-    # --------------------------------------------------------
     seccion = st.sidebar.radio(
         "📂 Módulos de administración",
         [
@@ -76,7 +56,7 @@ def interfaz_admin():
             "Gestión de grupos",
             "Gestión de promotoras",
             "Gestión de empleados",
-            "Resumen general", 
+            "Resumen general",
         ]
     )
 
@@ -90,9 +70,8 @@ def interfaz_admin():
         gestion_promotoras()
     elif seccion == "Gestión de empleados":
         gestion_empleados()
-
     elif seccion == "Resumen general":
-        resumen_general()  
+        resumen_general()
 
 
 # ============================================================
@@ -105,12 +84,8 @@ def gestion_roles():
     cursor = con.cursor()
 
     col1, col2 = st.columns([2, 1])
-
     with col1:
-        nuevo_rol = st.text_input(
-            "Nombre del nuevo rol (ej: Director, Promotora, Administrador)"
-        )
-
+        nuevo_rol = st.text_input("Nombre del nuevo rol")
     with col2:
         if st.button("➕ Crear rol"):
             if nuevo_rol.strip() == "":
@@ -152,14 +127,7 @@ def gestion_distritos():
     cursor = con.cursor()
 
     st.subheader("➕ Crear nuevo distrito")
-
-    # Solo pedimos el nombre en la interfaz
     nombre = st.text_input("Nombre del distrito")
-
-    # Valores por defecto internos (no visibles en la UI)
-    representantes_defecto = 0
-    cant_grupos_defecto = 0
-    estado_defecto = "Activo"
 
     if st.button("Crear distrito"):
         if nombre.strip() == "":
@@ -174,14 +142,9 @@ def gestion_distritos():
                         Cantidad_grupos,
                         Estado_distrito
                     )
-                    VALUES(%s, %s, %s, %s)
+                    VALUES(%s, 0, 0, 'Activo')
                     """,
-                    (
-                        nombre,
-                        representantes_defecto,
-                        cant_grupos_defecto,
-                        estado_defecto,
-                    ),
+                    (nombre,),
                 )
                 con.commit()
                 st.success("Distrito creado correctamente.")
@@ -189,26 +152,17 @@ def gestion_distritos():
                 st.error(f"Error al crear distrito: {e}")
 
     st.markdown("### 📋 Distritos registrados")
-
     try:
-        # Seguimos leyendo todos los campos por si se usan en otros lados,
-        # pero solo mostramos ID y Nombre en la tabla.
         cursor.execute(
             """
-            SELECT Id_Distrito,
-                   Nombre_distrito,
-                   Representantes,
-                   Cantidad_grupos,
-                   Estado_distrito
-            FROM Distrito
-            ORDER BY Id_Distrito ASC
+            SELECT Id_Distrito, Nombre_distrito
+            FROM Distrito ORDER BY Id_Distrito ASC
             """
         )
         distritos = cursor.fetchall()
         if distritos:
-            # Solo mostramos ID y Nombre en el dataframe
             df = pd.DataFrame(
-                [(d[0], d[1]) for d in distritos],
+                distritos,
                 columns=["ID", "Nombre"],
             )
             st.dataframe(df, use_container_width=True)
@@ -221,9 +175,8 @@ def gestion_distritos():
     con.close()
 
 
-
 # ============================================================
-#                   GESTIÓN DE PROMOTORAS
+#           GESTIÓN DE PROMOTORAS (CORREGIDO)
 # ============================================================
 def gestion_promotoras():
     st.header("👩‍💼 Gestión de promotores")
@@ -231,155 +184,106 @@ def gestion_promotoras():
     con = obtener_conexion()
     cursor = con.cursor()
 
-    # --------------------------------------------------------
-    # Obtener Id_Roles correspondiente a 'Promotora'
-    # --------------------------------------------------------
+    # ID del Rol Promotora
     try:
-        cursor.execute(
-            "SELECT Id_Roles FROM Roles WHERE Tipo_de_rol = 'Promotora' LIMIT 1"
-        )
+        cursor.execute("SELECT Id_Roles FROM Roles WHERE Tipo_de_rol = 'Promotora'")
         row = cursor.fetchone()
         if not row:
-            st.error("No existe el rol 'Promotora' en la tabla Roles.")
-            cursor.close()
-            con.close()
+            st.error("No existe el rol 'Promotora'.")
             return
         id_rol_promotora = row[0]
-    except Exception as e:
-        st.error(f"Error al obtener el rol 'Promotora': {e}")
-        cursor.close()
-        con.close()
+    except:
+        st.error("Error cargando rol Promotora.")
         return
 
-    # --------------------------------------------------------
     # Cargar distritos
-    # --------------------------------------------------------
     try:
-        cursor.execute(
-            "SELECT Id_Distrito, Nombre_distrito FROM Distrito ORDER BY Id_Distrito ASC"
-        )
+        cursor.execute("SELECT Id_Distrito, Nombre_distrito FROM Distrito ORDER BY Id_Distrito ASC")
         distritos = cursor.fetchall()
-        dict_distritos = {f"{d[0]} - {d[1]}": d[0] for d in distritos} if distritos else {}
-    except Exception as e:
-        st.error(f"Error al cargar distritos: {e}")
+        dict_distritos = {f"{d[0]} - {d[1]}": d[0] for d in distritos}
+    except:
         dict_distritos = {}
 
-    st.subheader("➕ Registrar nuevo promotor")
+    st.subheader("➕ Registrar nueva promotora")
 
     col1, col2 = st.columns(2)
     with col1:
-        usuario = st.text_input("Usuario (para inicio de sesión)", key="promo_usuario")
-        contra = st.text_input("Contraseña", type="password", key="promo_contra")
-        nombres = st.text_input("Nombres", key="promo_nombres")
-        apellidos = st.text_input("Apellidos", key="promo_apellidos")
+        usuario = st.text_input("Usuario")
+        contra = st.text_input("Contraseña", type="password")
+        nombres = st.text_input("Nombres")
+        apellidos = st.text_input("Apellidos")
+
     with col2:
-        dui = st.text_input("DUI (9 dígitos, sin guion)", key="promo_dui")
-        telefono = st.text_input("Teléfono (8 dígitos, sin guion)", key="promo_tel")
+        dui = st.text_input("DUI (9 dígitos)", max_chars=9)
+        telefono = st.text_input("Teléfono (8 dígitos)", max_chars=8)
+        if dui and not dui.isdigit():
+            st.error("El DUI solo puede contener números.")
+        if telefono and not telefono.isdigit():
+            st.error("El teléfono solo puede contener números.")
+
         distrito_sel = st.selectbox(
             "Distrito base",
             list(dict_distritos.keys()) if dict_distritos else ["(Sin distritos)"],
-            key="promo_distrito"
         )
-        estado = st.selectbox("Estado", ["Activo", "Inactivo"], key="promo_estado")
+        estado = st.selectbox("Estado", ["Activo", "Inactivo"])
 
-    # ---------------------- CREAR PROMOTORA ----------------------
     if st.button("Registrar promotora"):
         errores = []
 
-        # Campos obligatorios
         if usuario.strip() == "" or contra.strip() == "":
-            errores.append("Usuario y contraseña son obligatorios.")
-
+            errores.append("Usuario y contraseña obligatorios.")
         if nombres.strip() == "" or apellidos.strip() == "":
-            errores.append("Nombres y apellidos son obligatorios.")
+            errores.append("Nombres y apellidos obligatorios.")
 
-        if dui.strip() == "":
-            errores.append("El campo DUI es obligatorio.")
+        if not re.fullmatch(r"\d{9}", dui):
+            errores.append("El DUI debe ser de exactamente 9 dígitos.")
+        if not re.fullmatch(r"\d{8}", telefono):
+            errores.append("El teléfono debe ser de 8 dígitos.")
 
-        if telefono.strip() == "":
-            errores.append("El campo Teléfono es obligatorio.")
-
-        if not dict_distritos or distrito_sel not in dict_distritos:
+        if distrito_sel not in dict_distritos:
             errores.append("Debe seleccionar un distrito válido.")
 
-        # ---------- Validación de DUI (9 dígitos sin guion) ----------
-        dui_raw = dui.strip()
-        if not re.fullmatch(r"\d{9}", dui_raw):
-            errores.append(
-                "El DUI debe tener exactamente 9 dígitos numéricos, sin guiones ni espacios."
-            )
-
-        # ---------- Validación de Teléfono (8 dígitos sin guion) ----------
-        tel_raw = telefono.strip()
-        if not re.fullmatch(r"\d{8}", tel_raw):
-            errores.append(
-                "El teléfono debe tener exactamente 8 dígitos numéricos, sin guiones ni espacios."
-            )
-
-        # Si hay errores, los mostramos y no insertamos
         if errores:
-            for msg in errores:
-                st.warning(msg)
-        else:
-            try:
-                id_distrito = dict_distritos[distrito_sel]
+            for e in errores:
+                st.warning(e)
+            return
 
-                cursor.execute(
-                    """
-                    INSERT INTO Empleado(
-                        Usuario,
-                        Contra,
-                        Id_Rol,
-                        Rol,
-                        Nombres,
-                        Apellidos,
-                        DUI,
-                        Telefono,
-                        Distrito,
-                        Estado
-                    )
-                    VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    """,
-                    (
-                        usuario.strip(),
-                        contra,
-                        id_rol_promotora,   # FK a Roles
-                        "Promotora",        # texto de rol
-                        nombres.strip(),
-                        apellidos.strip(),
-                        dui_raw,
-                        tel_raw,
-                        id_distrito,
-                        estado,
-                    ),
+        try:
+            cursor.execute(
+                """
+                INSERT INTO Empleado(
+                    Usuario, Contra, Id_Rol, Rol,
+                    Nombres, Apellidos, DUI, Telefono,
+                    Distrito, Estado
                 )
-                con.commit()
-                st.success("Promotora registrada correctamente.")
-            except Exception as e:
-                st.error(f"Error al registrar promotora: {e}")
+                VALUES(%s,%s,%s,'Promotora',%s,%s,%s,%s,%s,%s)
+                """,
+                (
+                    usuario.strip(), contra.strip(), id_rol_promotora,
+                    nombres.strip(), apellidos.strip(),
+                    dui, telefono,
+                    dict_distritos[distrito_sel], estado
+                )
+            )
+            con.commit()
+            st.success("Promotora registrada correctamente.")
+        except Exception as e:
+            st.error(f"Error: {e}")
 
-    # ---------------------- LISTADO DE PROMOTORAS ----------------------
-    st.markdown("### 📋 Promotores registrados")
-
+    # LISTADO
+    st.markdown("### 📋 Promotoras registradas")
     try:
         cursor.execute(
             """
-            SELECT e.Id_Empleado,
-                   e.Usuario,
-                   e.Nombres,
-                   e.Apellidos,
-                   d.Nombre_distrito,
-                   e.Estado
+            SELECT e.Id_Empleado, e.Usuario, e.Nombres, e.Apellidos,
+                   d.Nombre_distrito, e.Estado
             FROM Empleado e
             LEFT JOIN Distrito d ON e.Distrito = d.Id_Distrito
             WHERE e.Rol = 'Promotora'
-               OR e.Id_Rol = %s
             ORDER BY e.Id_Empleado ASC
-            """,
-            (id_rol_promotora,),
+            """
         )
         promotoras = cursor.fetchall()
-
         if promotoras:
             df = pd.DataFrame(
                 promotoras,
@@ -396,203 +300,121 @@ def gestion_promotoras():
 
 
 # ============================================================
-#                     GESTIÓN DE GRUPOS
-# ============================================================
-
-# ============================================================
-#                     GESTIÓN DE GRUPOS
+#                   GESTIÓN DE GRUPOS
 # ============================================================
 def gestion_grupos():
+
     st.header("👥 Gestión de grupos")
 
     con = obtener_conexion()
     cursor = con.cursor()
 
-    # --------------------------------------------------------
-    # Cargar distritos
-    # --------------------------------------------------------
+    # DISTRITOS
     try:
-        cursor.execute(
-            "SELECT Id_Distrito, Nombre_distrito FROM Distrito ORDER BY Id_Distrito ASC"
-        )
+        cursor.execute("SELECT Id_Distrito, Nombre_distrito FROM Distrito ORDER BY Id_Distrito")
         distritos = cursor.fetchall()
-        dict_distritos = {f"{d[0]} - {d[1]}": d[0] for d in distritos} if distritos else {}
-    except Exception as e:
-        st.error(f"Error al cargar distritos: {e}")
+        dict_distritos = {f"{d[0]} - {d[1]}": d[0] for d in distritos}
+    except:
         dict_distritos = {}
 
-    # --------------------------------------------------------
-    # Cargar promotoras (empleados con rol 'Promotora')
-    # Usa Empleado.Id_Rol (singular) contra Roles.Id_Roles
-    # --------------------------------------------------------
+    # PROMOTORAS
     try:
         cursor.execute(
             """
-            SELECT e.Id_Empleado, e.Nombres, e.Apellidos
-            FROM Empleado e
-            LEFT JOIN Roles r ON e.Id_Rol = r.Id_Roles
-            WHERE r.Tipo_de_rol = 'Promotora'
-               OR e.Rol = 'Promotora'
-            ORDER BY e.Id_Empleado ASC
+            SELECT Id_Empleado, Nombres, Apellidos
+            FROM Empleado
+            WHERE Rol = 'Promotora'
             """
         )
         promotoras = cursor.fetchall()
-        dict_prom = {
-            f"{p[0]} - {p[1]} {p[2]}": p[0] for p in promotoras
-        } if promotoras else {}
-    except Exception as e:
-        st.error(f"Error al cargar promotoras: {e}")
+        dict_prom = {f"{p[0]} - {p[1]} {p[2]}": p[0] for p in promotoras}
+    except:
         dict_prom = {}
 
-    # --------------------------------------------------------
-    # Cargar directivas (empleados con rol 'Director')
-    # --------------------------------------------------------
+    # DIRECTIVAS
     try:
         cursor.execute(
             """
-            SELECT e.Id_Empleado, e.Nombres, e.Apellidos
-            FROM Empleado e
-            LEFT JOIN Roles r ON e.Id_Rol = r.Id_Roles
-            WHERE r.Tipo_de_rol = 'Director'
-               OR e.Rol = 'Director'
-            ORDER BY e.Id_Empleado ASC
+            SELECT Id_Empleado, Nombres, Apellidos
+            FROM Empleado
+            WHERE Rol = 'Director'
             """
         )
         directores = cursor.fetchall()
-        dict_dir = {
-            f"{d[0]} - {d[1]} {d[2]}": d[0] for d in directores
-        } if directores else {}
-    except Exception as e:
-        st.error(f"Error al cargar directores: {e}")
+        dict_dir = {f"{d[0]} - {d[1]} {d[2]}": d[0] for d in directores}
+    except:
         dict_dir = {}
 
-    # --------------------------------------------------------
-    # Elegir un tipo de multa por defecto (no se muestra en UI)
-    # --------------------------------------------------------
-    default_tipo_multa_id = None
+    # TIPO DE MULTA DEFAULT
     try:
-        cursor.execute(
-            "SELECT Id_Tipo_multa FROM `Tipo de multa` ORDER BY Id_Tipo_multa ASC LIMIT 1"
-        )
+        cursor.execute("SELECT Id_Tipo_multa FROM `Tipo de multa` LIMIT 1")
         row = cursor.fetchone()
-        if row:
-            default_tipo_multa_id = row[0]
-    except Exception as e:
-        st.error(f"Error al cargar tipo de multa por defecto: {e}")
+        default_tipo_multa_id = row[0] if row else None
+    except:
+        default_tipo_multa_id = None
 
     st.subheader("➕ Crear nuevo grupo")
 
-    # ---------------------- CAMPOS VISIBLES ------------------
     nombre_grupo = st.text_input("Nombre del grupo")
+    fecha_inicio = st.date_input("Fecha de inicio", value=date.today())
 
-    # Fecha de inicio visible en el formulario (tipo date)
-    fecha_inicio = st.date_input("Fecha de inicio del grupo", value=date.today())
+    distrito_sel = st.selectbox("Distrito", list(dict_distritos.keys()))
+    promotora_sel = st.selectbox("Promotora asignada", list(dict_prom.keys()))
 
-    distrito_sel = st.selectbox(
-        "Distrito del grupo",
-        list(dict_distritos.keys()) if dict_distritos else ["(No hay distritos registrados)"],
-    )
+    opciones_dir = ["(Sin director)"] + list(dict_dir.keys())
+    director_sel = st.selectbox("Director del grupo", opciones_dir)
 
-    promotora_sel = st.selectbox(
-        "Promotora asignada",
-        list(dict_prom.keys()) if dict_prom else ["(No hay promotoras registradas)"],
-    )
-
-    opciones_director = ["(Sin director por ahora)"]
-    if dict_dir:
-        opciones_director += list(dict_dir.keys())
-
-    director_sel = st.selectbox(
-        "Director del grupo (opcional)",
-        opciones_director,
-    )
-
-    # ---------------------- GUARDAR GRUPO --------------------
     if st.button("Crear grupo"):
+
         if nombre_grupo.strip() == "":
             st.warning("El nombre del grupo es obligatorio.")
-        elif not dict_distritos or distrito_sel not in dict_distritos:
-            st.warning("Debe seleccionar un distrito válido.")
-        elif not dict_prom or promotora_sel not in dict_prom:
-            st.warning("Debe seleccionar una promotora válida.")
-        elif default_tipo_multa_id is None:
-            st.warning("Debe existir al menos un tipo de multa en la tabla 'Tipo de multa'.")
-        else:
-            try:
-                id_distrito = dict_distritos[distrito_sel]
-                id_prom = dict_prom[promotora_sel]
+            return
 
-                if director_sel != "(Sin director por ahora)" and director_sel in dict_dir:
-                    id_directiva = dict_dir[director_sel]
-                else:
-                    id_directiva = None
+        if default_tipo_multa_id is None:
+            st.warning("No hay tipos de multa registrados.")
+            return
 
-                # Valores por defecto para campos no visibles
-                tasa_interes = 0.0
+        id_directiva = (
+            dict_dir[director_sel] if director_sel in dict_dir else None
+        )
 
-                # Periodicidad_reuniones ahora es INT en la BD.
-                # Usamos un entero pequeño fijo (por ejemplo 7 días).
-                periodicidad = 7
-
-                # Fecha de inicio como string 'YYYY-MM-DD' para el INSERT
-                fecha_inicio_db = fecha_inicio.strftime("%Y-%m-%d")
-
-                reglas_texto = "Se aplican las reglas generales del programa de ahorro y crédito."
-
-                cursor.execute(
-                    """
-                    INSERT INTO Grupo(
-                        Nombre_grupo,
-                        Tasa_de_interes,
-                        Periodicidad_reuniones,
-                        Id_Tipo_multa,
-                        Reglas_de_prestamo,
-                        Fecha_inicio,
-                        Id_Promotora,
-                        Id_Distrito,
-                        Id_Directiva
-                    )
-                    VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    """,
-                    (
-                        nombre_grupo,
-                        tasa_interes,
-                        periodicidad,        # INT pequeño -> no se trunca
-                        default_tipo_multa_id,
-                        reglas_texto,
-                        fecha_inicio_db,     # 'YYYY-MM-DD'
-                        id_prom,
-                        id_distrito,
-                        id_directiva,
-                    ),
+        try:
+            cursor.execute(
+                """
+                INSERT INTO Grupo(
+                    Nombre_grupo, Tasa_de_interes, Periodicidad_reuniones,
+                    Id_Tipo_multa, Reglas_de_prestamo, Fecha_inicio,
+                    Id_Promotora, Id_Distrito, Id_Directiva
                 )
-                con.commit()
-                st.success("Grupo creado correctamente.")
-            except Exception as e:
-                st.error(f"Error al crear grupo: {e}")
+                VALUES(%s,0.0,7,%s,'Reglas generales',%s,%s,%s,%s)
+                """,
+                (
+                    nombre_grupo,
+                    default_tipo_multa_id,
+                    fecha_inicio.strftime("%Y-%m-%d"),
+                    dict_prom[promotora_sel],
+                    dict_distritos[distrito_sel],
+                    id_directiva,
+                )
+            )
+            con.commit()
+            st.success("Grupo creado correctamente.")
+        except Exception as e:
+            st.error(f"Error al crear grupo: {e}")
 
-    # --------------------------------------------------------
-    # Tabla de grupos registrados (resumen)
-    # --------------------------------------------------------
+    # TABLA
     st.markdown("### 📋 Grupos registrados")
-
     try:
         cursor.execute(
             """
-            SELECT g.Id_Grupo,
-                   g.Nombre_grupo,
-                   d.Nombre_distrito,
-                   CONCAT(p.Nombres, ' ', p.Apellidos) AS Promotora,
-                   CONCAT(
-                       COALESCE(dir.Nombres, ''),
-                       CASE WHEN dir.Nombres IS NULL THEN '' ELSE ' ' END,
-                       COALESCE(dir.Apellidos, '')
-                   ) AS Director,
+            SELECT g.Id_Grupo, g.Nombre_grupo, d.Nombre_distrito,
+                   CONCAT(p.Nombres,' ',p.Apellidos) AS Promotora,
+                   CONCAT(COALESCE(dir.Nombres,''),' ',COALESCE(dir.Apellidos,'')) AS Director,
                    g.Fecha_inicio
             FROM Grupo g
-            JOIN Distrito d        ON g.Id_Distrito   = d.Id_Distrito
-            JOIN Empleado p        ON g.Id_Promotora  = p.Id_Empleado
-            LEFT JOIN Empleado dir ON g.Id_Directiva  = dir.Id_Empleado
+            JOIN Distrito d ON g.Id_Distrito = d.Id_Distrito
+            JOIN Empleado p ON g.Id_Promotora = p.Id_Empleado
+            LEFT JOIN Empleado dir ON g.Id_Directiva = dir.Id_Empleado
             ORDER BY g.Id_Grupo ASC
             """
         )
@@ -600,21 +422,20 @@ def gestion_grupos():
         if grupos:
             df = pd.DataFrame(
                 grupos,
-                columns=["ID", "Nombre de grupo", "Distrito", "Promotora", "Director", "Fecha inicio"],
+                columns=["ID", "Nombre", "Distrito", "Promotora", "Director", "Inicio"],
             )
             st.dataframe(df, use_container_width=True)
         else:
             st.info("No hay grupos registrados.")
     except Exception as e:
-        st.error(f"Error al consultar grupos: {e}")
+        st.error(f"Error al cargar grupos: {e}")
 
     cursor.close()
     con.close()
 
 
-
 # ============================================================
-#                   GESTIÓN DE EMPLEADOS
+#           GESTIÓN DE EMPLEADOS (CORREGIDO)
 # ============================================================
 def gestion_empleados():
     st.header("🧑‍💻 Gestión de empleados")
@@ -622,365 +443,187 @@ def gestion_empleados():
     con = obtener_conexion()
     cursor = con.cursor()
 
-    # Cargar roles desde la tabla Roles
+    # ROLES
     try:
-        cursor.execute("SELECT Id_Roles, Tipo_de_rol FROM Roles ORDER BY Id_Roles ASC")
+        cursor.execute("SELECT Id_Roles, Tipo_de_rol FROM Roles")
         roles = cursor.fetchall()
-        # clave visible -> "3 - Director", valor -> (3, "Director")
-        dict_roles = {f"{r[0]} - {r[1]}": (r[0], r[1]) for r in roles} if roles else {}
-    except Exception as e:
-        st.error(f"Error al cargar roles: {e}")
+        dict_roles = {f"{r[0]} - {r[1]}": (r[0], r[1]) for r in roles}
+    except:
         dict_roles = {}
-        roles = []
 
-    # Cargar distritos
+    # DISTRITOS
     try:
-        cursor.execute(
-            "SELECT Id_Distrito, Nombre_distrito FROM Distrito ORDER BY Id_Distrito ASC"
-        )
+        cursor.execute("SELECT Id_Distrito, Nombre_distrito FROM Distrito")
         distritos = cursor.fetchall()
-        dict_distritos = {f"{d[0]} - {d[1]}": d[0] for d in distritos} if distritos else {}
-    except Exception as e:
-        st.error(f"Error al cargar distritos: {e}")
+        dict_distritos = {f"{d[0]} - {d[1]}": d[0] for d in distritos}
+    except:
         dict_distritos = {}
 
     st.subheader("➕ Crear nuevo empleado")
 
     col1, col2 = st.columns(2)
     with col1:
-        usuario = st.text_input("Usuario (para inicio de sesión)")
+        usuario = st.text_input("Usuario")
         contra = st.text_input("Contraseña", type="password")
         nombres = st.text_input("Nombres")
         apellidos = st.text_input("Apellidos")
     with col2:
-        dui = st.text_input("DUI (9 dígitos, sin guion)")
-        telefono = st.text_input("Teléfono (8 dígitos, sin guion)")
-        distrito_sel = st.selectbox(
-            "Distrito asignado",
-            list(dict_distritos.keys()) if dict_distritos else ["(Sin distritos)"],
-        )
+        dui = st.text_input("DUI (9 dígitos)", max_chars=9)
+        telefono = st.text_input("Teléfono (8 dígitos)", max_chars=8)
+
+        # VALIDACIONES EN TIEMPO REAL
+        if dui and not dui.isdigit():
+            st.error("El DUI solo debe contener números.")
+        if telefono and not telefono.isdigit():
+            st.error("El teléfono solo debe contener números.")
+
+        distrito_sel = st.selectbox("Distrito", list(dict_distritos.keys()))
         estado = st.selectbox("Estado", ["Activo", "Inactivo"])
 
-    rol_sel = st.selectbox(
-        "Rol del empleado",
-        list(dict_roles.keys()) if dict_roles else ["(No hay roles registrados)"],
-    )
+    rol_sel = st.selectbox("Rol", list(dict_roles.keys()))
 
-    # ---------------------- CREAR EMPLEADO ----------------------
     if st.button("Crear empleado"):
+
         errores = []
 
-        # Campos obligatorios
-        if usuario.strip() == "" or contra.strip() == "":
-            errores.append("Usuario y contraseña son obligatorios.")
+        if not usuario.strip() or not contra.strip():
+            errores.append("Usuario y contraseña obligatorios.")
+        if not nombres.strip() or not apellidos.strip():
+            errores.append("Nombres y apellidos obligatorios.")
 
-        if nombres.strip() == "" or apellidos.strip() == "":
-            errores.append("Nombres y apellidos son obligatorios.")
+        if not re.fullmatch(r"\d{9}", dui):
+            errores.append("DUI debe tener exactamente 9 dígitos.")
+        if not re.fullmatch(r"\d{8}", telefono):
+            errores.append("Teléfono debe tener exactamente 8 dígitos.")
 
-        if dui.strip() == "":
-            errores.append("El campo DUI es obligatorio.")
-
-        if telefono.strip() == "":
-            errores.append("El campo Teléfono es obligatorio.")
-
-        if not dict_roles or rol_sel not in dict_roles:
-            errores.append("Debe seleccionar un rol válido.")
-
-        if not dict_distritos or distrito_sel not in dict_distritos:
-            errores.append("Debe seleccionar un distrito válido.")
-
-        # ---------- Validación de DUI (9 dígitos sin guion) ----------
-        dui_raw = dui.strip()
-        if not re.fullmatch(r"\d{9}", dui_raw):
-            errores.append("El DUI debe tener exactamente 9 dígitos numéricos, sin guiones ni espacios.")
-
-        # ---------- Validación de Teléfono (8 dígitos sin guion) ----------
-        tel_raw = telefono.strip()
-        if not re.fullmatch(r"\d{8}", tel_raw):
-            errores.append("El teléfono debe tener exactamente 8 dígitos numéricos, sin guiones ni espacios.")
-
-        # Si hay errores, los mostramos y no insertamos
         if errores:
-            for msg in errores:
-                st.warning(msg)
-        else:
-            # Todo OK: insertamos
-            try:
-                id_rol, rol_texto = dict_roles[rol_sel]
-                id_distrito = dict_distritos[distrito_sel]
+            for e in errores:
+                st.warning(e)
+            return
 
-                cursor.execute(
-                    """
-                    INSERT INTO Empleado(
-                        Usuario,
-                        Contra,
-                        Id_Rol,
-                        Rol,
-                        Nombres,
-                        Apellidos,
-                        DUI,
-                        Telefono,
-                        Distrito,
-                        Estado
-                    )
-                    VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    """,
-                    (
-                        usuario.strip(),
-                        contra,
-                        id_rol,
-                        rol_texto,
-                        nombres.strip(),
-                        apellidos.strip(),
-                        dui_raw,   # solo dígitos → encaja con columna INT
-                        tel_raw,   # solo dígitos
-                        id_distrito,
-                        estado,
-                    ),
+        id_rol, rol_texto = dict_roles[rol_sel]
+        id_distrito = dict_distritos[distrito_sel]
+
+        try:
+            cursor.execute(
+                """
+                INSERT INTO Empleado(
+                    Usuario, Contra, Id_Rol, Rol,
+                    Nombres, Apellidos, DUI, Telefono,
+                    Distrito, Estado
                 )
-                con.commit()
-                st.success("Empleado creado correctamente.")
-            except Exception as e:
-                st.error(f"Error al crear empleado: {e}")
+                VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """,
+                (
+                    usuario.strip(), contra.strip(),
+                    id_rol, rol_texto,
+                    nombres.strip(), apellidos.strip(),
+                    dui, telefono,
+                    id_distrito, estado
+                )
+            )
+            con.commit()
+            st.success("Empleado registrado correctamente.")
+        except Exception as e:
+            st.error(f"Error al registrar empleado: {e}")
 
-    # ---------------------- LISTADO + FILTRO ----------------------
     st.markdown("### 📋 Empleados registrados")
 
-    st.subheader("🔍 Filtros")
-    opciones_filtro = ["(Todos los roles)"]
-    if roles:
-        opciones_filtro += [r[1] for r in roles]
-
-    rol_filtro = st.selectbox("Filtrar por rol", opciones_filtro)
-
     try:
-        sql = """
-            SELECT e.Id_Empleado,
-                   e.Usuario,
-                   e.Rol,
-                   e.Nombres,
-                   e.Apellidos,
-                   d.Nombre_distrito,
-                   e.Estado
+        cursor.execute(
+            """
+            SELECT e.Id_Empleado, e.Usuario, e.Rol,
+                   e.Nombres, e.Apellidos, d.Nombre_distrito, e.Estado
             FROM Empleado e
             LEFT JOIN Distrito d ON e.Distrito = d.Id_Distrito
-        """
-        params = []
-
-        if rol_filtro != "(Todos los roles)":
-            sql += " WHERE e.Rol = %s"
-            params.append(rol_filtro)
-
-        sql += " ORDER BY e.Id_Empleado ASC"
-
-        cursor.execute(sql, params)
+            ORDER BY e.Id_Empleado ASC
+            """
+        )
         empleados = cursor.fetchall()
-
-        if empleados:
-            df = pd.DataFrame(
-                empleados,
-                columns=["ID", "Usuario", "Rol", "Nombres", "Apellidos", "Distrito", "Estado"],
-            )
-            st.dataframe(df, use_container_width=True)
-        else:
-            st.info("No hay empleados registrados con ese filtro.")
+        df = pd.DataFrame(
+            empleados,
+            columns=["ID", "Usuario", "Rol", "Nombres", "Apellidos", "Distrito", "Estado"]
+        )
+        st.dataframe(df, use_container_width=True)
     except Exception as e:
-        st.error(f"Error al consultar empleados: {e}")
+        st.error(f"Error al cargar empleados: {e}")
 
     cursor.close()
     con.close()
 
 
-
-
-
-
-
-
 # ============================================================
-#                   RESUMEN GENERAL (VISTA GLOBAL)
+#                   RESUMEN GENERAL
 # ============================================================
 def resumen_general():
-    st.header("📊 Resumen general de grupos, promotores y distritos")
+    st.header("📊 Resumen general")
 
     con = obtener_conexion()
     cursor = con.cursor()
 
-    # ------------------------------------------------------------------
-    # 1) Tabla base de GRUPOS (incluye promotora y DIRECTIVA)
-    # ------------------------------------------------------------------
+    # GRUPOS
     try:
         cursor.execute(
             """
-            SELECT g.Id_Grupo,
-                   g.Nombre_grupo,
-                   d.Nombre_distrito AS Distrito,
-                   CONCAT(p.Nombres, ' ', p.Apellidos) AS Promotora,
-                   CONCAT(
-                       COALESCE(dir.Nombres, ''),
-                       CASE WHEN dir.Nombres IS NULL THEN '' ELSE ' ' END,
-                       COALESCE(dir.Apellidos, '')
-                   ) AS Directiva,
+            SELECT g.Id_Grupo, g.Nombre_grupo, d.Nombre_distrito,
+                   CONCAT(p.Nombres,' ',p.Apellidos) AS Promotora,
+                   CONCAT(COALESCE(dir.Nombres,''),' ',COALESCE(dir.Apellidos,'')) AS Directiva,
                    g.Fecha_inicio
             FROM Grupo g
-            JOIN Distrito d        ON g.Id_Distrito   = d.Id_Distrito
-            JOIN Empleado p        ON g.Id_Promotora  = p.Id_Empleado
-            LEFT JOIN Empleado dir ON g.Id_Directiva  = dir.Id_Empleado
-            ORDER BY g.Id_Grupo ASC
+            JOIN Distrito d ON g.Id_Distrito = d.Id_Distrito
+            JOIN Empleado p ON g.Id_Promotora = p.Id_Empleado
+            LEFT JOIN Empleado dir ON g.Id_Directiva = dir.Id_Empleado
             """
         )
-        grupos = cursor.fetchall()
         df_grupos = pd.DataFrame(
-            grupos,
-            columns=[
-                "ID grupo",
-                "Nombre de grupo",
-                "Distrito",
-                "Promotora",
-                "Directiva",
-                "Fecha inicio",
-            ],
-        ) if grupos else pd.DataFrame()
-    except Exception as e:
-        st.error(f"Error al cargar grupos: {e}")
+            cursor.fetchall(),
+            columns=["ID", "Grupo", "Distrito", "Promotora", "Directiva", "Inicio"]
+        )
+    except:
         df_grupos = pd.DataFrame()
 
-    # ------------------------------------------------------------------
-    # 2) Resumen por PROMOTORA
-    # ------------------------------------------------------------------
+    # PROMOTORAS
     try:
         cursor.execute(
             """
             SELECT e.Id_Empleado,
-                   CONCAT(e.Nombres, ' ', e.Apellidos) AS Promotora,
-                   IFNULL(
-                     GROUP_CONCAT(DISTINCT d.Nombre_distrito
-                                  ORDER BY d.Nombre_distrito SEPARATOR ', '),
-                     ''
-                   ) AS Distritos,
-                   COUNT(g.Id_Grupo) AS Total_grupos
+                   CONCAT(e.Nombres,' ',e.Apellidos) AS Promotora,
+                   COUNT(g.Id_Grupo) AS TotalGrupos
             FROM Empleado e
-            LEFT JOIN Grupo g    ON g.Id_Promotora = e.Id_Empleado
-            LEFT JOIN Distrito d ON g.Id_Distrito  = d.Id_Distrito
-            WHERE e.Rol = 'Promotora' OR e.Id_Rol IN (
-                SELECT Id_Roles FROM Roles WHERE Tipo_de_rol = 'Promotora'
-            )
-            GROUP BY e.Id_Empleado, Promotora
-            ORDER BY Promotora ASC
+            LEFT JOIN Grupo g ON g.Id_Promotora = e.Id_Empleado
+            WHERE e.Rol='Promotora'
+            GROUP BY e.Id_Empleado
             """
         )
-        promos = cursor.fetchall()
-        df_promotoras = pd.DataFrame(
-            promos,
-            columns=["ID promotora", "Promotora", "Distritos (grupos)", "Total de grupos"],
-        ) if promos else pd.DataFrame()
-    except Exception as e:
-        st.error(f"Error al cargar resumen de promotoras: {e}")
-        df_promotoras = pd.DataFrame()
+        df_promo = pd.DataFrame(cursor.fetchall(),
+            columns=["ID", "Promotora", "Total grupos"])
+    except:
+        df_promo = pd.DataFrame()
 
-    # ------------------------------------------------------------------
-    # 3) Resumen por DISTRITO (usa Id_Directiva para contar directivas)
-    # ------------------------------------------------------------------
+    # DISTRITOS
     try:
         cursor.execute(
             """
-            SELECT d.Id_Distrito,
-                   d.Nombre_distrito,
-                   COUNT(DISTINCT g.Id_Grupo)      AS Total_grupos,
-                   COUNT(DISTINCT g.Id_Promotora)  AS Total_promotoras,
-                   COUNT(DISTINCT g.Id_Directiva)  AS Total_directivas
+            SELECT d.Id_Distrito, d.Nombre_distrito,
+                   COUNT(g.Id_Grupo) AS TotalGrupos
             FROM Distrito d
             LEFT JOIN Grupo g ON g.Id_Distrito = d.Id_Distrito
-            GROUP BY d.Id_Distrito, d.Nombre_distrito
-            ORDER BY d.Id_Distrito ASC
+            GROUP BY d.Id_Distrito
             """
         )
-        dist = cursor.fetchall()
-        df_distritos = pd.DataFrame(
-            dist,
-            columns=[
-                "ID distrito",
-                "Distrito",
-                "Grupos",
-                "Promotoras",
-                "Directivas",
-            ],
-        ) if dist else pd.DataFrame()
-    except Exception as e:
-        st.error(f"Error al cargar resumen de distritos: {e}")
-        df_distritos = pd.DataFrame()
+        df_dist = pd.DataFrame(cursor.fetchall(),
+            columns=["ID", "Distrito", "Grupos"])
+    except:
+        df_dist = pd.DataFrame()
 
     cursor.close()
     con.close()
 
-    # ------------------------------------------------------------------
-    # 4) Tabs de visualización
-    # ------------------------------------------------------------------
-    tab1, tab2, tab3 = st.tabs(["🔹 Por grupo", "🔹 Por promotor", "🔹 Por distrito"])
+    tab1, tab2, tab3 = st.tabs(["Por grupo", "Por promotora", "Por distrito"])
 
-    # ---- TAB 1: POR GRUPO ----
     with tab1:
-        st.subheader("🔍 Buscar información por grupo")
-
-        if df_grupos.empty:
-            st.info("No hay grupos registrados.")
-        else:
-            nombres_grupo = ["(Todos)"] + df_grupos["Nombre de grupo"].unique().tolist()
-            grupo_sel = st.selectbox("Seleccionar grupo", nombres_grupo)
-
-            if grupo_sel != "(Todos)":
-                df_filtrado = df_grupos[df_grupos["Nombre de grupo"] == grupo_sel]
-            else:
-                df_filtrado = df_grupos
-
-            st.dataframe(df_filtrado, use_container_width=True)
-
-    # ---- TAB 2: POR PROMOTORA ----
+        st.dataframe(df_grupos, use_container_width=True)
     with tab2:
-        st.subheader("👩‍💼 Promotoras y sus grupos")
-
-        if df_promotoras.empty:
-            st.info("No hay promotoras registradas.")
-        else:
-            nombres_prom = ["(Todas)"] + df_promotoras["Promotora"].tolist()
-            promotora_sel = st.selectbox("Seleccionar promotora", nombres_prom)
-
-            if promotora_sel != "(Todas)":
-                df_promo_filtrado = df_promotoras[
-                    df_promotoras["Promotora"] == promotora_sel
-                ]
-                st.markdown("**Resumen de la promotora seleccionada:**")
-                st.dataframe(df_promo_filtrado, use_container_width=True)
-
-                if not df_grupos.empty:
-                    st.markdown("**Grupos que lleva esta promotora:**")
-                    df_grupos_promo = df_grupos[
-                        df_grupos["Promotora"] == promotora_sel
-                    ]
-                    st.dataframe(df_grupos_promo, use_container_width=True)
-            else:
-                st.dataframe(df_promotoras, use_container_width=True)
-
-    # ---- TAB 3: POR DISTRITO ----
+        st.dataframe(df_promo, use_container_width=True)
     with tab3:
-        st.subheader("🏙 Resumen por distrito")
-
-        if df_distritos.empty:
-            st.info("No hay distritos registrados.")
-        else:
-            distrito_sel = st.selectbox(
-                "Seleccionar distrito",
-                ["(Todos)"] + df_distritos["Distrito"].tolist(),
-            )
-
-            if distrito_sel != "(Todos)":
-                df_dist_filtrado = df_distritos[df_distritos["Distrito"] == distrito_sel]
-                st.markdown("**Resumen del distrito seleccionado:**")
-                st.dataframe(df_dist_filtrado, use_container_width=True)
-
-                if not df_grupos.empty:
-                    st.markdown("**Grupos en este distrito:**")
-                    df_grupos_dist = df_grupos[df_grupos["Distrito"] == distrito_sel]
-                    st.dataframe(df_grupos_dist, use_container_width=True)
-            else:
-                st.dataframe(df_distritos, use_container_width=True)
+        st.dataframe(df_dist, use_container_width=True)
