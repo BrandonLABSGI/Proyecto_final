@@ -78,13 +78,22 @@ def dashboard_inicio(id_promotora):
     if not grupos:
         st.warning("No tienes grupos asignados todavía.")
         return
+# 1. VALIDAR GRUPOS ASIGNADOS
+if not grupos:
+    st.warning("No tienes grupos asignados todavía.")
+    return
 
-    ids = [g["Id_Grupo"] for g in grupos]
-    if len(ids) == 0:
-        st.warning("No existen grupos para este usuario.")
-        return
+# Extraer lista de IDs
+ids = [g["Id_Grupo"] for g in grupos]
 
-    formato_ids = ','.join(['%s'] * len(ids))
+# Validar que existan IDs válidos
+if not ids:
+    st.warning("No existen grupos para este usuario.")
+    return
+
+# Construir placeholders seguros para IN (%s, %s, %s)
+formato_ids = ','.join(['%s'] * len(ids))
+
 
     # SOCIAS
     cursor.execute(f"""
