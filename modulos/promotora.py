@@ -496,17 +496,23 @@ def validar_multas(id_grupo, id_promotora):
     cursor = con.cursor(dictionary=True)
 
     cursor.execute("""
-        SELECT s.Nombre, t.Tipo_de_multa, m.Monto, m.Fecha_aplicacion
+        SELECT 
+            s.Nombre,
+            t.`Tipo de multa` AS Tipo,
+            m.Monto,
+            m.Fecha_aplicacion,
+            m.Estado
         FROM Multa m
         JOIN Socia s ON s.Id_Socia = m.Id_Socia
-        JOIN Tipo_de_multa t ON t.Id_Tipo_multa = m.Id_Tipo_multa
-        WHERE m.Id_Grupo = %s
+        JOIN `Tipo de multa` t ON t.Id_Tipo_multa = m.Id_Tipo_multa
+        JOIN Asistencia a ON a.Id_Asistencia = m.Id_Asistencia
+        WHERE a.Id_Grupo = %s
     """, (id_grupo,))
     datos = cursor.fetchall()
 
     st.dataframe(datos, hide_index=True)
 
-    obs = st.text_area("Observaciones:")
+    obs = st.text_area("Observaciones:")    
 
     if st.button("Validar multas"):
         cursor.execute("""
