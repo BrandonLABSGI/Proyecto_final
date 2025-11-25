@@ -136,11 +136,14 @@ def obtener_ahorros_por_socia(fecha_inicio, fecha_fin):
     cur = con.cursor(dictionary=True)
 
     cur.execute("""
-        SELECT S.Id_Socia, S.Nombre,
-               COALESCE(SUM(A.`Monto del aporte`),0) AS ahorro
+        SELECT 
+            S.Id_Socia, 
+            S.Nombre,
+            COALESCE(SUM(A.Monto_del_aporte), 0) AS ahorro
         FROM Socia S
-        LEFT JOIN Ahorro A ON A.Id_Socia = S.Id_Socia
-            AND A.`Fecha del aporte` BETWEEN %s AND %s
+        LEFT JOIN Ahorro A 
+            ON A.Id_Socia = S.Id_Socia
+            AND A.Fecha_del_aporte BETWEEN %s AND %s
         GROUP BY S.Id_Socia, S.Nombre
         ORDER BY S.Id_Socia
     """, (fecha_inicio, fecha_fin))
@@ -148,6 +151,7 @@ def obtener_ahorros_por_socia(fecha_inicio, fecha_fin):
     data = cur.fetchall()
     con.close()
     return data
+
 
 
 # ==========================================================
