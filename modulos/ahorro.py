@@ -7,7 +7,6 @@ from modulos.caja import obtener_o_crear_reunion, registrar_movimiento
 from modulos.reglas_utils import obtener_reglas
 
 
-
 # ============================================================
 # FUNCIÓN PRINCIPAL — REGISTRO DE AHORRO
 # ============================================================
@@ -45,13 +44,13 @@ def ahorro():
     id_socia = dict_socias[socia_sel]
 
     # ============================================================
-    # 3️⃣ HISTORIAL DE APORTES
+    # 3️⃣ HISTORIAL DE APORTES  — 🔥 CONSULTA CORREGIDA
     # ============================================================
     cursor.execute("""
         SELECT 
             Id_Ahorro,
-            `Fecha del aporte`,
-            `Monto del aporte`,
+            Fecha_del_aporte,
+            Monto_del_aporte,
             `Tipo de aporte`,
             `Comprobante digital`,
             `Saldo acumulado`
@@ -127,11 +126,11 @@ def ahorro():
             nuevo_saldo = saldo_anterior + monto_decimal
 
             # ------------------------------------------
-            # Registrar aporte
+            # Registrar aporte (🔥 campos corregidos)
             # ------------------------------------------
             cursor.execute("""
                 INSERT INTO Ahorro
-                (`Fecha del aporte`, `Monto del aporte`, `Tipo de aporte`,
+                (Fecha_del_aporte, Monto_del_aporte, `Tipo de aporte`,
                  `Comprobante digital`, `Saldo acumulado`, Id_Socia)
                 VALUES (%s, %s, %s, %s, %s, %s)
             """, (
@@ -144,7 +143,7 @@ def ahorro():
             ))
 
             # ------------------------------------------
-            # Caja única → registrar ingreso
+            # Registrar en caja única
             # ------------------------------------------
             id_caja = obtener_o_crear_reunion(fecha_aporte)
 
@@ -161,4 +160,3 @@ def ahorro():
 
         except Exception as e:
             st.error(f"❌ Error al registrar aporte: {e}")
-
