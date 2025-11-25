@@ -342,7 +342,7 @@ def mostrar_caja_grupo(id_grupo):
 
 def mostrar_multas_grupo(id_grupo):
     con = obtener_conexion()
-    cursor = con.cursor()
+    cursor = con.cursor(dictionary=True)
 
     sql = """
         SELECT 
@@ -355,20 +355,18 @@ def mostrar_multas_grupo(id_grupo):
         JOIN `Tipo de multa` t ON t.Id_Tipo_multa = m.Id_Tipo_multa
         JOIN Socia s ON s.Id_Socia = m.Id_Socia
         JOIN Asistencia a ON a.Id_Asistencia = m.Id_Asistencia
-        WHERE a.Id_Grupo = %s
+        JOIN Reunion r ON r.Id_Reunion = a.Id_Reunion
+        WHERE r.Id_Grupo = %s
         ORDER BY m.Id_Multa DESC
     """
 
-    try:
-        cursor.execute(sql, (id_grupo,))
-        datos = cursor.fetchall()
-        st.write("Consulta ejecutada correctamente.")
-        st.dataframe(datos)
-    except Exception as e:
-        st.error(f"ERROR REAL MYSQL: {str(e)}")
+    cursor.execute(sql, (id_grupo,))
+    datos = cursor.fetchall()
 
     cursor.close()
     con.close()
+    st.dataframe(datos, hide_index=True)
+
 
 
 
