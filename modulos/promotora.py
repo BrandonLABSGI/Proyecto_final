@@ -521,7 +521,9 @@ def validar_multas(id_grupo, id_promotora):
         JOIN Socia s ON s.Id_Socia = m.Id_Socia
         JOIN `Tipo de multa` t ON t.Id_Tipo_multa = m.Id_Tipo_multa
         JOIN Asistencia a ON a.Id_Asistencia = m.Id_Asistencia
-        WHERE a.Id_Grupo = %s
+        JOIN Reunion r ON r.Id_Reunion = a.Id_Reunion
+        WHERE r.Id_Grupo = %s
+        ORDER BY m.Id_Multa DESC
     """, (id_grupo,))
     datos = cursor.fetchall()
 
@@ -539,6 +541,7 @@ def validar_multas(id_grupo, id_promotora):
 
     cursor.close()
     con.close()
+
 
 
 
