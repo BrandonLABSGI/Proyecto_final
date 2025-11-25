@@ -6,7 +6,6 @@ import io
 
 from modulos.conexion import obtener_conexion
 
-
 # ==========================================================
 # 1. OBTENER CICLO ACTIVO
 # ==========================================================
@@ -111,7 +110,7 @@ def obtener_totales(fecha_inicio, fecha_fin):
 
 
 # ==========================================================
-# 6. DETALLE DIARIO (AUDITORÍA)
+# 6. DETALLE DIARIO
 # ==========================================================
 def obtener_detalle_diario(fecha_inicio, fecha_fin):
     con = obtener_conexion()
@@ -130,19 +129,19 @@ def obtener_detalle_diario(fecha_inicio, fecha_fin):
 
 
 # ==========================================================
-# 7. APORTES DE AHORRO POR SOCIA
+# 7. APORTES DE AHORRO POR SOCIA — CORREGIDO
 # ==========================================================
 def obtener_ahorros_por_socia(fecha_inicio, fecha_fin):
     con = obtener_conexion()
     cur = con.cursor(dictionary=True)
 
     cur.execute("""
-        SELECT S.Id_Socia, S.Nombre,
+        SELECT S.Id_Socia, S.Nombre_completo AS Nombre,
                COALESCE(SUM(A.`Monto del aporte`),0) AS ahorro
         FROM Socia S
         LEFT JOIN Ahorro A ON A.Id_Socia = S.Id_Socia
             AND A.`Fecha del aporte` BETWEEN %s AND %s
-        GROUP BY S.Id_Socia, S.Nombre
+        GROUP BY S.Id_Socia, S.Nombre_completo
         ORDER BY S.Id_Socia
     """, (fecha_inicio, fecha_fin))
 
@@ -152,7 +151,7 @@ def obtener_ahorros_por_socia(fecha_inicio, fecha_fin):
 
 
 # ==========================================================
-# 8. INTERESES + MULTAS = UTILIDAD
+# 8. UTILIDAD (INTERESES + MULTAS)
 # ==========================================================
 def calcular_utilidad(fecha_inicio, fecha_fin):
     con = obtener_conexion()
@@ -187,21 +186,14 @@ def generar_tabla_distribucion(socias, utilidad_total):
     for s in socias:
         ahorro = s["ahorro"]
 
-        if ahorro < 0:
-            porcentaje = 0
-            porcion = 0
-            monto_final = 0
-            ahorro_visible = 0
-        else:
-            porcentaje = (ahorro / total_ahorros) if total_ahorros > 0 else 0
-            porcion = round(porcentaje * utilidad_total, 2)
-            monto_final = round(ahorro + porcion, 2)
-            ahorro_visible = ahorro
+        porcentaje = (ahorro / total_ahorros) if total_ahorros > 0 else 0
+        porcion = round(porcentaje * utilidad_total, 2)
+        monto_final = round(ahorro + porcion, 2)
 
         tabla.append({
             "id": s["Id_Socia"],
             "nombre": s["Nombre"],
-            "ahorro": ahorro_visible,
+            "ahorro": ahorro,
             "porcentaje": round(porcentaje * 100, 2),
             "porcion": porcion,
             "monto_final": monto_final
@@ -215,7 +207,6 @@ def generar_tabla_distribucion(socias, utilidad_total):
 # ==========================================================
 def generar_html_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
                       utilidad, intereses, multas, tabla):
-
     total_ahorros = sum(f["ahorro"] for f in tabla)
 
     html = f"""
@@ -238,12 +229,11 @@ def generar_html_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
 
     <h3>3. Distribución proporcional</h3>
     """
-
     return html
 
 
 # ==========================================================
-# 11. PDF FINAL — CORREGIDO CON FIRMAS SEPARADAS
+# 11. GENERAR PDF
 # ==========================================================
 def generar_pdf_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
                      utilidad, intereses, multas, tabla_dist):
@@ -258,11 +248,9 @@ def generar_pdf_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
     doc = SimpleDocTemplate(buffer, pagesize=letter)
     story = []
 
-    # ---------------- Título ----------------
     story.append(Paragraph("<b>ACTA DE CIERRE DEL CICLO — SOLIDARIDAD CVX</b>", styles["Title"]))
     story.append(Spacer(1, 16))
 
-    # ---------------- Datos Generales ----------------
     story.append(Paragraph("<b>1. Datos Generales</b>", styles["Heading2"]))
     texto = f"""
     <b>Inicio:</b> {inicio}<br/>
@@ -276,7 +264,7 @@ def generar_pdf_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
     story.append(Paragraph(texto, styles["Normal"]))
     story.append(Spacer(1, 14))
 
-    # ---------------- Utilidades ----------------
+    # Utilidades
     story.append(Paragraph("<b>2. Utilidades</b>", styles["Heading2"]))
     texto2 = f"""
     <b>Intereses generados:</b> ${intereses:,.2f}<br/>
@@ -286,25 +274,21 @@ def generar_pdf_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
     story.append(Paragraph(texto2, styles["Normal"]))
     story.append(Spacer(1, 16))
 
-    # ---------------- Fórmula ----------------
-    story.append(Paragraph("<b>3. Fórmula utilizada para la distribución</b>", styles["Heading2"]))
+    # Fórmula
+    story.append(Paragraph("<b>3. Fórmula utilizada</b>", styles["Heading2"]))
     formula = """
-    <br/><b>Porción proporcional:</b><br/>
-    &nbsp;&nbsp;&nbsp;&nbsp;( Ahorro individual ÷ Ahorro total del grupo ) × Utilidad total<br/><br/>
-    <b>Monto final recibido:</b><br/>
-    &nbsp;&nbsp;&nbsp;&nbsp;Ahorro individual + Porción proporcional<br/><br/>
+    (Ahorro individual ÷ Ahorro total del grupo) × Utilidad total<br/><br/>
+    Monto final = Ahorro individual + Porción proporcional
     """
     story.append(Paragraph(formula, styles["Normal"]))
     story.append(Spacer(1, 16))
 
-    # ---------------- Ahorros individuales ----------------
+    # Ahorro individual
     story.append(Paragraph("<b>4. Ahorro individual por socia</b>", styles["Heading2"]))
     ahorro_data = [["ID", "Nombre", "Ahorro ($)"]]
 
     for f in tabla_dist:
-        ahorro_data.append([
-            f["id"], f["nombre"], f"${f['ahorro']:,.2f}"
-        ])
+        ahorro_data.append([f["id"], f["nombre"], f"${f['ahorro']:,.2f}"])
 
     tabla_ahorro = Table(ahorro_data, colWidths=[40, 200, 100])
     tabla_ahorro.setStyle(TableStyle([
@@ -317,8 +301,8 @@ def generar_pdf_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
     story.append(tabla_ahorro)
     story.append(Spacer(1, 16))
 
-    # ---------------- Distribución final ----------------
-    story.append(Paragraph("<b>5. Distribución proporcional de utilidades</b>", styles["Heading2"]))
+    # Distribución final
+    story.append(Paragraph("<b>5. Distribución proporcional</b>", styles["Heading2"]))
 
     encabezado = ["ID", "Nombre", "Ahorro", "% Porción", "Monto final"]
     data = [encabezado]
@@ -344,8 +328,8 @@ def generar_pdf_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
     story.append(tabla)
     story.append(Spacer(1, 30))
 
-    # ---------------- FIRMAS (CORREGIDAS Y SEPARADAS) ----------------
-    story.append(Paragraph("<b>Firmas de cierre</b>", styles["Heading2"]))
+    # Firmas
+    story.append(Paragraph("<b>Firmas</b>", styles["Heading2"]))
     story.append(Spacer(1, 20))
 
     firmas_data = [
@@ -364,7 +348,6 @@ def generar_pdf_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
 
     story.append(tabla_firmas)
 
-    # ---------------- Construcción PDF ----------------
     doc.build(story)
     pdf = buffer.getvalue()
     buffer.close()
@@ -372,7 +355,7 @@ def generar_pdf_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
 
 
 # ==========================================================
-# 12. INTERFAZ CIERRE DE CICLO
+# 12. INTERFAZ PRINCIPAL
 # ==========================================================
 def cierre_ciclo():
 
@@ -396,7 +379,7 @@ def cierre_ciclo():
         return
 
     if pendientes and modo_prueba:
-        st.warning("⚠️ Modo prueba activado: préstamos pendientes ignorados.")
+        st.warning("⚠ Modo prueba activado.")
 
     ingresos, egresos = obtener_totales(fecha_inicio, fecha_cierre)
     saldo_inicial = obtener_saldo_inicial(fecha_inicio)
@@ -408,14 +391,13 @@ def cierre_ciclo():
 
     tabla_dist = generar_tabla_distribucion(socias, utilidad_total)
 
-    # ==========================
+    # ================================
     # TABS
-    # ==========================
+    # ================================
     tab1, tab2, tab3, tab4, tab5 = st.tabs(
         ["📘 Resumen", "📋 Auditoría", "📅 Detalle Diario", "📊 Gráfica", "📄 Acta"]
     )
 
-    # TAB 1
     with tab1:
         st.subheader("📘 Resumen del ciclo")
         st.write(f"**Fecha inicio:** {fecha_inicio}")
@@ -428,15 +410,13 @@ def cierre_ciclo():
         st.write(f"**Multas:** ${multas:,.2f}")
         st.write(f"**Utilidad total:** ${utilidad_total:,.2f}")
 
-    # TAB 2
     with tab2:
-        st.subheader("📋 Auditoría de ingresos y egresos por día")
+        st.subheader("📋 Auditoría")
         if detalle_diario:
-            st.dataframe(pd.DataFrame(detalle_diario), use_container_width=True)
+            st.dataframe(pd.DataFrame(detalle_diario))
         else:
-            st.info("No hay movimientos en este ciclo.")
+            st.info("No hay movimientos.")
 
-    # TAB 3
     with tab3:
         st.subheader("📅 Detalle diario")
         if detalle_diario:
@@ -444,19 +424,17 @@ def cierre_ciclo():
             df["fecha"] = df["fecha"].astype(str)
             st.table(df)
         else:
-            st.info("Sin movimientos para mostrar.")
+            st.info("Sin movimientos.")
 
-    # TAB 4
     with tab4:
-        st.subheader("📊 Saldo final por día")
+        st.subheader("📊 Gráfica")
         if detalle_diario:
             df = pd.DataFrame(detalle_diario)
             df["fecha"] = df["fecha"].astype(str)
             st.line_chart(df[["fecha", "saldo_final"]], x="fecha", y="saldo_final")
         else:
-            st.info("No hay datos para graficar.")
+            st.info("Sin datos.")
 
-    # TAB 5 — ACTA
     with tab5:
         st.subheader("📄 Acta del ciclo")
 
@@ -468,10 +446,10 @@ def cierre_ciclo():
             tabla_dist
         )
 
-        if st.button("📘 Ver acta en pantalla"):
+        if st.button("📘 Ver acta"):
             st.markdown(html, unsafe_allow_html=True)
 
-        if st.button("⬇️ Descargar Acta en PDF"):
+        if st.button("⬇ Descargar PDF"):
             pdf = generar_pdf_acta(
                 fecha_inicio, fecha_cierre,
                 saldo_inicial, saldo_final,
@@ -487,7 +465,6 @@ def cierre_ciclo():
 
     st.markdown("---")
 
-    # BOTÓN FINAL — CERRAR CICLO
     if st.button("🔐 Cerrar ciclo ahora (definitivo)"):
 
         con = obtener_conexion()
@@ -516,6 +493,6 @@ def cierre_ciclo():
         con.commit()
         con.close()
 
-        st.success("✅ Ciclo cerrado correctamente.")
+        st.success("Ciclo cerrado correctamente.")
         st.balloons()
         st.rerun()
