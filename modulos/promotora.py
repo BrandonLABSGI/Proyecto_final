@@ -342,7 +342,7 @@ def mostrar_caja_grupo(id_grupo):
 
 def mostrar_multas_grupo(id_grupo):
     con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
+    cursor = con.cursor()
 
     sql = """
         SELECT 
@@ -359,12 +359,17 @@ def mostrar_multas_grupo(id_grupo):
         ORDER BY m.Id_Multa DESC
     """
 
-    cursor.execute(sql, (id_grupo,))
-    datos = cursor.fetchall()
+    try:
+        cursor.execute(sql, (id_grupo,))
+        datos = cursor.fetchall()
+        st.write("Consulta ejecutada correctamente.")
+        st.dataframe(datos)
+    except Exception as e:
+        st.error(f"ERROR REAL MYSQL: {str(e)}")
 
     cursor.close()
     con.close()
-    st.dataframe(datos, hide_index=True)
+
 
 
 
