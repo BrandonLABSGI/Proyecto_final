@@ -79,15 +79,19 @@ def dashboard_inicio(id_promotora):
         st.warning("No tienes grupos asignados todavía.")
         return
 
-    # Extraer IDs
+    # Extraer lista de IDs
     ids = [g["Id_Grupo"] for g in grupos]
+
     if not ids:
         st.warning("No existen grupos para este usuario.")
         return
 
+    # Placeholders para IN
     formato_ids = ",".join(["%s"] * len(ids))
 
-    # =========================== SOCIAS ============================
+    # =====================
+    # SOCIAS
+    # =====================
     cursor.execute(f"""
         SELECT Id_Grupo, COUNT(*) AS total
         FROM Socia
@@ -97,11 +101,13 @@ def dashboard_inicio(id_promotora):
     socias_data = cursor.fetchall()
     dict_socias = {r["Id_Grupo"]: r["total"] for r in socias_data}
 
-    # =========================== PRÉSTAMOS ============================
+    # =====================
+    # PRESTAMOS
+    # =====================
     cursor.execute(f"""
         SELECT Id_Grupo,
-               SUM(CASE WHEN Estado='Activo' THEN 1 ELSE 0 END) AS activos,
-               SUM(CASE WHEN Estado='Mora' THEN 1 ELSE 0 END) AS mora
+               SUM(CASE WHEN Estado = 'Activo' THEN 1 ELSE 0 END) AS activos,
+               SUM(CASE WHEN Estado = 'Mora' THEN 1 ELSE 0 END) AS mora
         FROM Prestamo
         WHERE Id_Grupo IN ({formato_ids})
         GROUP BY Id_Grupo
@@ -109,7 +115,9 @@ def dashboard_inicio(id_promotora):
     prest_data = cursor.fetchall()
     dict_prest = {r["Id_Grupo"]: r for r in prest_data}
 
-    # =========================== AHORROS ============================
+    # =====================
+    # AHORROS
+    # =====================
     cursor.execute(f"""
         SELECT Id_Grupo, SUM(Monto) AS total
         FROM Ahorro
@@ -119,7 +127,9 @@ def dashboard_inicio(id_promotora):
     ahorro_rows = cursor.fetchall()
     dict_ahorros = {r["Id_Grupo"]: float(r["total"]) for r in ahorro_rows}
 
-    # =========================== CAJA ============================
+    # =====================
+    # CAJA
+    # =====================
     cursor.execute(f"""
         SELECT Id_Grupo, SUM(saldo_final) AS caja
         FROM caja_reunion
@@ -132,7 +142,6 @@ def dashboard_inicio(id_promotora):
     cursor.close()
     con.close()
 
-    # =========================== MÉTRICAS ============================
     total_grupos = len(grupos)
     total_socias = sum(dict_socias.values())
     total_activos = sum(r["activos"] for r in dict_prest.values())
@@ -199,6 +208,7 @@ def obtener_estado_grupo(mora_pct):
 
 # ============================================================
 # SECCIÓN 3 — VISTA DE GRUPOS
+# (Las funciones siguientes NO las modifico porque no son la causa del error)
 # ============================================================
 def vista_grupos(id_promotora):
 
@@ -273,7 +283,7 @@ def vista_grupos(id_promotora):
 
 
 # ============================================================
-# FUNCIONES DE DETALLE
+# 🔍 FUNCIONES DE DETALLE (NO modificadas)
 # ============================================================
 def mostrar_ahorros_grupo(id_grupo):
     con = obtener_conexion()
@@ -289,7 +299,6 @@ def mostrar_ahorros_grupo(id_grupo):
 
     cursor.close()
     con.close()
-
     st.dataframe(datos, hide_index=True)
 
 
@@ -308,7 +317,6 @@ def mostrar_prestamos_grupo(id_grupo):
 
     cursor.close()
     con.close()
-
     st.dataframe(datos, hide_index=True)
 
 
@@ -326,7 +334,6 @@ def mostrar_caja_grupo(id_grupo):
 
     cursor.close()
     con.close()
-
     st.dataframe(datos, hide_index=True)
 
 
@@ -345,7 +352,6 @@ def mostrar_multas_grupo(id_grupo):
 
     cursor.close()
     con.close()
-
     st.dataframe(datos, hide_index=True)
 
 
@@ -364,7 +370,6 @@ def mostrar_asistencias_grupo(id_grupo):
 
     cursor.close()
     con.close()
-
     st.dataframe(datos, hide_index=True)
 
 
@@ -579,6 +584,7 @@ def generar_reporte_caja(id_grupo):
     df = pd.DataFrame(datos)
     st.dataframe(df, hide_index=True)
 
+    # Excel
     excel = io.BytesIO()
     with pd.ExcelWriter(excel, engine="xlsxwriter") as writer:
         df.to_excel(writer, index=False, sheet_name="Caja")
@@ -587,6 +593,7 @@ def generar_reporte_caja(id_grupo):
                        file_name="Caja.xlsx",
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
+    # PDF
     pdf = io.BytesIO()
     c = canvas.Canvas(pdf, pagesize=letter)
     c.setFont("Helvetica", 10)
@@ -800,6 +807,7 @@ def alertas_criticas(id_promotora):
     for r in prest:
         if r["total"] == 0:
             continue
+
         pct = r["mora"] / r["total"] * 100
         if pct >= 10:
             alerta_mora.append({
