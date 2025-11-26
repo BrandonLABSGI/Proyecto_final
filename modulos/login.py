@@ -11,12 +11,15 @@ def login():
     st.markdown(
         """
         <style>
+        body {
+            background-color: #0d1117;
+        }
         .login-box {
             background-color: #111418;
             padding: 25px;
             border-radius: 18px;
             width: 90%;
-            max-width: 380px;
+            max-width: 420px;
             margin: auto;
             box-shadow: 0px 0px 12px rgba(255,255,255,0.08);
         }
@@ -25,14 +28,7 @@ def login():
             color: white;
             font-size: 28px;
             font-weight: 600;
-            margin-bottom: 10px;
-        }
-        .logo {
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
-            width: 110px;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
         </style>
         """,
@@ -41,12 +37,38 @@ def login():
 
     st.markdown("<div class='login-box'>", unsafe_allow_html=True)
 
+    # ----------------------------------------------------
+    # IMAGEN DE CABECERA
+    # ----------------------------------------------------
     st.markdown(
-        "<img class='logo' src='https://i.imgur.com/B4HqfUU.png'>",
+        """
+        <div style='display:flex; justify-content:center; margin-bottom:18px;'>
+            <img src='URL_DE_TU_IMAGEN_RAW'
+            style='width:100%; max-width:420px; border-radius:18px;'>
+        </div>
+        """,
         unsafe_allow_html=True
     )
 
+    # ----------------------------------------------------
+    # TITULO
+    # ----------------------------------------------------
     st.markdown("<div class='title'>Inicio de sesión</div>", unsafe_allow_html=True)
+
+    # ----------------------------------------------------
+    # FRASE INSPIRADORA
+    # ----------------------------------------------------
+    st.markdown(
+        """
+        <p style='text-align:center; color:#d1d5db; 
+        font-size:15px; margin-top:-5px; margin-bottom:20px;'>
+        “La confianza es el pegamento de la vida. Es el ingrediente más esencial 
+        para una comunicación eficaz.”<br>
+        <i>— Stephen Covey</i>
+        </p>
+        """,
+        unsafe_allow_html=True
+    )
 
     # ----------------------------------------------------
     # FORMULARIO
@@ -75,7 +97,7 @@ def login():
                     st.session_state["sesion_iniciada"] = True
                     st.session_state["usuario"] = row["Usuario"]
                     st.session_state["rol"] = row["Rol"]
-                    st.session_state["id_empleado"] = row["Id_Empleado"]  # <<--- IMPORTANTE
+                    st.session_state["id_empleado"] = row["Id_Empleado"]
 
                     st.success("Ingreso exitoso. Redirigiendo…")
                     st.rerun()
