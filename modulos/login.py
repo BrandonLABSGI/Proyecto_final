@@ -30,6 +30,13 @@ def login():
             font-weight: 600;
             margin-bottom: 8px;
         }
+        .subtitulo {
+            text-align:center;
+            color:#b4b4b4;
+            font-size:17px;
+            margin-top:-10px;
+            margin-bottom:15px;
+        }
         </style>
         """,
         unsafe_allow_html=True
@@ -38,12 +45,12 @@ def login():
     st.markdown("<div class='login-box'>", unsafe_allow_html=True)
 
     # ----------------------------------------------------
-    # IMAGEN DE CABECERA
+    # IMAGEN DE CABECERA (RAW URL)
     # ----------------------------------------------------
     st.markdown(
         """
         <div style='display:flex; justify-content:center; margin-bottom:18px;'>
-            <img src='https://github.com/BrandonLABSGI/Proyecto_final/blob/main/modulos/images/solidaridad_cvx.png'
+            <img src='https://raw.githubusercontent.com/BrandonLABSGI/Proyecto_final/refs/heads/main/modulos/images/solidaridad_cvx.png'
             style='width:100%; max-width:420px; border-radius:18px;'>
         </div>
         """,
@@ -51,9 +58,17 @@ def login():
     )
 
     # ----------------------------------------------------
-    # TITULO
+    # TITULO PRINCIPAL
     # ----------------------------------------------------
     st.markdown("<div class='title'>Inicio de sesión</div>", unsafe_allow_html=True)
+
+    # ----------------------------------------------------
+    # NUEVO SUBTITULO
+    # ----------------------------------------------------
+    st.markdown(
+        "<div class='subtitulo'>Bienvenido a tu sistema solidaridad CVX</div>",
+        unsafe_allow_html=True
+    )
 
     # ----------------------------------------------------
     # FRASE INSPIRADORA
@@ -61,7 +76,7 @@ def login():
     st.markdown(
         """
         <p style='text-align:center; color:#d1d5db; 
-        font-size:15px; margin-top:-5px; margin-bottom:20px;'>
+        font-size:15px; margin-top:5px; margin-bottom:20px;'>
         “La confianza es el pegamento de la vida. Es el ingrediente más esencial 
         para una comunicación eficaz.”<br>
         <i>— Stephen Covey</i>
