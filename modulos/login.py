@@ -43,7 +43,7 @@ def login():
     st.markdown(
         """
         <div style='display:flex; justify-content:center; margin-bottom:18px;'>
-            <img src='URL_DE_TU_IMAGEN_RAW'
+            <img src='https://github.com/BrandonLABSGI/Proyecto_final/blob/main/modulos/images/solidaridad_cvx.png'
             style='width:100%; max-width:420px; border-radius:18px;'>
         </div>
         """,
