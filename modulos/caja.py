@@ -1,147 +1,197 @@
-import mysql.connector
+import streamlit as st
 from decimal import Decimal
+from datetime import date
 from modulos.conexion import obtener_conexion
 
 
-# ============================================================
-# 🔵 OBTENER SALDO ACTUAL (desde caja_general, como TU sistema original)
-# ============================================================
-def obtener_saldo_actual():
-    con = obtener_conexion()
-    cursor = con.cursor()
-
-    cursor.execute("SELECT saldo_actual FROM caja_general WHERE id = 1")
-    row = cursor.fetchone()
-
-    return float(row[0]) if row else 0.00
-
-
-# ============================================================
-# 🟦 FUNCIÓN CENTRAL — ASEGURA QUE LA REUNIÓN EXISTA Y ESTÉ CORRECTA
-# ============================================================
-def asegurar_reunion(fecha):
-
+# ================================================================
+# 🟢 1. OBTENER SALDO FINAL DEL DÍA ANTERIOR
+# ================================================================
+def obtener_saldo_dia_anterior(fecha):
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    # Buscar reunión del día
-    cursor.execute("SELECT * FROM caja_reunion WHERE fecha=%s", (fecha,))
-    reunion = cursor.fetchone()
-
-    # Buscar reunión anterior
     cursor.execute("""
         SELECT saldo_final 
         FROM caja_reunion
         WHERE fecha < %s
-        ORDER BY fecha DESC LIMIT 1
+        ORDER BY fecha DESC
+        LIMIT 1
     """, (fecha,))
-    anterior = cursor.fetchone()
 
-    saldo_correcto = Decimal(str(anterior["saldo_final"])) if anterior else Decimal("0.00")
+    row = cursor.fetchone()
+    con.close()
 
-    # -------------------------------------------------------
-    # 🔥 Si ya existe la reunión → validar y corregir saldo inicial
-    # -------------------------------------------------------
+    if row:
+        return Decimal(str(row["saldo_final"]))
+
+    return None  # No existe día anterior
+
+
+# ================================================================
+# 🟢 2. OBTENER O CREAR REUNIÓN — *ARREGLO DEFINITIVO*
+# ================================================================
+def obtener_o_crear_reunion(fecha):
+    con = obtener_conexion()
+    cursor = con.cursor(dictionary=True)
+
+    # Ver si ya existe
+    cursor.execute("SELECT id_caja FROM caja_reunion WHERE fecha = %s", (fecha,))
+    reunion = cursor.fetchone()
+
     if reunion:
-
-        saldo_inicial_actual = Decimal(str(reunion["saldo_inicial"]))
-
-        if saldo_inicial_actual != saldo_correcto:
-
-            cursor.execute("""
-                UPDATE caja_reunion
-                SET saldo_inicial=%s,
-                    saldo_final=%s
-                WHERE id_caja=%s
-            """, (saldo_correcto, saldo_correcto, reunion["id_caja"]))
-
-            con.commit()
-
         return reunion["id_caja"]
 
-    # -------------------------------------------------------
-    # 🔥 Si NO existe → crearla con el saldo correcto
-    # -------------------------------------------------------
+    # Buscar saldo del día anterior
+    saldo_anterior = obtener_saldo_dia_anterior(fecha)
+
+    if saldo_anterior is not None:
+        saldo_inicial = saldo_anterior
+    else:
+        # Primer día del sistema → usar saldo_actual de caja_general
+        cursor.execute("SELECT saldo_actual FROM caja_general WHERE id = 1")
+        row = cursor.fetchone()
+        saldo_inicial = Decimal(str(row["saldo_actual"])) if row else Decimal("0.00")
+
+    # Crear nueva reunión
     cursor.execute("""
-        INSERT INTO caja_reunion(fecha, saldo_inicial, ingresos, egresos, saldo_final)
-        VALUES(%s, %s, 0, 0, %s)
-    """, (fecha, saldo_correcto, saldo_correcto))
+        INSERT INTO caja_reunion (fecha, saldo_inicial, ingresos, egresos, saldo_final)
+        VALUES (%s, %s, 0, 0, %s)
+    """, (fecha, saldo_inicial, saldo_inicial))
 
     con.commit()
     return cursor.lastrowid
 
 
-# ============================================================
-# ⚠️ COMPATIBILIDAD: muchos módulos tuyos usan esta función
-# ============================================================
-def obtener_o_crear_reunion(fecha):
-    return asegurar_reunion(fecha)
-
-
-# ============================================================
-# 🔵 ACTUALIZAR CAJA GENERAL (siempre sincronizada)
-# ============================================================
-def actualizar_caja_general(nuevo_saldo):
+# ================================================================
+# 🟢 3. OBTENER SALDO REAL
+# ================================================================
+def obtener_saldo_actual():
     con = obtener_conexion()
-    cursor = con.cursor()
+    cursor = con.cursor(dictionary=True)
 
-    cursor.execute("UPDATE caja_general SET saldo_actual=%s WHERE id=1", (nuevo_saldo,))
-    con.commit()
+    cursor.execute("SELECT saldo_actual FROM caja_general WHERE id = 1")
+    row = cursor.fetchone()
+
+    if not row:
+        return Decimal("0.00")
+
+    return Decimal(str(row["saldo_actual"]))
 
 
-# ============================================================
-# 🟦 REGISTRAR MOVIMIENTO (Ingreso / Egreso)
-# ============================================================
+# ================================================================
+# 🟢 4. REGISTRAR MOVIMIENTO  — CORREGIDO
+# ================================================================
 def registrar_movimiento(id_caja, tipo, categoria, monto):
-
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
     monto = Decimal(str(monto))
 
-    # Obtener valores actuales
-    cursor.execute("SELECT * FROM caja_reunion WHERE id_caja=%s", (id_caja,))
-    reunion = cursor.fetchone()
-
-    saldo_inicial = Decimal(str(reunion["saldo_inicial"]))
-    ingresos = Decimal(str(reunion["ingresos"]))
-    egresos = Decimal(str(reunion["egresos"]))
-
-    # -------------------------------------------------------
-    # 🔵 Ajuste de valores
-    # -------------------------------------------------------
-    if tipo == "Ingreso":
-        ingresos += monto
-    elif tipo == "Egreso":
-        egresos += monto
-    else:
-        raise ValueError("Tipo de movimiento inválido")
-
-    saldo_final = saldo_inicial + ingresos - egresos
-
-    # -------------------------------------------------------
-    # 🔵 Actualizar reunión
-    # -------------------------------------------------------
+    # Registrar movimiento histórico
     cursor.execute("""
-        UPDATE caja_reunion
-        SET ingresos=%s,
-            egresos=%s,
-            saldo_final=%s
-        WHERE id_caja=%s
-    """, (ingresos, egresos, saldo_final, id_caja))
-
-    # -------------------------------------------------------
-    # 🔵 Insertar el movimiento del día
-    # -------------------------------------------------------
-    cursor.execute("""
-        INSERT INTO caja_movimientos(id_caja, tipo, categoria, monto)
-        VALUES(%s, %s, %s, %s)
+        INSERT INTO caja_movimientos (id_caja, tipo, categoria, monto)
+        VALUES (%s, %s, %s, %s)
     """, (id_caja, tipo, categoria, monto))
 
-    # -------------------------------------------------------
-    # 🔵 Sincronizar caja_general
-    # -------------------------------------------------------
-    actualizar_caja_general(saldo_final)
+    # Obtener saldo actual general
+    cursor.execute("SELECT saldo_actual FROM caja_general WHERE id = 1")
+    row = cursor.fetchone()
+    saldo = Decimal(str(row["saldo_actual"]))
+
+    # Ajustar saldo real
+    if tipo == "Ingreso":
+        saldo += monto
+    else:
+        saldo -= monto
+
+    cursor.execute("""
+        UPDATE caja_general
+        SET saldo_actual = %s
+        WHERE id = 1
+    """, (saldo,))
+
+    # ========================================================
+    # NUEVA PARTE CORREGIDA — SALDO REAL POR REUNIÓN
+    # ========================================================
+    cursor.execute("""
+        SELECT saldo_inicial, ingresos, egresos 
+        FROM caja_reunion
+        WHERE id_caja = %s
+    """, (id_caja,))
+    row = cursor.fetchone()
+
+    saldo_actual_reunion = (
+        Decimal(str(row["saldo_inicial"]))
+        + Decimal(str(row["ingresos"]))
+        - Decimal(str(row["egresos"]))
+    )
+
+    # Actualizar ingresos/egresos y saldo final
+    if tipo == "Ingreso":
+        saldo_actual_reunion += monto
+        cursor.execute("""
+            UPDATE caja_reunion
+            SET ingresos = ingresos + %s,
+                saldo_final = %s
+            WHERE id_caja = %s
+        """, (monto, saldo_actual_reunion, id_caja))
+    else:
+        saldo_actual_reunion -= monto
+        cursor.execute("""
+            UPDATE caja_reunion
+            SET egresos = egresos + %s,
+                saldo_final = %s
+            WHERE id_caja = %s
+        """, (monto, saldo_actual_reunion, id_caja))
 
     con.commit()
-    return True
+
+
+# ================================================================
+# 🟢 5. OBTENER REPORTE POR FECHA
+# ================================================================
+def obtener_reporte_reunion(fecha):
+    con = obtener_conexion()
+    cursor = con.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT ingresos, egresos, saldo_final
+        FROM caja_reunion
+        WHERE fecha = %s
+    """, (fecha,))
+    row = cursor.fetchone()
+
+    if not row:
+        return {
+            "ingresos": Decimal("0.00"),
+            "egresos": Decimal("0.00"),
+            "saldo_final": Decimal("0.00"),
+        }
+
+    ingresos = Decimal(str(row["ingresos"]))
+    egresos = Decimal(str(row["egresos"]))
+    saldo_final = Decimal(str(row["saldo_final"]))
+
+    return {
+        "ingresos": ingresos,
+        "egresos": egresos,
+        "saldo_final": saldo_final,
+    }
+
+
+# ================================================================
+# 🟢 6. OBTENER MOVIMIENTOS POR FECHA
+# ================================================================
+def obtener_movimientos_por_fecha(fecha):
+    con = obtener_conexion()
+    cursor = con.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT tipo, categoria, monto
+        FROM caja_movimientos cm
+        JOIN caja_reunion cr ON cm.id_caja = cr.id_caja
+        WHERE cr.fecha = %s
+    """, (fecha,))
+
+    return cursor.fetchall()
