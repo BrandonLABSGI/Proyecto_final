@@ -5,26 +5,27 @@ from modulos.conexion import obtener_conexion
 import re
 
 # ============================================================
-#              PANEL PRINCIPAL DEL ADMINISTRADOR
+# PANEL PRINCIPAL DEL ADMINISTRADOR
 # ============================================================
 def interfaz_admin():
+
     rol = st.session_state.get("rol", "")
     if rol != "Administrador":
         st.error("⛔ No tiene permisos para acceder al panel de administrador.")
         return
 
     st.title("🛡️ Panel del Administrador")
-# ============================================================
-# BOTÓN DE CERRAR SESIÓN
-# ============================================================
-with st.sidebar:
-    if st.button("🔒 Cerrar sesión"):
-        st.session_state["sesion_iniciada"] = False
-        st.session_state["rol"] = None
-        st.session_state["usuario"] = None
-        st.success("Sesión cerrada correctamente.")
-        st.rerun()
 
+    # === BOTÓN DE CERRAR SESIÓN ===
+    with st.sidebar:
+        if st.button("🔒 Cerrar sesión"):
+            st.session_state["sesion_iniciada"] = False
+            st.session_state["rol"] = None
+            st.session_state["usuario"] = None
+            st.success("Sesión cerrada correctamente.")
+            st.rerun()
+
+    # MÉTRICAS
     col1, col2, col3, col4 = st.columns(4)
     try:
         con = obtener_conexion()
@@ -58,7 +59,7 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # === BOTONES DEL MENÚ (SIN PROMOTORAS) ===
+    # === MENÚ SIN GESTIÓN DE PROMOTORAS ===
     seccion = st.sidebar.radio(
         "📂 Módulos de administración",
         [
@@ -70,7 +71,7 @@ with st.sidebar:
         ]
     )
 
-    # === RUTEO (también sin promotoras) ===
+    # === RUTEO ===
     if seccion == "Gestión de roles":
         gestion_roles()
     elif seccion == "Gestión de distritos":
@@ -82,11 +83,11 @@ with st.sidebar:
     elif seccion == "Resumen general":
         resumen_general()
 
-# ============================================================
-#                      GESTIÓN DE ROLES
-# ============================================================
-# (todo igual)
 
+
+# ============================================================
+# GESTIÓN DE ROLES
+# ============================================================
 def gestion_roles():
     st.header("🎭 Gestión de roles")
 
@@ -127,8 +128,9 @@ def gestion_roles():
     con.close()
 
 
+
 # ============================================================
-#                   GESTIÓN DE DISTRITOS
+# GESTIÓN DE DISTRITOS
 # ============================================================
 def gestion_distritos():
     st.header("🏙 Gestión de distritos")
@@ -185,132 +187,9 @@ def gestion_distritos():
     con.close()
 
 
-# ============================================================
-#           GESTIÓN DE PROMOTORAS (CORREGIDO)
-# ============================================================
-def gestion_promotoras():
-    st.header("👩‍💼 Gestión de promotores")
-
-    con = obtener_conexion()
-    cursor = con.cursor()
-
-    # ID del Rol Promotora
-    try:
-        cursor.execute("SELECT Id_Roles FROM Roles WHERE Tipo_de_rol = 'Promotora'")
-        row = cursor.fetchone()
-        if not row:
-            st.error("No existe el rol 'Promotora'.")
-            return
-        id_rol_promotora = row[0]
-    except:
-        st.error("Error cargando rol Promotora.")
-        return
-
-    # Cargar distritos
-    try:
-        cursor.execute("SELECT Id_Distrito, Nombre_distrito FROM Distrito ORDER BY Id_Distrito ASC")
-        distritos = cursor.fetchall()
-        dict_distritos = {f"{d[0]} - {d[1]}": d[0] for d in distritos}
-    except:
-        dict_distritos = {}
-
-    st.subheader("➕ Registrar nueva promotora")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        usuario = st.text_input("Usuario")
-        contra = st.text_input("Contraseña", type="password")
-        nombres = st.text_input("Nombres")
-        apellidos = st.text_input("Apellidos")
-
-    with col2:
-        dui = st.text_input("DUI (9 dígitos)", max_chars=9)
-        telefono = st.text_input("Teléfono (8 dígitos)", max_chars=8)
-        if dui and not dui.isdigit():
-            st.error("El DUI solo puede contener números.")
-        if telefono and not telefono.isdigit():
-            st.error("El teléfono solo puede contener números.")
-
-        distrito_sel = st.selectbox(
-            "Distrito base",
-            list(dict_distritos.keys()) if dict_distritos else ["(Sin distritos)"],
-        )
-        estado = st.selectbox("Estado", ["Activo", "Inactivo"])
-
-    if st.button("Registrar promotora"):
-        errores = []
-
-        if usuario.strip() == "" or contra.strip() == "":
-            errores.append("Usuario y contraseña obligatorios.")
-        if nombres.strip() == "" or apellidos.strip() == "":
-            errores.append("Nombres y apellidos obligatorios.")
-
-        if not re.fullmatch(r"\d{9}", dui):
-            errores.append("El DUI debe ser de exactamente 9 dígitos.")
-        if not re.fullmatch(r"\d{8}", telefono):
-            errores.append("El teléfono debe ser de 8 dígitos.")
-
-        if distrito_sel not in dict_distritos:
-            errores.append("Debe seleccionar un distrito válido.")
-
-        if errores:
-            for e in errores:
-                st.warning(e)
-            return
-
-        try:
-            cursor.execute(
-                """
-                INSERT INTO Empleado(
-                    Usuario, Contra, Id_Rol, Rol,
-                    Nombres, Apellidos, DUI, Telefono,
-                    Distrito, Estado
-                )
-                VALUES(%s,%s,%s,'Promotora',%s,%s,%s,%s,%s,%s)
-                """,
-                (
-                    usuario.strip(), contra.strip(), id_rol_promotora,
-                    nombres.strip(), apellidos.strip(),
-                    dui, telefono,
-                    dict_distritos[distrito_sel], estado
-                )
-            )
-            con.commit()
-            st.success("Promotora registrada correctamente.")
-        except Exception as e:
-            st.error(f"Error: {e}")
-
-    # LISTADO
-    st.markdown("### 📋 Promotoras registradas")
-    try:
-        cursor.execute(
-            """
-            SELECT e.Id_Empleado, e.Usuario, e.Nombres, e.Apellidos,
-                   d.Nombre_distrito, e.Estado
-            FROM Empleado e
-            LEFT JOIN Distrito d ON e.Distrito = d.Id_Distrito
-            WHERE e.Rol = 'Promotora'
-            ORDER BY e.Id_Empleado ASC
-            """
-        )
-        promotoras = cursor.fetchall()
-        if promotoras:
-            df = pd.DataFrame(
-                promotoras,
-                columns=["ID", "Usuario", "Nombres", "Apellidos", "Distrito", "Estado"],
-            )
-            st.dataframe(df, use_container_width=True)
-        else:
-            st.info("No hay promotoras registradas.")
-    except Exception as e:
-        st.error(f"Error al consultar promotoras: {e}")
-
-    cursor.close()
-    con.close()
-
 
 # ============================================================
-#                   GESTIÓN DE GRUPOS
+# GESTIÓN DE GRUPOS
 # ============================================================
 def gestion_grupos():
 
@@ -444,8 +323,9 @@ def gestion_grupos():
     con.close()
 
 
+
 # ============================================================
-#           GESTIÓN DE EMPLEADOS (CORREGIDO)
+# GESTIÓN DE EMPLEADOS
 # ============================================================
 def gestion_empleados():
     st.header("🧑‍💻 Gestión de empleados")
@@ -562,8 +442,9 @@ def gestion_empleados():
     con.close()
 
 
+
 # ============================================================
-#                   RESUMEN GENERAL
+# RESUMEN GENERAL
 # ============================================================
 def resumen_general():
     st.header("📊 Resumen general")
@@ -618,7 +499,7 @@ def resumen_general():
                    COUNT(g.Id_Grupo) AS TotalGrupos
             FROM Distrito d
             LEFT JOIN Grupo g ON g.Id_Distrito = d.Id_Distrito
-            GROUP BY d.Id_Distrito
+            GROUP_BY d.Id_Distrito
             """
         )
         df_dist = pd.DataFrame(cursor.fetchall(),
