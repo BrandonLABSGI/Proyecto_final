@@ -1,98 +1,161 @@
-import streamlit as st
+import streamlit as st 
 from datetime import date
 from decimal import Decimal
 
 from modulos.conexion import obtener_conexion
-from modulos.caja import asegurar_reunion, registrar_movimiento
+from modulos.caja import obtener_o_crear_reunion, registrar_movimiento
+from modulos.reglas_utils import obtener_reglas
 
 
 # ============================================================
-# REGISTRO DE AHORRO
+# FUNCIÓN PRINCIPAL — REGISTRO DE AHORRO
 # ============================================================
 def ahorro():
 
-    st.header("💰 Registrar ahorro")
+    st.header("💰 Registro de Ahorros")
 
+    # ============================================================
+    # 1️⃣ LEER REGLAS INTERNAS (ahorro mínimo)
+    # ============================================================
+    reglas = obtener_reglas()
+
+    if not reglas:
+        st.error("⚠ No existen reglas internas registradas. Regístrelas primero.")
+        return
+
+    ahorro_minimo = float(reglas.get("ahorro_minimo", 0))
+
+    # ============================================================
+    # 2️⃣ SOCIAS
+    # ============================================================
     con = obtener_conexion()
-    cur = con.cursor(dictionary=True)
+    cursor = con.cursor(dictionary=True)
 
-    # --------------------------------------------------------
-    # SOCIAS
-    # --------------------------------------------------------
-    cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
-    socias = cur.fetchall()
+    cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
+    socias = cursor.fetchall()
 
     if not socias:
         st.warning("⚠ No hay socias registradas.")
         return
 
-    # Combobox
-    opciones = {f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] for s in socias}
-    socia_sel = st.selectbox("Seleccione a la socia:", list(opciones.keys()))
-    id_socia = opciones[socia_sel]
+    dict_socias = {f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] for s in socias}
 
-    # --------------------------------------------------------
-    # FECHA DE OPERACIÓN
-    # --------------------------------------------------------
-    fecha_raw = st.date_input("📅 Fecha del ahorro:", date.today())
-    fecha = fecha_raw.strftime("%Y-%m-%d")
+    socia_sel = st.selectbox("👩 Seleccione la socia:", dict_socias.keys())
+    id_socia = dict_socias[socia_sel]
 
-    # Crear o reparar la reunión para esta fecha
-    id_caja = asegurar_reunion(fecha)
+    # ============================================================
+    # 3️⃣ HISTORIAL DE APORTES
+    # ============================================================
+    cursor.execute("""
+        SELECT 
+            Id_Ahorro,
+            Fecha_del_aporte,
+            Monto_del_aporte,
+            `Tipo de aporte`,
+            `Comprobante digital`,
+            `Saldo acumulado`
+        FROM Ahorro
+        WHERE Id_Socia = %s
+        ORDER BY Id_Ahorro DESC
+    """, (id_socia,))
+    aportes = cursor.fetchall()
 
-    # --------------------------------------------------------
-    # MONTO
-    # --------------------------------------------------------
-    monto = st.number_input("Monto del ahorro ($):", min_value=0.00, step=0.25)
+    st.subheader("📄 Historial de aportes")
 
-    if monto <= 0:
-        st.info("Ingrese un monto mayor a cero.")
-        return
-
-    # --------------------------------------------------------
-    # BOTÓN GUARDAR
-    # --------------------------------------------------------
-    if st.button("💾 Registrar ahorro"):
-
-        # Registrar en Caja
-        registrar_movimiento(
-            id_caja=id_caja,
-            tipo="Ingreso",
-            categoria=f"Ahorro – {id_socia}",
-            monto=monto
-        )
-
-        # Registrar ahorro particular
-        cur.execute("""
-            INSERT INTO Ahorro (Id_Socia, Fecha, Monto)
-            VALUES (%s, %s, %s)
-        """, (id_socia, fecha, Decimal(str(monto))))
-
-        # Actualizar caja general
-        cur.execute("""
-            UPDATE caja_general
-            SET saldo_actual = saldo_actual + %s
-            WHERE id = 1
-        """, (Decimal(str(monto)),))
-
-        con.commit()
-
-        st.success("Ahorro registrado correctamente.")
-        st.rerun()
-
-    # --------------------------------------------------------
-    # LISTADO DE AHORROS DEL DÍA
-    # --------------------------------------------------------
-    cur.execute("""
-        SELECT A.Id_Ahorro, S.Nombre, A.Monto
-        FROM Ahorro A
-        JOIN Socia S ON S.Id_Socia = A.Id_Socia
-        WHERE A.Fecha=%s
-        ORDER BY A.Id_Ahorro ASC
-    """, (fecha,))
-    registros = cur.fetchall()
-
-    if registros:
-        st.subheader("📋 Ahorros registrados en esta fecha")
+    if aportes:
         import pandas as pd
-        st.dataframe(pd.DataFrame(registros), use_container_width=True)
+        df = pd.DataFrame(aportes)
+        st.dataframe(df, use_container_width=True)
+
+        ultimo_saldo = aportes[0]["Saldo acumulado"]
+        st.success(f"💵 **Saldo actual acumulado:** ${ultimo_saldo}")
+    else:
+        st.info("Esta socia aún no tiene aportes registrados.")
+        ultimo_saldo = 0
+
+    # ============================================================
+    # 4️⃣ NUEVO APORTE
+    # ============================================================
+    st.markdown("---")
+    st.header("🧾 Registrar nuevo aporte")
+
+    fecha_aporte_raw = st.date_input("📅 Fecha del aporte", value=date.today())
+    fecha_aporte = fecha_aporte_raw.strftime("%Y-%m-%d")
+
+    # ------------------------------------------------------------
+    # Tipo de aporte
+    # ------------------------------------------------------------
+    tipo = st.selectbox("📌 Tipo de aporte", ["Ordinario", "Extraordinario"])
+
+    if tipo == "Ordinario":
+        st.info(f"🔒 Aporte ordinario mínimo según reglamento: **${ahorro_minimo}**")
+        monto = st.number_input(
+            "💵 Monto del aporte ($)",
+            min_value=ahorro_minimo,
+            value=ahorro_minimo,
+            step=0.25
+        )
+    else:
+        monto = st.number_input(
+            "💵 Monto del aporte ($)",
+            min_value=0.25,
+            value=1.00,
+            step=0.25
+        )
+        st.caption("Los aportes extraordinarios no tienen un mínimo definido.")
+
+    comprobante = st.text_input("📎 Comprobante digital (opcional)")
+
+    # ============================================================
+    # BOTÓN PARA REGISTRAR
+    # ============================================================
+    if st.button("💾 Registrar aporte"):
+
+        try:
+            # ------------------------------------------
+            # Calcular nuevo saldo
+            # ------------------------------------------
+            saldo_anterior = Decimal(str(ultimo_saldo))
+            monto_decimal = Decimal(str(monto))
+
+            if monto_decimal <= 0:
+                st.error("❌ El monto debe ser mayor que 0.")
+                return
+
+            nuevo_saldo = saldo_anterior + monto_decimal
+
+            # ------------------------------------------
+            # Registrar aporte en tabla Ahorro
+            # ------------------------------------------
+            cursor.execute("""
+                INSERT INTO Ahorro
+                (Fecha_del_aporte, Monto_del_aporte, `Tipo de aporte`,
+                 `Comprobante digital`, `Saldo acumulado`, Id_Socia)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (
+                fecha_aporte,
+                monto_decimal,
+                tipo,
+                comprobante if comprobante else "---",
+                nuevo_saldo,
+                id_socia
+            ))
+
+            # ------------------------------------------
+            # Registrar movimiento en CAJA ÚNICA
+            # ------------------------------------------
+            id_caja = obtener_o_crear_reunion(fecha_aporte)
+
+            registrar_movimiento(
+                id_caja=id_caja,
+                tipo="Ingreso",
+                categoria=f"Ahorro – {socia_sel}",
+                monto=float(monto_decimal)
+            )
+
+            con.commit()
+            st.success("✔ Aporte registrado correctamente.")
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"❌ Error al registrar aporte: {e}")
