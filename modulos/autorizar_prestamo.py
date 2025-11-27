@@ -75,7 +75,7 @@ def autorizar_prestamo():
         # VALIDAR AHORRO DE LA SOCIA
         # ======================================================
         cursor.execute("""
-            SELECT `Saldo acumulado`
+            SELECT Saldo_acumulado
             FROM Ahorro
             WHERE Id_Socia=%s
             ORDER BY Id_Ahorro DESC
@@ -83,7 +83,7 @@ def autorizar_prestamo():
         """, (id_socia,))
 
         registro_ahorro = cursor.fetchone()
-        ahorro_total = float(registro_ahorro["Saldo acumulado"]) if registro_ahorro else 0.0
+        ahorro_total = float(registro_ahorro["Saldo_acumulado"]) if registro_ahorro else 0.0
 
         if monto > ahorro_total:
             st.error(f"❌ La socia tiene solamente ${ahorro_total} ahorrados. No puede solicitar ${monto}.")
@@ -143,16 +143,23 @@ def autorizar_prestamo():
         )
 
         # ======================================================
-        # 🔥 DESCONTAR AHORRO DE LA SOCIA
+        # 🔥 DESCONTAR AHORRO DE LA SOCIA (CORREGIDO)
         # ======================================================
         nuevo_ahorro = ahorro_total - monto
 
         cursor.execute("""
             INSERT INTO Ahorro(
-                `Fecha del aporte`, `Monto del aporte`, `Tipo de aporte`,
-                `Comprobante digital`, `Saldo acumulado`, Id_Socia
+                Fecha_del_aporte,
+                Monto_del_aporte,
+                Tipo_de_aporte,
+                Comprobante_digital,
+                Saldo_acumulado,
+                Id_Socia,
+                Id_Reunion,
+                Id_Grupo,
+                Id_Caja
             )
-            VALUES (%s,%s,%s,%s,%s,%s)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """,
         (
             fecha_prestamo,
@@ -160,7 +167,10 @@ def autorizar_prestamo():
             "Descuento préstamo",
             "---",
             nuevo_ahorro,
-            id_socia
+            id_socia,
+            id_caja,
+            1,              # Grupo fijo (puedes cambiarlo si deseas)
+            id_caja
         ))
 
         # ======================================================
