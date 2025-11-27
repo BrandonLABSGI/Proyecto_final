@@ -80,7 +80,7 @@ def obtener_saldo_actual():
 
 
 # ================================================================
-# 🟢 4. REGISTRAR MOVIMIENTO
+# 🟢 4. REGISTRAR MOVIMIENTO  — CORREGIDO
 # ================================================================
 def registrar_movimiento(id_caja, tipo, categoria, monto):
     con = obtener_conexion()
@@ -94,12 +94,12 @@ def registrar_movimiento(id_caja, tipo, categoria, monto):
         VALUES (%s, %s, %s, %s)
     """, (id_caja, tipo, categoria, monto))
 
-    # Obtener saldo real actual
+    # Obtener saldo actual general
     cursor.execute("SELECT saldo_actual FROM caja_general WHERE id = 1")
     row = cursor.fetchone()
     saldo = Decimal(str(row["saldo_actual"]))
 
-    # Actualizar saldo real
+    # Ajustar saldo real
     if tipo == "Ingreso":
         saldo += monto
     else:
@@ -111,21 +111,39 @@ def registrar_movimiento(id_caja, tipo, categoria, monto):
         WHERE id = 1
     """, (saldo,))
 
-    # Actualizar caja_reunion
+    # ========================================================
+    # NUEVA PARTE CORREGIDA — SALDO REAL POR REUNIÓN
+    # ========================================================
+    cursor.execute("""
+        SELECT saldo_inicial, ingresos, egresos 
+        FROM caja_reunion
+        WHERE id_caja = %s
+    """, (id_caja,))
+    row = cursor.fetchone()
+
+    saldo_actual_reunion = (
+        Decimal(str(row["saldo_inicial"]))
+        + Decimal(str(row["ingresos"]))
+        - Decimal(str(row["egresos"]))
+    )
+
+    # Actualizar ingresos/egresos y saldo final
     if tipo == "Ingreso":
+        saldo_actual_reunion += monto
         cursor.execute("""
             UPDATE caja_reunion
             SET ingresos = ingresos + %s,
-                saldo_final = saldo_final + %s
+                saldo_final = %s
             WHERE id_caja = %s
-        """, (monto, monto, id_caja))
+        """, (monto, saldo_actual_reunion, id_caja))
     else:
+        saldo_actual_reunion -= monto
         cursor.execute("""
             UPDATE caja_reunion
             SET egresos = egresos + %s,
-                saldo_final = saldo_final - %s
+                saldo_final = %s
             WHERE id_caja = %s
-        """, (monto, monto, id_caja))
+        """, (monto, saldo_actual_reunion, id_caja))
 
     con.commit()
 
