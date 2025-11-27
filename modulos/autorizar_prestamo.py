@@ -1,24 +1,21 @@
 import streamlit as st
-from datetime import date
-from decimal import Decimal
+import pandas as pd
+from datetime import date, datetime, timedelta
 from modulos.conexion import obtener_conexion
 from modulos.caja import obtener_o_crear_reunion, registrar_movimiento
 
 
-# ============================================================
-# 🔵 AUTORIZAR PRÉSTAMO — VERSIÓN FINAL
-# ============================================================
 def autorizar_prestamo():
 
-    st.header("💳 Autorizar préstamo")
+    st.title("💳 Autorizar préstamo")
     st.write("Complete la información para autorizar un nuevo préstamo.")
 
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    # --------------------------------------------------------
-    # Obtener socias
-    # --------------------------------------------------------
+    # ======================================================
+    # OBTENER SOCIAS
+    # ======================================================
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
 
@@ -26,78 +23,183 @@ def autorizar_prestamo():
         st.warning("⚠ No hay socias registradas.")
         return
 
-    lista_socias = {f"{s['Id_Socia']} – {s['Nombre']}": s["Id_Socia"] for s in socias}
+    lista_socias = {f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] for s in socias}
 
-    socia_sel = st.selectbox("Seleccione la socia:", lista_socias.keys())
-    id_socia = lista_socias[socia_sel]
+    # ======================================================
+    # FORMULARIO
+    # ======================================================
+    with st.form("form_prestamo"):
 
-    # --------------------------------------------------------
-    # Datos del préstamo
-    # --------------------------------------------------------
-    fecha_raw = st.date_input("📅 Fecha del préstamo:", date.today())
-    fecha = fecha_raw.strftime("%Y-%m-%d")
+        fecha_prestamo = st.date_input("📅 Fecha del préstamo", date.today())
 
-    monto = st.number_input("Monto a prestar ($):", min_value=0.00, value=0.00, step=0.25)
-    descripcion = st.text_area("Descripción del préstamo:")
+        socia_seleccionada = st.selectbox("👩 Socia que recibe el préstamo", list(lista_socias.keys()))
+        id_socia = lista_socias[socia_seleccionada]
 
-    if st.button("💾 Autorizar préstamo"):
+        monto = st.number_input("💵 Monto prestado ($):", min_value=1, step=1)
+        tasa_interes = st.number_input("📈 Tasa de interés (%):", min_value=1, step=1)
+        plazo = st.number_input("🗓 Plazo (meses):", min_value=1)
+        cuotas = st.number_input("📑 Número de cuotas:", min_value=1)
 
-        if monto <= 0:
-            st.warning("⚠ Debe ingresar un monto válido.")
+        firma = st.text_input("✍️ Firma del directivo que autoriza")
+
+        enviar = st.form_submit_button("✅ Autorizar préstamo")
+
+    # ======================================================
+    # PROCESAR FORMULARIO
+    # ======================================================
+    if enviar:
+
+        # ======================================================
+        # 🔒 REGLA INTERNA: MÁXIMO PRÉSTAMO = $100.00
+        # ======================================================
+        limite_regla_interna = 100.00
+        if monto > limite_regla_interna:
+            st.error(f"❌ No puede solicitar un préstamo mayor a ${limite_regla_interna} según las reglas internas.")
             return
 
-        # ====================================================
-        # 🔵 GARANTIZAR REUNIÓN
-        # ====================================================
-        id_caja = obtener_o_crear_reunion(fecha)
+        # ======================================================
+        # 🔒 REGLA NUEVA: TASA DE INTERÉS ≤ 6%
+        # ======================================================
+        if tasa_interes > 6:
+            st.error("❌ El interés no puede ser mayor al 6%.")
+            return
 
-        # ====================================================
-        # 🔵 Registrar préstamo en tabla Prestamo
-        # ====================================================
+        # ======================================================
+        # 🔒 REGLA NUEVA: PLAZO ≤ 4 MESES
+        # ======================================================
+        if plazo > 4:
+            st.error("❌ El plazo máximo permitido es 4 meses.")
+            return
+
+        # ======================================================
+        # VALIDAR AHORRO DE LA SOCIA
+        # ======================================================
         cursor.execute("""
-            INSERT INTO Prestamo
-            (Fecha_del_prestamo, Monto_prestado, Interes_total, Plazo, Cuotas,
-             Saldo_pendiente, Estado_del_prestamo, Id_Grupo, Id_Socia, Id_Caja)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            fecha,
+            SELECT `Saldo acumulado`
+            FROM Ahorro
+            WHERE Id_Socia=%s
+            ORDER BY Id_Ahorro DESC
+            LIMIT 1
+        """, (id_socia,))
+
+        registro_ahorro = cursor.fetchone()
+        ahorro_total = float(registro_ahorro["Saldo acumulado"]) if registro_ahorro else 0.0
+
+        if monto > ahorro_total:
+            st.error(f"❌ La socia tiene solamente ${ahorro_total} ahorrados. No puede solicitar ${monto}.")
+            return
+
+        # ======================================================
+        # OBTENER O CREAR CAJA GENERAL PARA ESA FECHA
+        # ======================================================
+        id_caja = obtener_o_crear_reunion(str(fecha_prestamo))
+
+        cursor.execute("SELECT saldo_final FROM caja_reunion WHERE id_caja=%s", (id_caja,))
+        saldo_actual = float(cursor.fetchone()["saldo_final"])
+
+        if monto > saldo_actual:
+            st.error(f"❌ Fondos insuficientes en caja general. Saldo disponible: ${saldo_actual}")
+            return
+
+        # ======================================================
+        # CÁLCULOS DE INTERÉS Y CUOTAS
+        # ======================================================
+        interes_total = round((monto * tasa_interes) / 100, 2)
+        total_a_pagar = round(monto + interes_total, 2)
+        cuota_individual = round(total_a_pagar / cuotas, 2)
+
+        # ======================================================
+        # REGISTRAR PRÉSTAMO
+        # ======================================================
+        cursor.execute("""
+            INSERT INTO Prestamo(
+                `Fecha del préstamo`, `Monto prestado`, `Tasa de interes`,
+                `Plazo`, `Cuotas`, `Saldo pendiente`, Estado_del_prestamo,
+                Id_Grupo, Id_Socia, Id_Caja
+            )
+            VALUES (%s,%s,%s,%s,%s,%s,'activo',1,%s,%s)
+        """,
+        (
+            fecha_prestamo,
             monto,
-            0,          # No calculamos interés automáticamente
-            0,          # Plazo
-            0,          # Cuotas
-            monto,      # Saldo pendiente inicial
-            "Pendiente",
-            1,          # Grupo 1 (tu sistema actual usa uno por defecto)
+            tasa_interes,
+            plazo,
+            cuotas,
+            total_a_pagar,
             id_socia,
             id_caja
         ))
 
-        # ====================================================
-        # 🔵 Registrar el egreso en caja
-        # ====================================================
+        id_prestamo = cursor.lastrowid
+
+        # ======================================================
+        # REGISTRAR EGRESO EN CAJA REAL
+        # ======================================================
         registrar_movimiento(
             id_caja=id_caja,
             tipo="Egreso",
-            categoria=f"Préstamo a {socia_sel}",
-            monto=Decimal(monto)
+            categoria=f"Préstamo otorgado a {socia_seleccionada}",
+            monto=float(monto)
         )
+
+        # ======================================================
+        # 🔥 DESCONTAR AHORRO DE LA SOCIA (ERROR CORREGIDO AQUÍ)
+        # ======================================================
+        nuevo_ahorro = ahorro_total - monto
+
+        cursor.execute("""
+            INSERT INTO Ahorro(
+                Fecha_del_aporte, Monto_del_aporte, `Tipo de aporte`,
+                `Comprobante digital`, `Saldo acumulado`, Id_Socia
+            )
+            VALUES (%s,%s,%s,%s,%s,%s)
+        """,
+        (
+            fecha_prestamo,
+            -monto,
+            "Descuento préstamo",
+            "---",
+            nuevo_ahorro,
+            id_socia
+        ))
+
+        # ======================================================
+        # REGISTRO DE CUOTAS (cada 15 días)
+        # ======================================================
+        fecha_base = datetime.strptime(str(fecha_prestamo), "%Y-%m-%d")
+
+        for n in range(1, cuotas + 1):
+            fecha_cuota = fecha_base + timedelta(days=15*n)
+            cursor.execute("""
+                INSERT INTO Cuotas_prestamo
+                (Id_Prestamo, Numero_cuota, Fecha_programada, Monto_cuota, Estado)
+                VALUES (%s,%s,%s,%s,'pendiente')
+            """,
+            (
+                id_prestamo,
+                n,
+                fecha_cuota.strftime("%Y-%m-%d"),
+                cuota_individual
+            ))
 
         con.commit()
 
-        st.success("✔ Préstamo autorizado exitosamente.")
-        st.rerun()
+        st.success("✔ Préstamo autorizado correctamente.")
 
-    # --------------------------------------------------------
-    # Mostrar préstamos existentes de la socia
-    # --------------------------------------------------------
-    cursor.execute("""
-        SELECT Id_Prestamo, Fecha_del_prestamo, Monto_prestado, Saldo_pendiente, Estado_del_prestamo
-        FROM Prestamo
-        WHERE Id_Socia=%s
-        ORDER BY Id_Prestamo ASC
-    """, (id_socia,))
-    prestamos = cursor.fetchall()
+        # ======================================================
+        # MOSTRAR RESUMEN FINAL
+        # ======================================================
+        st.markdown("---")
+        st.subheader("📄 Resumen del préstamo")
 
-    if prestamos:
-        st.markdown("### 📋 Historial de préstamos")
-        st.dataframe(prestamos, use_container_width=True)
+        st.write(f"📅 **Fecha:** {fecha_prestamo}")
+        st.write(f"👩 **Socia:** {socia_seleccionada}")
+        st.write(f"💵 **Monto prestado:** ${monto}")
+        st.write(f"📈 **Interés total:** ${interes_total}")
+        st.write(f"💰 **Total a pagar:** ${total_a_pagar}")
+        st.write(f"🧾 **Cuotas:** {cuotas} cuotas de ${cuota_individual}")
+
+        st.write("### 🗓 Calendario de cuotas:")
+        for n in range(1, cuotas + 1):
+            fecha_cuota = fecha_base + timedelta(days=15*n)
+            st.write(f"➡ **Cuota {n}:** {fecha_cuota.strftime('%Y-%m-%d')} — ${cuota_individual}")
