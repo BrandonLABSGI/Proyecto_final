@@ -13,7 +13,7 @@ from modulos.caja import obtener_o_crear_reunion
 
 
 # ============================================================
-# 📊 REPORTE DE CAJA COMPLETO — CON GRÁFICAS RESTAURADAS
+# 📊 REPORTE DE CAJA COMPLETO — GRÁFICAS RESTAURADAS
 # ============================================================
 def reporte_caja():
 
@@ -22,7 +22,9 @@ def reporte_caja():
     con = obtener_conexion()
     cur = con.cursor(dictionary=True)
 
-    # Obtener todas las fechas registradas en caja_reunion
+    # ============================================================
+    # 🔹 LISTA DE FECHAS DISPONIBLES EN caja_reunion
+    # ============================================================
     cur.execute("SELECT fecha FROM caja_reunion ORDER BY fecha DESC")
     fechas = [row["fecha"] for row in cur.fetchall()]
 
@@ -34,7 +36,7 @@ def reporte_caja():
     fecha_str = fecha_sel.strftime("%Y-%m-%d")
 
     # ============================================================
-    # DATOS DE LA REUNIÓN
+    # 🔹 CARGAR DATOS DEL DÍA
     # ============================================================
     cur.execute("""
         SELECT saldo_inicial, ingresos, egresos, saldo_final
@@ -47,17 +49,16 @@ def reporte_caja():
         st.error("⚠ No existe un registro de caja para esta fecha.")
         return
 
+    # Conversiones correctas
     saldo_inicial = Decimal(reunion["saldo_inicial"])
-    ingresos = Decimal(reunion["inresos"])
+    ingresos = Decimal(reunion["ingresos"])      # ← YA CORREGIDO
     egresos = Decimal(reunion["egresos"])
 
-    # ============================================================
-    # ⚠️ SALDO FINAL CALCULADO (NO BD)
-    # ============================================================
+    # **SALDO FINAL REAL**
     saldo_final = saldo_inicial + ingresos - egresos
 
     # ============================================================
-    # MOSTRAR RESUMEN
+    # 🔹 RESUMEN VISUAL
     # ============================================================
     st.subheader(f"📘 Resumen del día — {fecha_str}")
 
@@ -75,7 +76,7 @@ def reporte_caja():
     )
 
     # ============================================================
-    # MOVIMIENTOS DEL DÍA
+    # 🔹 MOVIMIENTOS DEL DÍA
     # ============================================================
     st.subheader("📄 Movimientos registrados")
 
@@ -83,7 +84,7 @@ def reporte_caja():
         SELECT tipo, categoria, monto
         FROM caja_movimientos
         WHERE id_caja = (
-            SELECT id_caja FROM caja_reunion WHERE fecha=%s
+              SELECT id_caja FROM caja_reunion WHERE fecha = %s
         )
         ORDER BY id_mov ASC
     """, (fecha_str,))
@@ -95,30 +96,32 @@ def reporte_caja():
         st.dataframe(df, use_container_width=True)
 
         # ============================================================
-        # 🔵 GRÁFICAS RESTAURADAS
+        # 🔹 GRÁFICAS RESTAURADAS (STREAMLIT)
         # ============================================================
+
+        # —— Gráfica ingresos vs egresos
         st.subheader("📊 Gráfica de Ingresos vs Egresos")
 
         graf_df = pd.DataFrame({
             "Tipo": ["Ingresos", "Egresos"],
             "Monto": [float(ingresos), float(egresos)]
-        })
+        }).set_index("Tipo")
 
-        st.bar_chart(graf_df.set_index("Tipo"))
+        st.bar_chart(graf_df)
 
-        # Gráfica detallada por categorías
+        # —— Gráfica por categoría
         st.subheader("📊 Distribución por categorías")
 
         cat_df = pd.DataFrame(movimientos)
-        if not cat_df.empty:
-            pivot = cat_df.groupby("categoria").sum(numeric_only=True)
-            st.bar_chart(pivot)
+        pivot = cat_df.groupby("categoria").sum(numeric_only=True)
+
+        st.bar_chart(pivot)
 
     else:
         st.info("📭 No hay movimientos registrados en este día.")
 
     # ============================================================
-    # DESCARGA DEL PDF
+    # 🔹 GENERACIÓN DE PDF
     # ============================================================
     st.subheader("📄 Descargar reporte en PDF")
 
@@ -129,10 +132,11 @@ def reporte_caja():
         story = []
         styles = getSampleStyleSheet()
 
+        # Título
         story.append(Paragraph(f"Reporte de Caja — {fecha_str}", styles["Title"]))
         story.append(Spacer(1, 12))
 
-        # Tabla resumen
+        # ✓ Tabla resumen
         data_resumen = [
             ["Saldo Inicial", f"${saldo_inicial:.2f}"],
             ["Ingresos", f"${ingresos:.2f}"],
@@ -142,13 +146,12 @@ def reporte_caja():
         t = Table(data_resumen)
         t.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.lightblue),
-            ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
             ("GRID", (0, 0), (-1, -1), 1, colors.gray)
         ]))
         story.append(t)
         story.append(Spacer(1, 20))
 
-        # Movimientos
+        # ✓ Movimientos
         if movimientos:
             story.append(Paragraph("Movimientos del día:", styles["Heading2"]))
             data = [["Tipo", "Categoría", "Monto"]] + [
@@ -160,6 +163,13 @@ def reporte_caja():
             ]))
             story.append(tabla_mov)
 
+        # Generar PDF
         doc.build(story)
-        st.success("📄 PDF generado correctamente. Descargando...")
-        st.download_button("Descargar PDF", open(nombre_pdf, "rb"), file_name=nombre_pdf)
+
+        # Botón de descarga
+        st.success("📄 PDF generado correctamente.")
+        st.download_button(
+            "Descargar PDF",
+            open(nombre_pdf, "rb"),
+            file_name=nombre_pdf
+        )
