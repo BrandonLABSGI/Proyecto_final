@@ -88,7 +88,7 @@ def interfaz_directiva():
 
 
 # ============================================================
-# 🎯 REGISTRO DE ASISTENCIA
+# 🎯 REGISTRO DE ASISTENCIA — CORREGIDO
 # ============================================================
 def pagina_asistencia():
 
@@ -104,6 +104,10 @@ def pagina_asistencia():
 
     cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cur.fetchall()
+
+    if not socias:
+        st.warning("⚠ No hay socias registradas. Registre socias primero.")
+        return
 
     st.subheader("Lista de asistencia")
     estados = {}
@@ -134,9 +138,10 @@ def pagina_asistencia():
                     WHERE Id_Asistencia=%s
                 """, (estado, existe["Id_Asistencia"]))
             else:
+                # 🔥🔥 CORRECCIÓN AQUI — id_caja ES LA COLUMNA REAL 🔥🔥
                 cur.execute("""
-                    INSERT INTO Asistencia(Id_Socia,Fecha,Estado_asistencia,Id_Reunion)
-                    VALUES(%s,%s,%s,%s)
+                    INSERT INTO Asistencia(Id_Socia, Fecha, Estado_asistencia, id_caja)
+                    VALUES(%s, %s, %s, %s)
                 """, (id_socia, fecha, estado, id_caja))
 
         con.commit()
@@ -155,11 +160,7 @@ def pagina_asistencia():
         st.subheader("📋 Asistencia registrada")
         st.dataframe(pd.DataFrame(registros), use_container_width=True)
 
-    cur.execute("""
-        SELECT Estado_asistencia
-        FROM Asistencia
-        WHERE Fecha = %s
-    """, (fecha,))
+    cur.execute("SELECT Estado_asistencia FROM Asistencia WHERE Fecha = %s", (fecha,))
     registros_tot = cur.fetchall()
 
     if registros_tot:
@@ -176,17 +177,24 @@ def pagina_asistencia():
 
     st.markdown("---")
 
+    # ============================================================
     # INGRESOS EXTRAORDINARIOS
-    st.subheader("💵 Registrar ingreso extraordinario (rifas, donaciones, etc.)")
+    # ============================================================
+    st.subheader("💵 Registrar ingreso extraordinario")
 
     fecha_ing = st.date_input("📅 Fecha del ingreso:", date.today())
     fecha_ingreso = fecha_ing.strftime("%Y-%m-%d")
 
     cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     lista = cur.fetchall()
+
+    if not lista:
+        st.warning("⚠ Primero debe registrar socias.")
+        return
+
     dict_socias = {f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] for s in lista}
 
-    socia_sel = st.selectbox("Socia que aporta el ingreso:", list(dict_socias.keys()))
+    socia_sel = st.selectbox("Socia que aporta:", list(dict_socias.keys()))
     id_socia_ing = dict_socias[socia_sel]
 
     concepto = st.selectbox("Concepto:", ["Rifa", "Donación", "Otros"])
@@ -203,14 +211,13 @@ def pagina_asistencia():
             monto=monto
         )
 
-        st.success("Ingreso extraordinario registrado y agregado a caja.")
+        st.success("Ingreso extraordinario registrado.")
         st.rerun()
 
 
 
-
 # ============================================================
-# REGISTRO DE NUEVAS SOCIAS — 🎯 MEJORA APLICADA
+# REGISTRO DE NUEVAS SOCIAS
 # ============================================================
 def pagina_registro_socias():
 
@@ -223,7 +230,6 @@ def pagina_registro_socias():
     dui = st.text_input("Número de DUI (9 dígitos):", max_chars=9)
     telefono = st.text_input("Número de teléfono (8 dígitos):", max_chars=8)
 
-    # Validación
     if st.button("Registrar socia"):
 
         if nombre.strip() == "":
@@ -231,11 +237,11 @@ def pagina_registro_socias():
             return
 
         if not dui.isdigit() or len(dui) != 9:
-            st.warning("El DUI debe contener exactamente 9 dígitos numéricos.")
+            st.warning("El DUI debe contener 9 dígitos.")
             return
 
         if not telefono.isdigit() or len(telefono) != 8:
-            st.warning("El teléfono debe contener exactamente 8 dígitos numéricos.")
+            st.warning("El teléfono debe contener 8 dígitos.")
             return
 
         cur.execute("""
@@ -244,10 +250,9 @@ def pagina_registro_socias():
         """, (nombre, dui, telefono))
         con.commit()
 
-        st.success(f"Socia '{nombre}' registrada correctamente.")
+        st.success(f"Socia '{nombre}' registrada.")
         st.rerun()
 
-    # Mostrar lista
     cur.execute("SELECT Id_Socia, Nombre, DUI FROM Socia ORDER BY Id_Socia ASC")
     data = cur.fetchall()
 
@@ -268,19 +273,18 @@ def pagina_multas():
     con = obtener_conexion()
     cur = con.cursor(dictionary=True)
 
-    # -----------------------------------------------------------
-    # SOCIAS
-    # -----------------------------------------------------------
     cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cur.fetchall()
+
+    if not socias:
+        st.warning("⚠ Primero registre socias.")
+        return
+
     dict_socias = {s["Nombre"]: s["Id_Socia"] for s in socias}
 
     socia_sel = st.selectbox("Socia:", dict_socias.keys())
     id_socia = dict_socias[socia_sel]
 
-    # -----------------------------------------------------------
-    # TIPOS DE MULTA
-    # -----------------------------------------------------------
     cur.execute("SELECT Id_Tipo_multa, `Tipo de multa` FROM `Tipo de multa`")
     tipos = cur.fetchall()
     dict_tipos = {t["Tipo de multa"]: t["Id_Tipo_multa"] for t in tipos}
@@ -302,15 +306,13 @@ def pagina_multas():
     fecha = fecha_raw.strftime("%Y-%m-%d")
     estado = st.selectbox("Estado:", ["A pagar", "Pagada"])
 
-    # -----------------------------------------------------------
-    # REGISTRAR MULTA
-    # -----------------------------------------------------------
     if st.button("💾 Registrar multa"):
 
         cur.execute("""
             INSERT INTO Multa (Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
             VALUES (%s, %s, %s, %s, %s)
-        """, (monto_def, fecha, estado, id_tipo, id_socia))
+        """,
+        (monto_def, fecha, estado, id_tipo, id_socia))
 
         con.commit()
         st.success("Multa registrada correctamente.")
@@ -319,17 +321,11 @@ def pagina_multas():
     st.markdown("---")
     st.subheader("📋 Multas registradas")
 
-    # -----------------------------------------------------------
-    # FILTRO DE UNA SOLA FECHA
-    # -----------------------------------------------------------
     filtro_socia = st.selectbox("Filtrar por socia:", ["Todas"] + list(dict_socias.keys()))
     filtro_estado = st.selectbox("Estado:", ["Todos", "A pagar", "Pagada"])
     fecha_filtro = st.date_input("Fecha a consultar:", date.today())
     fecha_filtro_str = fecha_filtro.strftime("%Y-%m-%d")
 
-    # -----------------------------------------------------------
-    # QUERY CORRECTA
-    # -----------------------------------------------------------
     query = """
         SELECT 
             M.Id_Multa,
@@ -355,25 +351,15 @@ def pagina_multas():
         query += " AND M.Estado = %s"
         params.append(filtro_estado)
 
-    # ORDEN EXACTO QUE NECESITAS:
     query += " ORDER BY S.Id_Socia ASC, M.Id_Multa ASC"
 
     cur.execute(query, params)
     multas = cur.fetchall()
 
-    # -----------------------------------------------------------
-    # SI NO HAY MULTAS
-    # -----------------------------------------------------------
     if not multas:
-        if filtro_socia != "Todas":
-            st.info(f"✔ La socia **{filtro_socia}** no tiene multas registradas en esta fecha.")
-        else:
-            st.info("No existen multas en esta fecha.")
+        st.info("No existen multas para los filtros seleccionados.")
         return
 
-    # -----------------------------------------------------------
-    # LISTADO INTERACTIVO
-    # -----------------------------------------------------------
     for m in multas:
 
         col1, col2, col3, col4, col5, col6, col7 = st.columns([1, 3, 3, 2, 2, 2, 2])
@@ -392,7 +378,7 @@ def pagina_multas():
         col4.write(f"${monto_f:.2f}")
 
         nuevo_estado = col5.selectbox(
-            "", 
+            "",
             ["A pagar", "Pagada"],
             index=0 if m["Estado"] == "A pagar" else 1,
             key=f"multa_{m['Id_Multa']}"
