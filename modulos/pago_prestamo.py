@@ -65,6 +65,16 @@ def pago_prestamo():
     interes_total = round(monto_prestado * tasa / Decimal(100), 2)
 
     # ============================================================
+    # CONTAR CUOTAS PENDIENTES
+    # ============================================================
+    cur.execute("""
+        SELECT COUNT(*) AS pendientes
+        FROM Cuotas_prestamo
+        WHERE Id_Prestamo=%s AND Estado='pendiente'
+    """, (id_prestamo,))
+    cuotas_pendientes = cur.fetchone()["pendientes"]
+
+    # ============================================================
     # MOSTRAR INFORMACIÓN DEL PRÉSTAMO
     # ============================================================
     st.subheader("📄 Información del préstamo")
@@ -72,7 +82,7 @@ def pago_prestamo():
     st.write(f"**Monto prestado:** ${monto_prestado}")
     st.write(f"📈 **Interés total:** ${interes_total}")
     st.write(f"**Saldo pendiente:** ${saldo_pendiente}")
-    st.write(f"**Cuotas:** {prestamo['Cuotas']}")
+    st.write(f"**Cuotas pendientes:** {cuotas_pendientes}")
 
     st.divider()
 
@@ -102,7 +112,7 @@ def pago_prestamo():
     cuota_sel = st.selectbox("Seleccione la cuota a pagar:", opciones.keys())
     id_cuota = opciones[cuota_sel]
 
-    fecha_pago = st.date_input("📅 Fecha del pago:", date.today()).strftime("%Y-%m-%d")
+    fecha_pago_str = st.date_input("📅 Fecha del pago:", date.today()).strftime("%Y-%m-%d")
 
     # ============================================================
     # BOTÓN PRINCIPAL
@@ -116,58 +126,31 @@ def pago_prestamo():
         monto_cuota = Decimal(cuota["Monto_cuota"])
         fecha_programada = cuota["Fecha_programada"]
 
-        # ============================================================
-        # 🔥 CORRECCIÓN DEL ERROR DE FECHA (TypeError)
-        # ============================================================
-        # Normalizar fecha programada
+        # NORMALIZAR FECHAS
         if isinstance(fecha_programada, date):
             fecha_programada_dt = fecha_programada
         else:
             fecha_programada_dt = date.fromisoformat(str(fecha_programada))
 
-        # Normalizar fecha de pago
-        if isinstance(fecha_pago, date):
-            fecha_pago_dt = fecha_pago
-        else:
-            fecha_pago_dt = date.fromisoformat(str(fecha_pago))
-
-        atraso = fecha_pago_dt > fecha_programada_dt
-
-        monto_total = monto_cuota
+        fecha_pago_dt = date.fromisoformat(str(fecha_pago_str))
 
         # ============================================================
-        # MULTA POR MORA
+        # 🚫 RESTRICCIÓN QUE PEDISTE: SOLO PERMITIR LA FECHA EXACTA
         # ============================================================
-        if atraso and multa_mora > 0:
-
-            monto_total += multa_mora
-            st.warning(f"⚠ Pago atrasado: multa por mora de ${multa_mora}")
-
-            # Registrar multa en tabla Multa
-            cur.execute("""
-                INSERT INTO Multa (Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
-                VALUES (%s, %s, 'A pagar', 2, %s)
-            """, (multa_mora, fecha_pago, id_socia))
-
-            # Registrar multa como ingreso de caja
-            id_caja_multa = obtener_o_crear_reunion(fecha_pago)
-            registrar_movimiento(
-                id_caja=id_caja_multa,
-                tipo="Ingreso",
-                categoria=f"Multa por mora (Préstamo #{id_prestamo})",
-                monto=float(multa_mora)
-            )
+        if fecha_pago_dt != fecha_programada_dt:
+            st.error(f"❌ Esta cuota solo puede pagarse el día exacto: {fecha_programada_dt}")
+            return
 
         # ============================================================
         # PAGO DE CUOTA → CAJA
         # ============================================================
-        id_caja = obtener_o_crear_reunion(fecha_pago)
+        id_caja = obtener_o_crear_reunion(fecha_pago_str)
 
         registrar_movimiento(
             id_caja=id_caja,
             tipo="Ingreso",
             categoria=f"Pago cuota préstamo {id_prestamo}",
-            monto=float(monto_total)
+            monto=float(monto_cuota)
         )
 
         # ============================================================
@@ -177,7 +160,7 @@ def pago_prestamo():
             UPDATE Cuotas_prestamo
             SET Estado='pagada', Fecha_pago=%s, Id_Caja=%s
             WHERE Id_Cuota=%s
-        """, (fecha_pago, id_caja, id_cuota))
+        """, (fecha_pago_str, id_caja, id_cuota))
 
         # ============================================================
         # ACTUALIZAR SALDO DEL PRÉSTAMO
@@ -203,7 +186,6 @@ def pago_prestamo():
             FROM Cuotas_prestamo
             WHERE Id_Prestamo=%s AND Estado='pendiente'
         """, (id_prestamo,))
-
         pendientes = cur.fetchone()["pendientes"]
 
         if pendientes == 0:
@@ -213,7 +195,7 @@ def pago_prestamo():
                     Estado_del_prestamo = 'pagado'
                 WHERE Id_Préstamo = %s
             """, (id_prestamo,))
-        
+
         con.commit()
 
         st.success("✔ Pago registrado correctamente.")
