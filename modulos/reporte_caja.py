@@ -124,7 +124,7 @@ def reporte_caja():
             con.commit()
 
             st.success("🔒 Día cerrado correctamente.")
-            st.rerun()   # ← YA CORREGIDO
+            st.rerun()
 
     st.markdown("---")
 
@@ -154,12 +154,16 @@ def reporte_caja():
     st.markdown("---")
 
     # ============================================================
-    # 7️⃣ GRAFICAS NATIVAS — AL FINAL
+    # 7️⃣ GRAFICAS NATIVAS — CORREGIDAS
     # ============================================================
     st.subheader("📈 Gráficas del día")
 
-    df_dia = pd.DataFrame(movimientos)
-    df_dia["monto"] = df_dia["monto"].astype(float)
+    # --------- FIX: garantizar columnas ---------
+    df_dia = pd.DataFrame(movimientos, columns=["tipo", "categoria", "monto"])
+    if not df_dia.empty:
+        df_dia["monto"] = df_dia["monto"].astype(float)
+    else:
+        df_dia["monto"] = []
 
     # INGRESOS
     df_ing = df_dia[df_dia["tipo"] == "Ingreso"]
