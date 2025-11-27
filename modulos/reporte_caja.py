@@ -15,7 +15,7 @@ from modulos.reglas_utils import obtener_reglas
 
 
 # ============================================================
-# 📊 REPORTE DE CAJA COMPLETO — SIN MATPLOTLIB
+# 📊 REPORTE DE CAJA COMPLETO — CORREGIDO (SIN AUTO-CREAR)
 # ============================================================
 def reporte_caja():
 
@@ -37,14 +37,15 @@ def reporte_caja():
         st.error("⚠ Falta la fecha de inicio del ciclo en reglas internas.")
         return
 
-    hoy = date.today().strftime("%Y-%m-%d")
-    obtener_o_crear_reunion(hoy)
-
     # ============================================================
     # 2️⃣ LISTA DE FECHAS DISPONIBLES
     # ============================================================
     cur.execute("SELECT fecha FROM caja_reunion ORDER BY fecha DESC")
     fechas = [f["fecha"] for f in cur.fetchall()]
+
+    if not fechas:
+        st.warning("⚠ Aún no hay reuniones registradas en caja.")
+        return
 
     fecha_sel = st.selectbox("📅 Seleccione la fecha:", fechas)
 
@@ -53,6 +54,10 @@ def reporte_caja():
     # ============================================================
     cur.execute("SELECT * FROM caja_reunion WHERE fecha = %s", (fecha_sel,))
     reunion = cur.fetchone()
+
+    if not reunion:
+        st.error("No se encontró información de caja para esta fecha.")
+        return
 
     id_caja = reunion["id_caja"]
     saldo_inicial = float(reunion["saldo_inicial"])
@@ -154,27 +159,25 @@ def reporte_caja():
     st.markdown("---")
 
     # ============================================================
-    # 7️⃣ GRAFICAS NATIVAS — CORREGIDAS
+    # 7️⃣ GRÁFICAS
     # ============================================================
     st.subheader("📈 Gráficas del día")
 
-    # --------- FIX: garantizar columnas ---------
     df_dia = pd.DataFrame(movimientos, columns=["tipo", "categoria", "monto"])
     if not df_dia.empty:
         df_dia["monto"] = df_dia["monto"].astype(float)
     else:
         df_dia["monto"] = []
 
-    # INGRESOS
     df_ing = df_dia[df_dia["tipo"] == "Ingreso"]
+    df_egr = df_dia[df_dia["tipo"] == "Egreso"]
+
     st.write("### 📈 Ingresos del día")
     if not df_ing.empty:
         st.line_chart(df_ing[["monto"]])
     else:
         st.info("No hubo ingresos ese día.")
 
-    # EGRESOS
-    df_egr = df_dia[df_dia["tipo"] == "Egreso"]
     st.write("### 📉 Egresos del día")
     if not df_egr.empty:
         st.line_chart(df_egr[["monto"]])
