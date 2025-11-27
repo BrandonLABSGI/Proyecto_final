@@ -48,35 +48,35 @@ def interfaz_admin():
 
     st.markdown("---")
 
+    # === BOTONES DEL MENÚ (SIN PROMOTORAS) ===
     seccion = st.sidebar.radio(
         "📂 Módulos de administración",
         [
             "Gestión de roles",
             "Gestión de distritos",
             "Gestión de grupos",
-            "Gestión de promotoras",
             "Gestión de empleados",
             "Resumen general",
         ]
     )
 
+    # === RUTEO (también sin promotoras) ===
     if seccion == "Gestión de roles":
         gestion_roles()
     elif seccion == "Gestión de distritos":
         gestion_distritos()
     elif seccion == "Gestión de grupos":
         gestion_grupos()
-    elif seccion == "Gestión de promotoras":
-        gestion_promotoras()
     elif seccion == "Gestión de empleados":
         gestion_empleados()
     elif seccion == "Resumen general":
         resumen_general()
 
-
 # ============================================================
 #                      GESTIÓN DE ROLES
 # ============================================================
+# (todo igual)
+
 def gestion_roles():
     st.header("🎭 Gestión de roles")
 
