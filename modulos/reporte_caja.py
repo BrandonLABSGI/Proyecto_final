@@ -1,9 +1,7 @@
 import streamlit as st
 import pandas as pd
-from datetime import date
+from datetime import datetime
 from decimal import Decimal
-import matplotlib.pyplot as plt
-from io import BytesIO
 
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.pagesizes import letter
@@ -11,152 +9,153 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 
 from modulos.conexion import obtener_conexion
-from modulos.caja import obtener_o_crear_reunion, obtener_saldo_actual
-from modulos.reglas_utils import obtener_reglas
+from modulos.caja import obtener_o_crear_reunion
 
 
 # ============================================================
-# 📌 REPORTE COMPLETO DE CAJA — VERSIÓN DEFINITIVA
+# 📊 REPORTE DE CAJA COMPLETO — CON GRÁFICAS RESTAURADAS
 # ============================================================
 def reporte_caja():
 
     st.title("📊 Reporte de Caja — Sistema Solidaridad CVX")
 
     con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
+    cur = con.cursor(dictionary=True)
 
-    # ============================================================
-    # 1️⃣ REGLAS INTERNAS DE CICLO (Opcional)
-    # ============================================================
-    reglas = obtener_reglas()
+    # Obtener todas las fechas registradas en caja_reunion
+    cur.execute("SELECT fecha FROM caja_reunion ORDER BY fecha DESC")
+    fechas = [row["fecha"] for row in cur.fetchall()]
 
-    if reglas:
-        st.info(
-            f"📌 Ciclo iniciado el **{reglas.get('ciclo_inicio', '---')}**, "
-            f"termina el **{reglas.get('ciclo_fin', '---')}**"
-        )
-
-    # ============================================================
-    # 2️⃣ Selección de fecha de reporte
-    # ============================================================
-    fecha_raw = st.date_input("📅 Seleccione fecha a consultar:", date.today())
-    fecha = fecha_raw.strftime("%Y-%m-%d")
-
-    # Garantizar reunión para mostrar datos correctos
-    id_caja = obtener_o_crear_reunion(fecha)
-
-    # ============================================================
-    # 3️⃣ Cargar datos de caja para la fecha
-    # ============================================================
-    cursor.execute("""
-        SELECT *
-        FROM caja_reunion
-        WHERE fecha=%s
-    """, (fecha,))
-    reunion = cursor.fetchone()
-
-    if not reunion:
-        st.warning("⚠ No hay información de caja registrada para este día.")
+    if not fechas:
+        st.warning("⚠ No hay datos registrados en la caja.")
         return
 
-    saldo_inicial = Decimal(str(reunion["saldo_inicial"]))
-    ingresos = Decimal(str(reunion["ingresos"]))
-    egresos = Decimal(str(reunion["egresos"]))
-    saldo_final = Decimal(str(reunion["saldo_final"]))
+    fecha_sel = st.selectbox("📅 Seleccione la fecha del reporte:", fechas)
+    fecha_str = fecha_sel.strftime("%Y-%m-%d")
 
     # ============================================================
-    # 4️⃣ Resumen superior (en números grandes)
+    # DATOS DE LA REUNIÓN
     # ============================================================
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Saldo inicial", f"${saldo_inicial:,.2f}")
-    col2.metric("Ingresos", f"${ingresos:,.2f}")
-    col3.metric("Egresos", f"${egresos:,.2f}")
-    col4.metric("Saldo final", f"${saldo_final:,.2f}")
+    cur.execute("""
+        SELECT saldo_inicial, ingresos, egresos, saldo_final
+        FROM caja_reunion
+        WHERE fecha = %s
+    """, (fecha_str,))
+    reunion = cur.fetchone()
+
+    if not reunion:
+        st.error("⚠ No existe un registro de caja para esta fecha.")
+        return
+
+    saldo_inicial = Decimal(reunion["saldo_inicial"])
+    ingresos = Decimal(reunion["ingresos"])
+    egresos = Decimal(reunion["egresos"])
+    saldo_final = Decimal(reunion["saldo_final"])
 
     # ============================================================
-    # 5️⃣ Mostrar movimientos del día
+    # MOSTRAR RESUMEN
     # ============================================================
-    cursor.execute("""
+    st.subheader(f"📘 Resumen del día — {fecha_str}")
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Saldo Inicial", f"${saldo_inicial:.2f}")
+    col2.metric("Ingresos", f"${ingresos:.2f}")
+    col3.metric("Egresos", f"${egresos:.2f}")
+
+    st.metric("💰 Saldo Final", f"${saldo_final:.2f}")
+
+    st.info(
+        f"🔵 Saldo inicial + ingresos – egresos\n"
+        f"= {saldo_inicial} + {ingresos} – {egresos}\n"
+        f"= ${saldo_final:.2f}"
+    )
+
+    # ============================================================
+    # MOVIMIENTOS DEL DÍA
+    # ============================================================
+    st.subheader("📄 Movimientos registrados")
+
+    cur.execute("""
         SELECT tipo, categoria, monto
         FROM caja_movimientos
-        WHERE id_caja=%s
-        ORDER BY id_movimiento ASC
-    """, (id_caja,))
+        WHERE id_caja = (
+            SELECT id_caja FROM caja_reunion WHERE fecha=%s
+        )
+        ORDER BY id_mov ASC
+    """, (fecha_str,))
 
-    movimientos = cursor.fetchall()
+    movimientos = cur.fetchall()
 
-    st.markdown("### 📋 Movimientos del día")
     if movimientos:
         df = pd.DataFrame(movimientos)
         st.dataframe(df, use_container_width=True)
+
+        # ============================================================
+        # 🔵 GRÁFICAS RESTAURADAS (Versión Streamlit)
+        # ============================================================
+        st.subheader("📊 Gráfica de Ingresos vs Egresos")
+
+        graf_df = pd.DataFrame({
+            "Tipo": ["Ingresos", "Egresos"],
+            "Monto": [float(ingresos), float(egresos)]
+        })
+
+        st.bar_chart(graf_df.set_index("Tipo"))
+
+        # Gráfica detallada por categorías
+        st.subheader("📊 Distribución por categorías")
+
+        cat_df = pd.DataFrame(movimientos)
+        if not cat_df.empty:
+            pivot = cat_df.groupby("categoria").sum(numeric_only=True)
+            st.bar_chart(pivot)
+
     else:
-        st.info("No hay movimientos registrados para este día.")
+        st.info("📭 No hay movimientos registrados en este día.")
 
     # ============================================================
-    # 6️⃣ Gráfica restaurada (como tu versión original)
+    # DESCARGA DEL PDF
     # ============================================================
-    try:
-        fig, ax = plt.subplots(figsize=(6, 3))
-        ax.bar(["Ingresos", "Egresos"], [float(ingresos), float(egresos)])
-        ax.set_title("Comparación de movimientos del día")
-        ax.set_ylabel("Monto ($)")
-        st.pyplot(fig)
-    except:
-        st.warning("⚠ No se pudo generar la gráfica. Verifica matplotlib.")
+    st.subheader("📄 Descargar reporte en PDF")
 
-    # ============================================================
-    # 7️⃣ BOTÓN PARA GENERAR PDF
-    # ============================================================
-    def generar_pdf():
-        buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter)
-        styles = getSampleStyleSheet()
+    if st.button("📥 Generar PDF"):
+
+        nombre_pdf = f"Reporte_Caja_{fecha_str}.pdf"
+        doc = SimpleDocTemplate(nombre_pdf, pagesize=letter)
         story = []
+        styles = getSampleStyleSheet()
 
-        story.append(Paragraph("Reporte de Caja — Solidaridad CVX", styles["Title"]))
+        story.append(Paragraph(f"Reporte de Caja — {fecha_str}", styles["Title"]))
         story.append(Spacer(1, 12))
 
         # Tabla resumen
-        tabla_resumen = [
-            ["Saldo Inicial", f"${saldo_inicial:,.2f}"],
-            ["Ingresos", f"${ingresos:,.2f}"],
-            ["Egresos", f"${egresos:,.2f}"],
-            ["Saldo Final", f"${saldo_final:,.2f}"],
+        data_resumen = [
+            ["Saldo Inicial", f"${saldo_inicial:.2f}"],
+            ["Ingresos", f"${ingresos:.2f}"],
+            ["Egresos", f"${egresos:.2f}"],
+            ["Saldo Final", f"${saldo_final:.2f}"],
         ]
-
-        t = Table(tabla_resumen, colWidths=[150, 150])
+        t = Table(data_resumen)
         t.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-            ("GRID", (0, 0), (-1, -1), 1, colors.black),
-            ("ALIGN", (0, 0), (-1, -1), "CENTER")
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightblue),
+            ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
+            ("GRID", (0, 0), (-1, -1), 1, colors.gray)
         ]))
         story.append(t)
         story.append(Spacer(1, 20))
 
         # Movimientos
         if movimientos:
-            story.append(Paragraph("Movimientos del día", styles["Heading2"]))
-            mov_table = [["Tipo", "Categoría", "Monto"]]
-
-            for m in movimientos:
-                mov_table.append([m["tipo"], m["categoria"], f"${m['monto']:,.2f}"])
-
-            t2 = Table(mov_table, colWidths=[120, 250, 100])
-            t2.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                ("GRID", (0, 0), (-1, -1), 1, colors.black),
-                ("ALIGN", (0, 0), (-1, -1), "LEFT")
+            story.append(Paragraph("Movimientos del día:", styles["Heading2"]))
+            data = [["Tipo", "Categoría", "Monto"]] + [
+                [m["tipo"], m["categoria"], f"${m['monto']}"] for m in movimientos
+            ]
+            tabla_mov = Table(data)
+            tabla_mov.setStyle(TableStyle([
+                ("GRID", (0, 0), (-1, -1), 1, colors.gray)
             ]))
-            story.append(t2)
+            story.append(tabla_mov)
 
         doc.build(story)
-        buffer.seek(0)
-        return buffer
-
-    pdf_buffer = generar_pdf()
-    st.download_button(
-        label="📄 Descargar reporte en PDF",
-        data=pdf_buffer,
-        file_name=f"Reporte_Caja_{fecha}.pdf",
-        mime="application/pdf",
-    )
+        st.success("📄 PDF generado correctamente. Descargando...")
+        st.download_button("Descargar PDF", open(nombre_pdf, "rb"), file_name=nombre_pdf)
