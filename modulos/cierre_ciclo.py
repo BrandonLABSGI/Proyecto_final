@@ -129,7 +129,7 @@ def obtener_detalle_diario(fecha_inicio, fecha_fin):
 
 
 # ==========================================================
-# 7. APORTES DE AHORRO POR SOCIA — CORREGIDO
+# 7. APORTES DE AHORRO POR SOCIA
 # ==========================================================
 def obtener_ahorros_por_socia(fecha_inicio, fecha_fin):
     con = obtener_conexion()
@@ -151,7 +151,6 @@ def obtener_ahorros_por_socia(fecha_inicio, fecha_fin):
     data = cur.fetchall()
     con.close()
     return data
-
 
 
 # ==========================================================
@@ -180,18 +179,21 @@ def calcular_utilidad(fecha_inicio, fecha_fin):
 
 
 # ==========================================================
-# 9. DISTRIBUCIÓN PROPORCIONAL
+# 9. DISTRIBUCIÓN PROPORCIONAL — ***CORREGIDA***
 # ==========================================================
-def generar_tabla_distribucion(socias, utilidad_total):
-    total_ahorros = sum(s["ahorro"] for s in socias)
+def generar_tabla_distribucion(socias, fondo_total):
+    # SOLO socias con ahorro > 0
+    socias_con_ahorro = [s for s in socias if s["ahorro"] > 0]
+
+    total_ahorros = sum(s["ahorro"] for s in socias_con_ahorro)
 
     tabla = []
 
-    for s in socias:
+    for s in socias_con_ahorro:
         ahorro = s["ahorro"]
 
         porcentaje = (ahorro / total_ahorros) if total_ahorros > 0 else 0
-        porcion = round(porcentaje * utilidad_total, 2)
+        porcion = round(porcentaje * fondo_total, 2)
         monto_final = round(ahorro + porcion, 2)
 
         tabla.append({
@@ -210,7 +212,7 @@ def generar_tabla_distribucion(socias, utilidad_total):
 # 10. ACTA HTML
 # ==========================================================
 def generar_html_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
-                      utilidad, intereses, multas, tabla):
+                      fondo_total, intereses, multas, tabla):
     total_ahorros = sum(f["ahorro"] for f in tabla)
 
     html = f"""
@@ -221,7 +223,8 @@ def generar_html_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
     <p><b>Inicio:</b> {inicio}</p>
     <p><b>Cierre:</b> {fin}</p>
     <p><b>Saldo inicial:</b> ${saldo_i:,.2f}</p>
-    <p><b>Saldo final:</b> ${saldo_f:,.2f}</p>
+    <p><b>Saldo final (antes de distribuir):</b> ${saldo_f:,.2f}</p>
+    <p><b>Fondo total a repartir:</b> ${fondo_total:,.2f}</p>
     <p><b>Ingresos totales:</b> ${ingresos:,.2f}</p>
     <p><b>Egresos totales:</b> ${egresos:,.2f}</p>
     <p><b>Ahorro total del grupo:</b> ${total_ahorros:,.2f}</p>
@@ -229,7 +232,7 @@ def generar_html_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
     <h3>2. Utilidades</h3>
     <p><b>Intereses:</b> ${intereses:,.2f}</p>
     <p><b>Multas:</b> ${multas:,.2f}</p>
-    <p><b>Utilidad total:</b> ${utilidad:,.2f}</p>
+    <p><b>Nota:</b> Las utilidades están incluidas dentro del fondo total a repartir.</p>
 
     <h3>3. Distribución proporcional</h3>
     """
@@ -240,7 +243,7 @@ def generar_html_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
 # 11. GENERAR PDF
 # ==========================================================
 def generar_pdf_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
-                     utilidad, intereses, multas, tabla_dist):
+                     fondo_total, intereses, multas, tabla_dist):
 
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer
     from reportlab.lib.styles import getSampleStyleSheet
@@ -255,39 +258,40 @@ def generar_pdf_acta(inicio, fin, saldo_i, saldo_f, ingresos, egresos,
     story.append(Paragraph("<b>ACTA DE CIERRE DEL CICLO — SOLIDARIDAD CVX</b>", styles["Title"]))
     story.append(Spacer(1, 16))
 
+    # Datos Generales
     story.append(Paragraph("<b>1. Datos Generales</b>", styles["Heading2"]))
     texto = f"""
     <b>Inicio:</b> {inicio}<br/>
     <b>Cierre:</b> {fin}<br/>
     <b>Saldo inicial:</b> ${saldo_i:,.2f}<br/>
-    <b>Saldo final:</b> ${saldo_f:,.2f}<br/>
+    <b>Saldo final (antes de distribuir):</b> ${saldo_f:,.2f}<br/>
+    <b>Fondo total a repartir:</b> ${fondo_total:,.2f}<br/>
     <b>Ingresos totales:</b> ${ingresos:,.2f}<br/>
     <b>Egresos totales:</b> ${egresos:,.2f}<br/>
-    <b>Ahorro total del grupo:</b> ${sum(f["ahorro"] for f in tabla_dist):,.2f}<br/>
     """
     story.append(Paragraph(texto, styles["Normal"]))
-    story.append(Spacer(1, 14))
+    story.append(Spacer(1, 16))
 
     # Utilidades
     story.append(Paragraph("<b>2. Utilidades</b>", styles["Heading2"]))
     texto2 = f"""
     <b>Intereses generados:</b> ${intereses:,.2f}<br/>
     <b>Multas generadas:</b> ${multas:,.2f}<br/>
-    <b>Utilidad total distribuible:</b> ${utilidad:,.2f}<br/>
+    <b>Nota:</b> Las utilidades están ya incorporadas en el fondo total.<br/>
     """
     story.append(Paragraph(texto2, styles["Normal"]))
     story.append(Spacer(1, 16))
 
-    # Fórmula
+    # Distribución proporcional
     story.append(Paragraph("<b>3. Fórmula utilizada</b>", styles["Heading2"]))
     formula = """
-    (Ahorro individual ÷ Ahorro total del grupo) × Utilidad total<br/><br/>
+    (Ahorro individual ÷ Ahorro total del grupo) × Fondo total del ciclo<br/><br/>
     Monto final = Ahorro individual + Porción proporcional
     """
     story.append(Paragraph(formula, styles["Normal"]))
     story.append(Spacer(1, 16))
 
-    # Ahorro individual
+    # Tabla de Ahorro individual
     story.append(Paragraph("<b>4. Ahorro individual por socia</b>", styles["Heading2"]))
     ahorro_data = [["ID", "Nombre", "Ahorro ($)"]]
 
@@ -389,11 +393,14 @@ def cierre_ciclo():
     saldo_inicial = obtener_saldo_inicial(fecha_inicio)
     saldo_final = obtener_saldo_final(fecha_inicio, fecha_cierre)
 
-    utilidad_total, intereses, multas = calcular_utilidad(fecha_inicio, fecha_cierre)
+    # 💥 FONDO TOTAL REAL A REPARTIR (saldo_final real de caja)
+    fondo_total = saldo_final
+
+    _, intereses, multas = calcular_utilidad(fecha_inicio, fecha_cierre)
     detalle_diario = obtener_detalle_diario(fecha_inicio, fecha_cierre)
     socias = obtener_ahorros_por_socia(fecha_inicio, fecha_cierre)
 
-    tabla_dist = generar_tabla_distribucion(socias, utilidad_total)
+    tabla_dist = generar_tabla_distribucion(socias, fondo_total)
 
     # ================================
     # TABS
@@ -407,12 +414,12 @@ def cierre_ciclo():
         st.write(f"**Fecha inicio:** {fecha_inicio}")
         st.write(f"**Fecha cierre:** {fecha_cierre}")
         st.write(f"**Saldo inicial:** ${saldo_inicial:,.2f}")
-        st.write(f"**Saldo final:** ${saldo_final:,.2f}")
+        st.write(f"**Saldo FINAL real (a repartir):** ${fondo_total:,.2f}")
         st.write(f"**Ingresos:** ${ingresos:,.2f}")
         st.write(f"**Egresos:** ${egresos:,.2f}")
         st.write(f"**Intereses:** ${intereses:,.2f}")
         st.write(f"**Multas:** ${multas:,.2f}")
-        st.write(f"**Utilidad total:** ${utilidad_total:,.2f}")
+        st.write(f"**Caja final después de repartir:** $0.00")
 
     with tab2:
         st.subheader("📋 Auditoría")
@@ -446,7 +453,7 @@ def cierre_ciclo():
             fecha_inicio, fecha_cierre,
             saldo_inicial, saldo_final,
             ingresos, egresos,
-            utilidad_total, intereses, multas,
+            fondo_total, intereses, multas,
             tabla_dist
         )
 
@@ -458,7 +465,7 @@ def cierre_ciclo():
                 fecha_inicio, fecha_cierre,
                 saldo_inicial, saldo_final,
                 ingresos, egresos,
-                utilidad_total, intereses, multas,
+                fondo_total, intereses, multas,
                 tabla_dist
             )
             b64 = base64.b64encode(pdf).decode()
@@ -490,7 +497,7 @@ def cierre_ciclo():
             saldo_final,
             ingresos,
             egresos,
-            utilidad_total,
+            fondo_total,
             ciclo["id_ciclo_resumen"]
         ))
 
