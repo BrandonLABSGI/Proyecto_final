@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 
 from modulos.conexion import obtener_conexion
@@ -32,7 +32,7 @@ def pago_prestamo():
     socias = cur.fetchall()
 
     dict_socias = {
-        f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] 
+        f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"]
         for s in socias
     }
 
@@ -58,14 +58,14 @@ def pago_prestamo():
     saldo_pendiente = Decimal(prestamo["Saldo pendiente"])
 
     # ============================================================
-    # CALCULAR INTERÉS TOTAL REAL
+    # CALCULAR INTERÉS TOTAL
     # ============================================================
     monto_prestado = Decimal(prestamo["Monto prestado"])
     tasa = Decimal(prestamo["Tasa de interes"])
     interes_total = round(monto_prestado * tasa / Decimal(100), 2)
 
     # ============================================================
-    # MOSTRAR INFORMACIÓN DEL PRÉSTAMO
+    # MOSTRAR DATOS DEL PRÉSTAMO
     # ============================================================
     st.subheader("📄 Información del préstamo")
     st.write(f"**ID Préstamo:** {id_prestamo}")
@@ -109,16 +109,14 @@ def pago_prestamo():
     # ============================================================
     if st.button("💾 Registrar pago"):
 
-        # Obtener datos de la cuota
+        # Leer cuota seleccionada
         cur.execute("SELECT * FROM Cuotas_prestamo WHERE Id_Cuota=%s", (id_cuota,))
         cuota = cur.fetchone()
 
         monto_cuota = Decimal(cuota["Monto_cuota"])
         fecha_programada = cuota["Fecha_programada"]
 
-        # ============================================================
-        # NORMALIZAR FECHA PROGRAMADA (EVITA ERROR TypeError)
-        # ============================================================
+        # Normalizar fecha programada
         if isinstance(fecha_programada, date):
             fecha_programada_dt = fecha_programada
         else:
@@ -131,23 +129,23 @@ def pago_prestamo():
             fecha_pago_dt = date.fromisoformat(str(fecha_pago))
 
         # ============================================================
-        # 🚫 BLOQUEAR SI LA FECHA NO COINCIDE EXACTAMENTE
+        # 🚫 BLOQUEO: Solo se puede pagar EXACTAMENTE el día programado
         # ============================================================
         if fecha_pago_dt != fecha_programada_dt:
             st.error(
-                f"❌ La fecha ingresada NO coincide con la fecha programada "
-                f"de esta cuota ({fecha_programada_dt}).\n\n"
-                f"➡ Solo puedes pagarla EXACTAMENTE el día correspondiente."
+                f"❌ La fecha ingresada ({fecha_pago_dt}) NO coincide con "
+                f"la fecha programada ({fecha_programada_dt}).\n\n"
+                f"➡ Solo puedes pagarla EXACTAMENTE en la fecha prevista."
             )
             return
 
         # ============================================================
-        # PAGO NORMAL (SIN MULTA)
+        # PAGO NORMAL SIN MULTA
         # ============================================================
-        monto_total = monto_cuota  # multa ya no aplica porque bloqueamos fechas
+        monto_total = monto_cuota
 
         # ============================================================
-        # INGRESO A CAJA
+        # REGISTRAR EN CAJA
         # ============================================================
         id_caja = obtener_o_crear_reunion(str(fecha_pago_dt))
 
@@ -168,7 +166,7 @@ def pago_prestamo():
         """, (fecha_pago_dt, id_caja, id_cuota))
 
         # ============================================================
-        # ACTUALIZAR SALDO
+        # ACTUALIZAR SALDO DEL PRÉSTAMO
         # ============================================================
         nuevo_saldo = saldo_pendiente - monto_cuota
 
