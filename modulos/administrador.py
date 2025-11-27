@@ -14,6 +14,16 @@ def interfaz_admin():
         return
 
     st.title("🛡️ Panel del Administrador")
+# ============================================================
+# BOTÓN DE CERRAR SESIÓN
+# ============================================================
+with st.sidebar:
+    if st.button("🔒 Cerrar sesión"):
+        st.session_state["sesion_iniciada"] = False
+        st.session_state["rol"] = None
+        st.session_state["usuario"] = None
+        st.success("Sesión cerrada correctamente.")
+        st.rerun()
 
     col1, col2, col3, col4 = st.columns(4)
     try:
