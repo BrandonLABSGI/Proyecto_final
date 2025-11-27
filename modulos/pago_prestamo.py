@@ -3,115 +3,142 @@ from datetime import date
 from decimal import Decimal
 
 from modulos.conexion import obtener_conexion
-from modulos.caja import registrar_movimiento, obtener_o_crear_reunion
-from modulos.reglas_utils import obtener_reglas
+from modulos.caja import asegurar_reunion, registrar_movimiento
 
 
-# ==========================================================
-# 🔐 FUNCION CENTRAL → EVITA CREAR REUNIÓN PREMATURA
-# ==========================================================
-def asegurar_reunion(fecha):
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-    cursor.execute("SELECT id_caja FROM caja_reunion WHERE fecha=%s", (fecha,))
-    row = cursor.fetchone()
-    if row:
-        return row["id_caja"]
-    return obtener_o_crear_reunion(fecha)
-
-
-# ==========================================================
-# 💵 REGISTRAR PAGO DEL PRÉSTAMO
-# ==========================================================
+# ============================================================
+# 💵 REGISTRAR PAGO DE PRÉSTAMO
+# ============================================================
 def pago_prestamo():
 
-    st.header("💵 Registro de pagos de préstamos")
-
-    reglas = obtener_reglas()
-    if not reglas:
-        st.error("⚠ Primero configure las reglas internas.")
-        return
+    st.header("💵 Registrar pago de préstamo")
 
     con = obtener_conexion()
     cur = con.cursor(dictionary=True)
 
+    # --------------------------------------------------------
+    # SOCIAS
+    # --------------------------------------------------------
     cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cur.fetchall()
 
-    dict_socias = {f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] for s in socias}
+    if not socias:
+        st.warning("⚠ No hay socias registradas.")
+        return
 
-    socia_sel = st.selectbox("Socia:", dict_socias)
-    id_socia = dict_socias[socia_sel]
+    opciones = {f"{s['Id_Socia']} – {s['Nombre']}": s["Id_Socia"] for s in socias}
+    socia_sel = st.selectbox("Seleccione la socia:", list(opciones.keys()))
+    id_socia = opciones[socia_sel]
 
+    # --------------------------------------------------------
+    # PRÉSTAMOS PENDIENTES DE ESA SOCIA
+    # --------------------------------------------------------
     cur.execute("""
-        SELECT * FROM Prestamo
-        WHERE Id_Socia=%s AND Estado_del_prestamo='activo'
+        SELECT Id_Prestamo, Monto, Estado
+        FROM Prestamo
+        WHERE Id_Socia=%s AND Estado='Pendiente'
+        ORDER BY Id_Prestamo ASC
     """, (id_socia,))
-    prestamo = cur.fetchone()
+    prestamos = cur.fetchall()
 
-    if not prestamo:
-        st.info("Esta socia no tiene préstamos activos.")
+    if not prestamos:
+        st.info("✔ La socia no tiene préstamos pendientes.")
         return
 
-    id_prestamo = prestamo["Id_Préstamo"]
-    saldo_pendiente = Decimal(prestamo["Saldo pendiente"])
-
-    cur.execute("""
-        SELECT *
-        FROM Cuotas_prestamo
-        WHERE Id_Prestamo=%s AND Estado='pendiente'
-        ORDER BY Numero_cuota
-    """, (id_prestamo,))
-    cuotas = cur.fetchall()
-
-    if not cuotas:
-        st.success("🎉 Todas las cuotas están pagadas.")
-        return
-
-    opciones = {
-        f"Cuota #{c['Numero_cuota']} — {c['Fecha_programada']} — ${c['Monto_cuota']}":
-            c["Id_Cuota"]
-        for c in cuotas
+    opcion_prestamo = {
+        f"ID {p['Id_Prestamo']} – Monto pendiente: ${p['Monto']:.2f}": p["Id_Prestamo"]
+        for p in prestamos
     }
+    prestamo_sel = st.selectbox("Seleccione préstamo a pagar:", list(opcion_prestamo.keys()))
+    id_prestamo = opcion_prestamo[prestamo_sel]
 
-    cuota_sel = st.selectbox("Cuota a pagar:", opciones.keys())
-    id_cuota = opciones[cuota_sel]
+    # --------------------------------------------------------
+    # FECHA DEL PAGO
+    # --------------------------------------------------------
+    fecha_raw = st.date_input("📅 Fecha del pago:", date.today())
+    fecha = fecha_raw.strftime("%Y-%m-%d")
 
-    fecha_pago_dt = st.date_input("Fecha del pago:", date.today())
-    fecha_pago = fecha_pago_dt.strftime("%Y-%m-%d")
+    id_caja = asegurar_reunion(fecha)
 
-    if st.button("Registrar pago"):
+    # --------------------------------------------------------
+    # MONTO A PAGAR
+    # --------------------------------------------------------
+    monto_pago = st.number_input("Monto del pago ($):", min_value=0.00, step=0.25)
 
-        cur.execute("SELECT * FROM Cuotas_prestamo WHERE Id_Cuota=%s", (id_cuota,))
-        cuota = cur.fetchone()
-        monto_cuota = Decimal(cuota["Monto_cuota"])
+    if monto_pago <= 0:
+        st.info("Ingrese un monto mayor a cero.")
+        return
 
-        id_caja = asegurar_reunion(fecha_pago)
+    monto_pago_dec = Decimal(str(monto_pago))
 
+    # --------------------------------------------------------
+    # BOTÓN GUARDAR
+    # --------------------------------------------------------
+    if st.button("💾 Registrar pago"):
+
+        # 1️⃣ Obtener monto pendiente del préstamo
+        cur.execute("""
+            SELECT Monto
+            FROM Prestamo
+            WHERE Id_Prestamo=%s
+        """, (id_prestamo,))
+        prestamo = cur.fetchone()
+
+        monto_pendiente = Decimal(str(prestamo["Monto"]))
+
+        if monto_pago_dec > monto_pendiente:
+            st.error("❌ El pago no puede ser mayor que el monto pendiente.")
+            return
+
+        # 2️⃣ Actualizar préstamo
+        nuevo_saldo = monto_pendiente - monto_pago_dec
+
+        if nuevo_saldo == 0:
+            # Marcar como pagado
+            cur.execute("""
+                UPDATE Prestamo
+                SET Monto = 0, Estado='Pagado'
+                WHERE Id_Prestamo=%s
+            """, (id_prestamo,))
+        else:
+            cur.execute("""
+                UPDATE Prestamo
+                SET Monto=%s
+                WHERE Id_Prestamo=%s
+            """, (nuevo_saldo, id_prestamo))
+
+        # 3️⃣ Registrar movimiento como ingreso
         registrar_movimiento(
             id_caja=id_caja,
             tipo="Ingreso",
-            categoria=f"Pago cuota préstamo {id_prestamo}",
-            monto=float(monto_cuota)
+            categoria=f"Pago préstamo – {id_socia}",
+            monto=monto_pago_dec
         )
 
+        # 4️⃣ Actualizar caja_general
         cur.execute("""
-            UPDATE Cuotas_prestamo
-            SET Estado='pagada',
-                Fecha_pago=%s,
-                Id_Caja=%s
-            WHERE Id_Cuota=%s
-        """, (fecha_pago, id_caja, id_cuota))
-
-        nuevo_saldo = saldo_pendiente - monto_cuota
-        cur.execute("""
-            UPDATE Prestamo
-            SET `Saldo pendiente`=%s,
-                Estado_del_prestamo=CASE WHEN %s=0 THEN 'pagado' ELSE 'activo' END
-            WHERE Id_Préstamo=%s
-        """, (nuevo_saldo, nuevo_saldo, id_prestamo))
+            UPDATE caja_general
+            SET saldo_actual = saldo_actual + %s
+            WHERE id = 1
+        """, (monto_pago_dec,))
 
         con.commit()
 
-        st.success("✔ Pago registrado correctamente.")
+        st.success("Pago registrado correctamente.")
         st.rerun()
+
+    # --------------------------------------------------------
+    # LISTADO DE PAGOS DEL DÍA
+    # --------------------------------------------------------
+    cur.execute("""
+        SELECT Id_Prestamo, S.Nombre, P.Monto AS Pendiente
+        FROM Prestamo P
+        JOIN Socia S ON S.Id_Socia = P.Id_Socia
+        WHERE P.Fecha_Prestamo = %s
+    """, (fecha,))
+    registros = cur.fetchall()
+
+    if registros:
+        st.subheader("📋 Pagos registrados hoy")
+        import pandas as pd
+        st.dataframe(pd.DataFrame(registros), use_container_width=True)
