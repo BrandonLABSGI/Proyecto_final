@@ -88,7 +88,7 @@ def interfaz_directiva():
 
 
 # ============================================================
-# 🎯 REGISTRO DE ASISTENCIA (CORREGIDO PARA BD VACÍA)
+# 🎯 REGISTRO DE ASISTENCIA — CORREGIDO
 # ============================================================
 def pagina_asistencia():
 
@@ -141,7 +141,7 @@ def pagina_asistencia():
                 """, (estado, existe["Id_Asistencia"]))
             else:
                 cur.execute("""
-                    INSERT INTO Asistencia(Id_Socia,Fecha,Estado_asistencia,Id_Reunion)
+                    INSERT INTO Asistencia(Id_Socia,Fecha,Estado_asistencia,id_caja)
                     VALUES(%s,%s,%s,%s)
                 """, (id_socia, fecha, estado, id_caja))
 
@@ -181,7 +181,7 @@ def pagina_asistencia():
     st.markdown("---")
 
     # ============================================================
-    # INGRESOS EXTRAORDINARIOS — CORREGIDO PARA BD VACÍA
+    # INGRESOS EXTRAORDINARIOS — CORREGIDO
     # ============================================================
     st.subheader("💵 Registrar ingreso extraordinario (rifas, donaciones, etc.)")
 
@@ -217,7 +217,6 @@ def pagina_asistencia():
 
         st.success("Ingreso extraordinario registrado y agregado a caja.")
         st.rerun()
-
 
 
 # ============================================================
@@ -266,7 +265,6 @@ def pagina_registro_socias():
         df = pd.DataFrame(data)
         st.subheader("📋 Lista de socias")
         st.dataframe(df, use_container_width=True)
-
 
 
 # ============================================================
@@ -371,15 +369,11 @@ def pagina_multas():
         query += " AND M.Estado = %s"
         params.append(filtro_estado)
 
-    # ORDEN EXACTO QUE NECESITAS:
     query += " ORDER BY S.Id_Socia ASC, M.Id_Multa ASC"
 
     cur.execute(query, params)
     multas = cur.fetchall()
 
-    # -----------------------------------------------------------
-    # SI NO HAY MULTAS
-    # -----------------------------------------------------------
     if not multas:
         if filtro_socia != "Todas":
             st.info(f"✔ La socia **{filtro_socia}** no tiene multas registradas en esta fecha.")
@@ -387,9 +381,6 @@ def pagina_multas():
             st.info("No existen multas en esta fecha.")
         return
 
-    # -----------------------------------------------------------
-    # LISTADO INTERACTIVO
-    # -----------------------------------------------------------
     for m in multas:
 
         col1, col2, col3, col4, col5, col6, col7 = st.columns([1, 3, 3, 2, 2, 2, 2])
