@@ -1,13 +1,12 @@
 import streamlit as st
 from datetime import date
 from decimal import Decimal
-
 from modulos.conexion import obtener_conexion
-from modulos.caja import asegurar_reunion, registrar_movimiento
+from modulos.caja import obtener_o_crear_reunion, registrar_movimiento
 
 
 # ============================================================
-# 💳 AUTORIZAR PRÉSTAMO
+# 🔵 AUTORIZAR PRÉSTAMO — VERSIÓN FINAL
 # ============================================================
 def autorizar_prestamo():
 
@@ -18,7 +17,7 @@ def autorizar_prestamo():
     cursor = con.cursor(dictionary=True)
 
     # --------------------------------------------------------
-    # SOCIAS
+    # Obtener socias
     # --------------------------------------------------------
     cursor.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cursor.fetchall()
@@ -27,75 +26,78 @@ def autorizar_prestamo():
         st.warning("⚠ No hay socias registradas.")
         return
 
-    dict_socias = {f"{s['Id_Socia']} – {s['Nombre']}": s["Id_Socia"] for s in socias}
-    socia_sel = st.selectbox("Seleccione a la socia:", list(dict_socias.keys()))
-    id_socia = dict_socias[socia_sel]
+    lista_socias = {f"{s['Id_Socia']} – {s['Nombre']}": s["Id_Socia"] for s in socias}
+
+    socia_sel = st.selectbox("Seleccione la socia:", lista_socias.keys())
+    id_socia = lista_socias[socia_sel]
 
     # --------------------------------------------------------
-    # FECHA
+    # Datos del préstamo
     # --------------------------------------------------------
     fecha_raw = st.date_input("📅 Fecha del préstamo:", date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
-    # Crear / reparar reunión de caja
-    id_caja = asegurar_reunion(fecha)
-
-    # --------------------------------------------------------
-    # MONTO Y DESCRIPCIÓN
-    # --------------------------------------------------------
-    monto = st.number_input("Monto a prestar ($):", min_value=0.00, step=0.25)
+    monto = st.number_input("Monto a prestar ($):", min_value=0.00, value=0.00, step=0.25)
     descripcion = st.text_area("Descripción del préstamo:")
 
-    if monto <= 0:
-        st.info("Ingrese un monto mayor que cero.")
-        return
-
-    # --------------------------------------------------------
-    # BOTÓN GUARDAR
-    # --------------------------------------------------------
     if st.button("💾 Autorizar préstamo"):
 
-        monto_dec = Decimal(str(monto))
+        if monto <= 0:
+            st.warning("⚠ Debe ingresar un monto válido.")
+            return
 
-        # 1️⃣ Guardar préstamo
+        # ====================================================
+        # 🔵 GARANTIZAR REUNIÓN
+        # ====================================================
+        id_caja = obtener_o_crear_reunion(fecha)
+
+        # ====================================================
+        # 🔵 Registrar préstamo en tabla Prestamo
+        # ====================================================
         cursor.execute("""
-            INSERT INTO Prestamo (Id_Socia, Fecha_Prestamo, Monto, Descripcion, Estado)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (id_socia, fecha, monto_dec, descripcion, "Pendiente"))
+            INSERT INTO Prestamo
+            (Fecha_del_prestamo, Monto_prestado, Interes_total, Plazo, Cuotas,
+             Saldo_pendiente, Estado_del_prestamo, Id_Grupo, Id_Socia, Id_Caja)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            fecha,
+            monto,
+            0,          # No calculamos interés automáticamente
+            0,          # Plazo
+            0,          # Cuotas
+            monto,      # Saldo pendiente inicial
+            "Pendiente",
+            1,          # Grupo 1 (tu sistema actual usa uno por defecto)
+            id_socia,
+            id_caja
+        ))
 
-        # 2️⃣ Registrar movimiento como EGRESO en caja
+        # ====================================================
+        # 🔵 Registrar el egreso en caja
+        # ====================================================
         registrar_movimiento(
             id_caja=id_caja,
             tipo="Egreso",
-            categoria=f"Préstamo – {id_socia}",
-            monto=monto_dec
+            categoria=f"Préstamo a {socia_sel}",
+            monto=Decimal(monto)
         )
-
-        # 3️⃣ Actualizar caja_general
-        cursor.execute("""
-            UPDATE caja_general
-            SET saldo_actual = saldo_actual - %s
-            WHERE id = 1
-        """, (monto_dec,))
 
         con.commit()
 
-        st.success(f"Préstamo autorizado correctamente para {socia_sel}.")
+        st.success("✔ Préstamo autorizado exitosamente.")
         st.rerun()
 
     # --------------------------------------------------------
-    # LISTADO DEL DÍA
+    # Mostrar préstamos existentes de la socia
     # --------------------------------------------------------
     cursor.execute("""
-        SELECT P.Id_Prestamo, S.Nombre, P.Monto, P.Estado
-        FROM Prestamo P
-        JOIN Socia S ON S.Id_Socia = P.Id_Socia
-        WHERE P.Fecha_Prestamo = %s
-        ORDER BY P.Id_Prestamo ASC
-    """, (fecha,))
+        SELECT Id_Prestamo, Fecha_del_prestamo, Monto_prestado, Saldo_pendiente, Estado_del_prestamo
+        FROM Prestamo
+        WHERE Id_Socia=%s
+        ORDER BY Id_Prestamo ASC
+    """, (id_socia,))
     prestamos = cursor.fetchall()
 
     if prestamos:
-        st.subheader("📋 Préstamos autorizados en esta fecha")
-        import pandas as pd
-        st.dataframe(pd.DataFrame(prestamos), use_container_width=True)
+        st.markdown("### 📋 Historial de préstamos")
+        st.dataframe(prestamos, use_container_width=True)
