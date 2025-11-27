@@ -1,59 +1,147 @@
 from modulos.conexion import obtener_conexion
 
+# ============================================================
+# OBTENER REGLAS INTERNAS (ADAPTADO A TU TABLA reales)
+# ============================================================
+def obtener_reglas():
+    """
+    Devuelve un diccionario con los valores de reglas_internas.
+    Si no hay registros, devuelve None.
+    """
 
-# ============================================================
-# 🔵 OBTENER REGLAS INTERNAS POR GRUPO
-# ============================================================
-def obtener_reglas(id_grupo=1):
     con = obtener_conexion()
-    cur = con.cursor(dictionary=True)
+    cursor = con.cursor(dictionary=True)
 
-    cur.execute("""
-        SELECT *
-        FROM reglas_grupo
-        WHERE Id_Grupo = %s
+    cursor.execute("""
+        SELECT
+            id_regla,
+            Id_Grupo,
+            nombre_grupo,
+            nombre_comunidad,
+            fecha_formacion,
+            multa_inasistencia,
+            ahorro_minimo,
+            interes_por_10,
+            prestamo_maximo,
+            plazo_maximo,
+            ciclo_inicio,
+            ciclo_fin,
+            meta_social,
+            otras_reglas,
+            permisos_inasistencia,
+            multa_mora
+        FROM reglas_internas
+        ORDER BY id_regla DESC
         LIMIT 1
-    """, (id_grupo,))
+    """)
 
-    row = cur.fetchone()
-    return row if row else {}
+    reglas = cursor.fetchone()
+
+    cursor.close()
+    con.close()
+
+    return reglas
 
 
 # ============================================================
-# 🔵 GUARDAR / ACTUALIZAR REGLAS INTERNAS
+# GUARDAR / ACTUALIZAR REGLAS INTERNAS
 # ============================================================
-def guardar_reglas(id_grupo, ciclo_inicio, ciclo_fin, monto_ahorro, multa_inasistencia, multa_mora):
+def guardar_reglas(
+    nombre_grupo,
+    nombre_comunidad,
+    fecha_formacion,
+    multa_inasistencia,
+    ahorro_minimo,
+    interes_por_10,
+    prestamo_maximo,
+    plazo_maximo,
+    ciclo_inicio,
+    ciclo_fin,
+    meta_social,
+    otras_reglas,
+    permisos_inasistencia,
+    multa_mora,
+    Id_Grupo=1,
+):
+    """
+    Actualiza el último registro o crea uno nuevo.
+    """
 
     con = obtener_conexion()
-    cur = con.cursor(dictionary=True)
+    cursor = con.cursor(dictionary=True)
 
-    # ¿Ya existen reglas?
-    cur.execute("""
-        SELECT Id_Reglas
-        FROM reglas_grupo
-        WHERE Id_Grupo=%s
-    """, (id_grupo,))
-    fila = cur.fetchone()
+    # Verificar si ya hay registro
+    cursor.execute("SELECT id_regla FROM reglas_internas ORDER BY id_regla DESC LIMIT 1")
+    row = cursor.fetchone()
 
-    if fila:
-        # UPDATE
-        cur.execute("""
-            UPDATE reglas_grupo
-            SET ciclo_inicio=%s,
-                ciclo_fin=%s,
-                monto_ahorro=%s,
+    if row:
+        # ACTUALIZAR
+        cursor.execute("""
+            UPDATE reglas_internas
+            SET
+                nombre_grupo=%s,
+                nombre_comunidad=%s,
+                fecha_formacion=%s,
                 multa_inasistencia=%s,
-                multa_mora=%s
-            WHERE Id_Grupo=%s
-        """, (ciclo_inicio, ciclo_fin, monto_ahorro, multa_inasistencia, multa_mora, id_grupo))
+                ahorro_minimo=%s,
+                interes_por_10=%s,
+                prestamo_maximo=%s,
+                plazo_maximo=%s,
+                ciclo_inicio=%s,
+                ciclo_fin=%s,
+                meta_social=%s,
+                otras_reglas=%s,
+                permisos_inasistencia=%s,
+                multa_mora=%s,
+                Id_Grupo=%s
+            WHERE id_regla=%s
+        """, (
+            nombre_grupo,
+            nombre_comunidad,
+            fecha_formacion,
+            multa_inasistencia,
+            ahorro_minimo,
+            interes_por_10,
+            prestamo_maximo,
+            plazo_maximo,
+            ciclo_inicio,
+            ciclo_fin,
+            meta_social,
+            otras_reglas,
+            permisos_inasistencia,
+            multa_mora,
+            Id_Grupo,
+            row["id_regla"]
+        ))
 
     else:
-        # INSERT
-        cur.execute("""
-            INSERT INTO reglas_grupo
-            (Id_Grupo, ciclo_inicio, ciclo_fin, monto_ahorro, multa_inasistencia, multa_mora)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (id_grupo, ciclo_inicio, ciclo_fin, monto_ahorro, multa_inasistencia, multa_mora))
+        # CREAR NUEVO
+        cursor.execute("""
+            INSERT INTO reglas_internas(
+                Id_Grupo, nombre_grupo, nombre_comunidad, fecha_formacion,
+                multa_inasistencia, ahorro_minimo, interes_por_10,
+                prestamo_maximo, plazo_maximo, ciclo_inicio, ciclo_fin,
+                meta_social, otras_reglas, permisos_inasistencia, multa_mora
+            )
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        """, (
+            Id_Grupo,
+            nombre_grupo,
+            nombre_comunidad,
+            fecha_formacion,
+            multa_inasistencia,
+            ahorro_minimo,
+            interes_por_10,
+            prestamo_maximo,
+            plazo_maximo,
+            ciclo_inicio,
+            ciclo_fin,
+            meta_social,
+            otras_reglas,
+            permisos_inasistencia,
+            multa_mora
+        ))
 
     con.commit()
-    return True
+    cursor.close()
+    con.close()
