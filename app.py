@@ -65,10 +65,5 @@ if st.session_state["sesion_iniciada"]:
         st.session_state.clear()
         st.rerun()
 
-    # BOTÓN CERRAR SESIÓN (SIEMPRE DISPONIBLE)
-    if st.sidebar.button("Cerrar sesión"):
-        st.session_state.clear()
-        st.rerun()
-
 else:
     login()
