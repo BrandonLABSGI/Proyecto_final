@@ -83,3 +83,25 @@ def gastos_grupo():
         registrar_movimiento(
             id_caja=id_caja,
             tipo="Egreso",
+            categoria=f"Gasto – {descripcion}",
+            monto=Decimal(str(monto))
+        )
+
+        con.commit()
+
+        st.success("✔ Gasto registrado exitosamente.")
+        st.rerun()
+
+    # ============================================================
+    # 🔍 HISTORIAL DE GASTOS
+    # ============================================================
+    cursor.execute("""
+        SELECT fecha, responsable, dui, descripcion, monto
+        FROM Gastos_grupo
+        ORDER BY fecha DESC
+    """)
+
+    registros = cursor.fetchall()
+
+    st.markdown("### 📋 Historial de gastos")
+    st.dataframe(registros, use_container_width=True)
