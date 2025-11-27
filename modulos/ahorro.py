@@ -3,26 +3,12 @@ from datetime import date
 from decimal import Decimal
 
 from modulos.conexion import obtener_conexion
-from modulos.caja import registrar_movimiento, obtener_o_crear_reunion
-from modulos.reglas_utils import obtener_reglas
+from modulos.caja import asegurar_reunion, registrar_movimiento
 
 
-# ==========================================================
-# 🔐 FUNCION CENTRAL → EVITA CREAR REUNIÓN PREMATURA
-# ==========================================================
-def asegurar_reunion(fecha):
-    con = obtener_conexion()
-    cursor = con.cursor(dictionary=True)
-    cursor.execute("SELECT id_caja FROM caja_reunion WHERE fecha=%s", (fecha,))
-    row = cursor.fetchone()
-    if row:
-        return row["id_caja"]
-    return obtener_o_crear_reunion(fecha)
-
-
-# ==========================================================
-# 💰 REGISTRAR AHORRO
-# ==========================================================
+# ============================================================
+# REGISTRO DE AHORRO
+# ============================================================
 def ahorro():
 
     st.header("💰 Registrar ahorro")
@@ -30,41 +16,83 @@ def ahorro():
     con = obtener_conexion()
     cur = con.cursor(dictionary=True)
 
+    # --------------------------------------------------------
+    # SOCIAS
+    # --------------------------------------------------------
     cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cur.fetchall()
 
     if not socias:
-        st.warning("No hay socias registradas.")
+        st.warning("⚠ No hay socias registradas.")
         return
 
-    dict_socias = {f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] for s in socias}
+    # Combobox
+    opciones = {f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] for s in socias}
+    socia_sel = st.selectbox("Seleccione a la socia:", list(opciones.keys()))
+    id_socia = opciones[socia_sel]
 
-    socia = st.selectbox("Seleccione la socia:", dict_socias.keys())
-    id_socia = dict_socias[socia]
+    # --------------------------------------------------------
+    # FECHA DE OPERACIÓN
+    # --------------------------------------------------------
+    fecha_raw = st.date_input("📅 Fecha del ahorro:", date.today())
+    fecha = fecha_raw.strftime("%Y-%m-%d")
 
-    monto_raw = st.number_input("Monto del ahorro ($):", min_value=0.01, step=0.01)
-    monto = Decimal(str(monto_raw))
+    # Crear o reparar la reunión para esta fecha
+    id_caja = asegurar_reunion(fecha)
 
-    fecha_dt = st.date_input("Fecha del aporte:", date.today())
-    fecha = fecha_dt.strftime("%Y-%m-%d")
+    # --------------------------------------------------------
+    # MONTO
+    # --------------------------------------------------------
+    monto = st.number_input("Monto del ahorro ($):", min_value=0.00, step=0.25)
 
-    if st.button("Registrar ahorro"):
+    if monto <= 0:
+        st.info("Ingrese un monto mayor a cero.")
+        return
 
-        id_caja = asegurar_reunion(fecha)
+    # --------------------------------------------------------
+    # BOTÓN GUARDAR
+    # --------------------------------------------------------
+    if st.button("💾 Registrar ahorro"):
 
+        # Registrar en Caja
         registrar_movimiento(
             id_caja=id_caja,
             tipo="Ingreso",
-            categoria=f"Ahorro — {socia}",
-            monto=float(monto)
+            categoria=f"Ahorro – {id_socia}",
+            monto=monto
         )
 
+        # Registrar ahorro particular
         cur.execute("""
-            INSERT INTO Ahorro(Id_Socia, Fecha, Monto, Id_Caja)
-            VALUES(%s, %s, %s, %s)
-        """, (id_socia, fecha, monto, id_caja))
+            INSERT INTO Ahorro (Id_Socia, Fecha, Monto)
+            VALUES (%s, %s, %s)
+        """, (id_socia, fecha, Decimal(str(monto))))
+
+        # Actualizar caja general
+        cur.execute("""
+            UPDATE caja_general
+            SET saldo_actual = saldo_actual + %s
+            WHERE id = 1
+        """, (Decimal(str(monto)),))
 
         con.commit()
 
         st.success("Ahorro registrado correctamente.")
         st.rerun()
+
+    # --------------------------------------------------------
+    # LISTADO DE AHORROS DEL DÍA
+    # --------------------------------------------------------
+    cur.execute("""
+        SELECT A.Id_Ahorro, S.Nombre, A.Monto
+        FROM Ahorro A
+        JOIN Socia S ON S.Id_Socia = A.Id_Socia
+        WHERE A.Fecha=%s
+        ORDER BY A.Id_Ahorro ASC
+    """, (fecha,))
+    registros = cur.fetchall()
+
+    if registros:
+        st.subheader("📋 Ahorros registrados en esta fecha")
+        import pandas as pd
+        st.dataframe(pd.DataFrame(registros), use_container_width=True)
