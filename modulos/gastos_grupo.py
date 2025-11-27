@@ -1,13 +1,57 @@
 import streamlit as st
 from datetime import date
 from decimal import Decimal
+
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+
 from modulos.conexion import obtener_conexion
-from modulos.caja import obtener_o_crear_reunion, registrar_movimiento
+from modulos.caja import obtener_o_crear_reunion, registrar_movimiento, obtener_saldo_actual
 
 
-# ============================================================
-# 💸 REGISTRAR GASTOS DEL GRUPO — VERSIÓN FINAL
-# ============================================================
+# ------------------------------------------------------------
+# PDF – Generación del comprobante de gasto
+# ------------------------------------------------------------
+def generar_pdf_gasto(fecha, responsable, descripcion, monto, saldo_antes, saldo_despues):
+    nombre_pdf = f"gasto_{fecha}.pdf"
+
+    doc = SimpleDocTemplate(nombre_pdf, pagesize=letter)
+    estilos = getSampleStyleSheet()
+    contenido = []
+
+    titulo = Paragraph("<b>Comprobante de Gasto</b>", estilos["Title"])
+    contenido.append(titulo)
+
+    data = [
+        ["Campo", "Detalle"],
+        ["Fecha", fecha],
+        ["Responsable", responsable],
+        ["Descripción", descripcion],
+        ["Monto", f"${monto:.2f}"],
+        ["Saldo antes del gasto", f"${saldo_antes:.2f}"],
+        ["Saldo después del gasto", f"${saldo_despues:.2f}"],
+    ]
+
+    tabla = Table(data, colWidths=[180, 300])
+    tabla.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+    ]))
+
+    contenido.append(tabla)
+    doc.build(contenido)
+
+    return nombre_pdf
+
+
+# ------------------------------------------------------------
+# Módulo principal – Registrar gastos
+# ------------------------------------------------------------
 def gastos_grupo():
 
     st.header("💸 Registrar gastos del grupo")
@@ -16,92 +60,91 @@ def gastos_grupo():
     cursor = con.cursor(dictionary=True)
 
     # --------------------------------------------------------
-    # Fecha del gasto
+    # FECHA DEL GASTO
     # --------------------------------------------------------
-    fecha_raw = st.date_input("Fecha del gasto:", date.today())
+    fecha_raw = st.date_input("Fecha del gasto", date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
     # --------------------------------------------------------
-    # Responsable
+    # RESPONSABLE
     # --------------------------------------------------------
-    responsable = st.text_input("Nombre de la persona responsable:").strip()
+    responsable = st.text_input("Nombre de la persona responsable del gasto").strip()
 
     # --------------------------------------------------------
-    # DUI (solo números, 9 dígitos)
+    # DESCRIPCIÓN
     # --------------------------------------------------------
-    dui_raw = st.text_input("DUI (9 dígitos):", value="", max_chars=9)
-    dui = "".join([c for c in dui_raw if c.isdigit()])  # eliminar letras
-
-    if len(dui) != 9:
-        st.warning("⚠ El DUI debe contener exactamente 9 números.")
+    descripcion = st.text_input("Descripción del gasto").strip()
 
     # --------------------------------------------------------
-    # Descripción
+    # MONTO
     # --------------------------------------------------------
-    descripcion = st.text_input("Descripción del gasto:").strip()
+    monto_raw = st.number_input(
+        "Monto del gasto ($)",
+        min_value=0.01,
+        format="%.2f",
+        step=0.01
+    )
+    monto = Decimal(str(monto_raw))
 
     # --------------------------------------------------------
-    # Monto
+    # SALDO REAL (EL QUE MANDA)
     # --------------------------------------------------------
-    monto = st.number_input("Monto del gasto ($):", min_value=0.00, step=0.25, format="%.2f")
+    saldo_real = float(obtener_saldo_actual())
 
+    # --------------------------------------------------------
+    # VALIDACIÓN
+    # --------------------------------------------------------
+    if monto > saldo_real:
+        st.error(
+            f"❌ No puedes registrar un gasto mayor al saldo disponible (${saldo_real:,.2f})."
+        )
+        return
+
+    # --------------------------------------------------------
+    # ID DE REUNIÓN (solo para reportes)
+    # --------------------------------------------------------
+    id_reunion = obtener_o_crear_reunion(fecha)
+
+    # --------------------------------------------------------
+    # BOTÓN PARA GUARDAR
+    # --------------------------------------------------------
     if st.button("💾 Registrar gasto"):
 
-        # VALIDACIONES
-        if not responsable:
-            st.warning("⚠ Debe ingresar el nombre del responsable.")
-            return
+        try:
+            categoria_final = f"{descripcion} — Responsable: {responsable}"
 
-        if len(dui) != 9:
-            st.warning("⚠ Ingrese un DUI válido (9 dígitos).")
-            return
+            registrar_movimiento(
+                id_caja=id_reunion,
+                tipo="Egreso",
+                categoria=categoria_final,
+                monto=monto
+            )
 
-        if not descripcion:
-            st.warning("⚠ Debe ingresar una descripción.")
-            return
+            # Nuevo saldo REAL actualizado
+            saldo_despues = float(obtener_saldo_actual())
 
-        if monto <= 0:
-            st.warning("⚠ El monto debe ser mayor a cero.")
-            return
+            # Generar PDF con saldo REAL, no el de reunión
+            pdf_path = generar_pdf_gasto(
+                fecha,
+                responsable,
+                descripcion,
+                float(monto),
+                saldo_real,
+                saldo_despues
+            )
 
-        # ============================================================
-        # 🔵 OBTENER O CREAR LA REUNIÓN DEL DÍA
-        # ============================================================
-        id_caja = obtener_o_crear_reunion(fecha)
+            st.success("✅ Gasto registrado correctamente.")
 
-        # ============================================================
-        # 🔵 REGISTRAR GASTO EN TABLA Gastos_grupo
-        # ============================================================
-        cursor.execute("""
-            INSERT INTO Gastos_grupo (fecha, responsable, dui, descripcion, monto, Id_Grupo)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (fecha, responsable, dui, descripcion, monto, 1))  # Id_Grupo = 1 (tu sistema actual)
+            st.download_button(
+                "📄 Descargar comprobante PDF",
+                data=open(pdf_path, "rb").read(),
+                file_name=pdf_path,
+                mime="application/pdf"
+            )
 
-        # ============================================================
-        # 🔵 REGISTRAR EGRESO EN CAJA
-        # ============================================================
-        registrar_movimiento(
-            id_caja=id_caja,
-            tipo="Egreso",
-            categoria=f"Gasto – {descripcion}",
-            monto=Decimal(str(monto))
-        )
+        except Exception as e:
+            st.error("❌ Ocurrió un error al registrar el gasto.")
+            st.write(e)
 
-        con.commit()
-
-        st.success("✔ Gasto registrado exitosamente.")
-        st.rerun()
-
-    # ============================================================
-    # 🔍 HISTORIAL DE GASTOS
-    # ============================================================
-    cursor.execute("""
-        SELECT fecha, responsable, dui, descripcion, monto
-        FROM Gastos_grupo
-        ORDER BY fecha DESC
-    """)
-
-    registros = cursor.fetchall()
-
-    st.markdown("### 📋 Historial de gastos")
-    st.dataframe(registros, use_container_width=True)
+    cursor.close()
+    con.close()
