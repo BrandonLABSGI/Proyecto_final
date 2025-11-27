@@ -32,7 +32,10 @@ def autorizar_prestamo():
 
         fecha_prestamo = st.date_input("📅 Fecha del préstamo", date.today())
 
-        socia_seleccionada = st.selectbox("👩 Socia que recibe el préstamo", list(lista_socias.keys()))
+        socia_seleccionada = st.selectbox(
+            "👩 Socia que recibe el préstamo", 
+            list(lista_socias.keys())
+        )
         id_socia = lista_socias[socia_seleccionada]
 
         monto = st.number_input("💵 Monto prestado ($):", min_value=1, step=1)
@@ -54,25 +57,25 @@ def autorizar_prestamo():
         # ======================================================
         limite_regla_interna = 100.00
         if monto > limite_regla_interna:
-            st.error(f"❌ No puede solicitar un préstamo mayor a ${limite_regla_interna} según las reglas internas.")
+            st.error(f"❌ No puede solicitar un préstamo mayor a ${limite_regla_interna}.")
             return
 
         # ======================================================
-        # 🔒 REGLA NUEVA: TASA DE INTERÉS ≤ 6%
+        # 🔒 INTERÉS MÁXIMO
         # ======================================================
         if tasa_interes > 6:
             st.error("❌ El interés no puede ser mayor al 6%.")
             return
 
         # ======================================================
-        # 🔒 REGLA NUEVA: PLAZO ≤ 4 MESES
+        # 🔒 PLAZO MÁXIMO
         # ======================================================
         if plazo > 4:
             st.error("❌ El plazo máximo permitido es 4 meses.")
             return
 
         # ======================================================
-        # VALIDAR AHORRO DE LA SOCIA
+        # VALIDAR AHORRO
         # ======================================================
         cursor.execute("""
             SELECT Saldo_acumulado
@@ -86,11 +89,11 @@ def autorizar_prestamo():
         ahorro_total = float(registro_ahorro["Saldo_acumulado"]) if registro_ahorro else 0.0
 
         if monto > ahorro_total:
-            st.error(f"❌ La socia tiene solamente ${ahorro_total} ahorrados. No puede solicitar ${monto}.")
+            st.error(f"❌ La socia tiene solo ${ahorro_total}. No puede solicitar ${monto}.")
             return
 
         # ======================================================
-        # OBTENER O CREAR CAJA GENERAL PARA ESA FECHA
+        # OBTENER CAJA / SALDO
         # ======================================================
         id_caja = obtener_o_crear_reunion(str(fecha_prestamo))
 
@@ -98,11 +101,11 @@ def autorizar_prestamo():
         saldo_actual = float(cursor.fetchone()["saldo_final"])
 
         if monto > saldo_actual:
-            st.error(f"❌ Fondos insuficientes en caja general. Saldo disponible: ${saldo_actual}")
+            st.error(f"❌ Fondos insuficientes. Saldo disponible: ${saldo_actual}")
             return
 
         # ======================================================
-        # CÁLCULOS DE INTERÉS Y CUOTAS
+        # CÁLCULOS
         # ======================================================
         interes_total = round((monto * tasa_interes) / 100, 2)
         total_a_pagar = round(monto + interes_total, 2)
@@ -133,17 +136,7 @@ def autorizar_prestamo():
         id_prestamo = cursor.lastrowid
 
         # ======================================================
-        # REGISTRAR EGRESO EN CAJA REAL
-        # ======================================================
-        registrar_movimiento(
-            id_caja=id_caja,
-            tipo="Egreso",
-            categoria=f"Préstamo otorgado a {socia_seleccionada}",
-            monto=float(monto)
-        )
-
-        # ======================================================
-        # 🔥 DESCONTAR AHORRO DE LA SOCIA (CORREGIDO)
+        # DESCONTAR AHORRO
         # ======================================================
         nuevo_ahorro = ahorro_total - monto
 
@@ -169,12 +162,22 @@ def autorizar_prestamo():
             nuevo_ahorro,
             id_socia,
             id_caja,
-            1,              # Grupo fijo (puedes cambiarlo si deseas)
+            1,
             id_caja
         ))
 
         # ======================================================
-        # REGISTRO DE CUOTAS (cada 15 días)
+        # REGISTRAR MOVIMIENTO REAL (EGRESO)
+        # ======================================================
+        registrar_movimiento(
+            id_caja=id_caja,
+            tipo="Egreso",
+            categoria=f"Préstamo otorgado a {socia_seleccionada}",
+            monto=float(monto)
+        )
+
+        # ======================================================
+        # REGISTRO DE CUOTAS
         # ======================================================
         fecha_base = datetime.strptime(str(fecha_prestamo), "%Y-%m-%d")
 
@@ -197,11 +200,10 @@ def autorizar_prestamo():
         st.success("✔ Préstamo autorizado correctamente.")
 
         # ======================================================
-        # MOSTRAR RESUMEN FINAL
+        # RESUMEN
         # ======================================================
         st.markdown("---")
         st.subheader("📄 Resumen del préstamo")
-
         st.write(f"📅 **Fecha:** {fecha_prestamo}")
         st.write(f"👩 **Socia:** {socia_seleccionada}")
         st.write(f"💵 **Monto prestado:** ${monto}")
