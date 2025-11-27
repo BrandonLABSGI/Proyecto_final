@@ -116,8 +116,20 @@ def pago_prestamo():
         monto_cuota = Decimal(cuota["Monto_cuota"])
         fecha_programada = cuota["Fecha_programada"]
 
-        fecha_programada_dt = date.fromisoformat(fecha_programada)
-        fecha_pago_dt = date.fromisoformat(fecha_pago)
+        # ============================================================
+        # 🔥 CORRECCIÓN DEL ERROR DE FECHA (TypeError)
+        # ============================================================
+        # Normalizar fecha programada
+        if isinstance(fecha_programada, date):
+            fecha_programada_dt = fecha_programada
+        else:
+            fecha_programada_dt = date.fromisoformat(str(fecha_programada))
+
+        # Normalizar fecha de pago
+        if isinstance(fecha_pago, date):
+            fecha_pago_dt = fecha_pago
+        else:
+            fecha_pago_dt = date.fromisoformat(str(fecha_pago))
 
         atraso = fecha_pago_dt > fecha_programada_dt
 
