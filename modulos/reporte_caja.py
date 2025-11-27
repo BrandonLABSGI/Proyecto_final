@@ -20,10 +20,11 @@ def obtener_movimientos_dia(id_caja):
         SELECT tipo, categoria, monto
         FROM caja_movimientos
         WHERE id_caja=%s
-        ORDER BY id_movimiento ASC
+        ORDER BY id_mov ASC
     """, (id_caja,))
 
     return cursor.fetchall()
+
 
 
 # ====================================================================
