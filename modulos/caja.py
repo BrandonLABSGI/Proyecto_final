@@ -93,11 +93,14 @@ def obtener_saldo_actual():
 
 
 # ================================================================
-# 🟢 4. REGISTRAR MOVIMIENTO  — CORREGIDO
+# 🟢 4. REGISTRAR MOVIMIENTO — CORREGIDO DEFINITIVO
 # ================================================================
 def registrar_movimiento(id_caja, tipo, categoria, monto):
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
+
+    # Normalizar tipo (CORRECCIÓN CLAVE)
+    tipo = tipo.strip().lower()
 
     monto = Decimal(str(monto))
 
@@ -105,15 +108,15 @@ def registrar_movimiento(id_caja, tipo, categoria, monto):
     cursor.execute("""
         INSERT INTO caja_movimientos (id_caja, tipo, categoria, monto)
         VALUES (%s, %s, %s, %s)
-    """, (id_caja, tipo, categoria, monto))
+    """, (id_caja, tipo.capitalize(), categoria, monto))
 
     # Obtener saldo actual general
     cursor.execute("SELECT saldo_actual FROM caja_general WHERE id = 1")
     row = cursor.fetchone()
     saldo = Decimal(str(row["saldo_actual"]))
 
-    # Ajustar saldo real general
-    if tipo == "Ingreso":
+    # Ajustar saldo real
+    if tipo == "ingreso":
         saldo += monto
     else:
         saldo -= monto
@@ -125,7 +128,7 @@ def registrar_movimiento(id_caja, tipo, categoria, monto):
     """, (saldo,))
 
     # ========================================================
-    # CALCULAR SALDO REAL DE LA REUNIÓN (CORREGIDO)
+    # CALCULAR SALDO REAL DE LA REUNIÓN (SIN CAMBIAR TU LÓGICA)
     # ========================================================
     cursor.execute("""
         SELECT saldo_inicial, ingresos, egresos 
@@ -138,11 +141,10 @@ def registrar_movimiento(id_caja, tipo, categoria, monto):
     ingresos_prev = Decimal(str(row["ingresos"]))
     egresos_prev = Decimal(str(row["egresos"]))
 
-    # SALDO ANTES DE ESTE MOVIMIENTO
     saldo_actual_reunion = saldo_inicial + ingresos_prev - egresos_prev
 
-    # AJUSTAR SEGÚN EL TIPO DE MOVIMIENTO
-    if tipo == "Ingreso":
+    # AJUSTAR POR EL NUEVO MOVIMIENTO
+    if tipo == "ingreso":
         saldo_actual_reunion += monto
         cursor.execute("""
             UPDATE caja_reunion
@@ -150,7 +152,6 @@ def registrar_movimiento(id_caja, tipo, categoria, monto):
                 saldo_final = %s
             WHERE id_caja = %s
         """, (monto, saldo_actual_reunion, id_caja))
-
     else:
         saldo_actual_reunion -= monto
         cursor.execute("""
