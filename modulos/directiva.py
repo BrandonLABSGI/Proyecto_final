@@ -4,7 +4,7 @@ from datetime import date
 
 from modulos.conexion import obtener_conexion
 
-# Módulos externos
+# MÓDULOS EXTERNOS
 from modulos.autorizar_prestamo import autorizar_prestamo
 from modulos.pago_prestamo import pago_prestamo
 from modulos.ahorro import ahorro
@@ -13,12 +13,12 @@ from modulos.reporte_caja import reporte_caja
 from modulos.reglas import gestionar_reglas
 from modulos.cierre_ciclo import cierre_ciclo
 
-# Caja
-from modulos.caja import obtener_o_crear_reunion
+# CAJA ÚNICA POR REUNIÓN
+from modulos.caja import obtener_o_crear_reunion, registrar_movimiento
 
 
 # ============================================================
-# 👩‍💼 PANEL PRINCIPAL — DIRECTIVA
+# PANEL PRINCIPAL — DIRECTIVA
 # ============================================================
 def interfaz_directiva():
 
@@ -31,31 +31,23 @@ def interfaz_directiva():
 
     st.title("👩‍💼 Panel de Directiva — Solidaridad CVX")
 
-    # --------------------------------------------------------
-    # 🔵 Cerrar sesión
-    # --------------------------------------------------------
+    # BOTÓN DE CERRAR SESIÓN
     if st.sidebar.button("🔒 Cerrar sesión"):
         st.session_state.clear()
         st.rerun()
 
-    # --------------------------------------------------------
-    # 🔵 Mostrar saldo actual de caja_general (mensaje azul restaurado)
-    # --------------------------------------------------------
+    # MOSTRAR SALDO REAL
     try:
         con = obtener_conexion()
         cur = con.cursor(dictionary=True)
         cur.execute("SELECT saldo_actual FROM caja_general WHERE id = 1")
         row = cur.fetchone()
-
         saldo = row["saldo_actual"] if row else 0
-        st.info(f"💰 *Saldo actual de caja:* **${saldo:,.2f}**")
+        st.info(f"💰 *Saldo actual de caja:* **${saldo:.2f}**")
+    except:
+        st.warning("⚠ No se pudo obtener el saldo actual de caja.")
 
-    except Exception as e:
-        st.warning(f"⚠ No se pudo obtener el saldo actual de caja. ({str(e)})")
-
-    # --------------------------------------------------------
-    # 🔵 Menú lateral
-    # --------------------------------------------------------
+    # MENÚ
     menu = st.sidebar.radio(
         "📌 Selección rápida:",
         [
@@ -72,9 +64,7 @@ def interfaz_directiva():
         ]
     )
 
-    # --------------------------------------------------------
-    # 📌 Mostrar la página seleccionada
-    # --------------------------------------------------------
+    # RUTEO
     if menu == "Registro de asistencia":
         pagina_asistencia()
     elif menu == "Registrar nuevas socias":
@@ -98,7 +88,7 @@ def interfaz_directiva():
 
 
 # ============================================================
-# 📝 REGISTRO DE ASISTENCIA
+# 🎯 REGISTRO DE ASISTENCIA
 # ============================================================
 def pagina_asistencia():
 
@@ -110,10 +100,8 @@ def pagina_asistencia():
     fecha_raw = st.date_input("📅 Fecha de reunión:", date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
-    # Garantizar reunión SOLO al registrar asistencia
     id_caja = obtener_o_crear_reunion(fecha)
 
-    # Lista de socias
     cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cur.fetchall()
 
@@ -129,41 +117,37 @@ def pagina_asistencia():
         estados[s["Id_Socia"]] = "Presente" if eleccion == "Sí" else "Ausente"
 
     if st.button("💾 Guardar asistencia"):
-
         for id_socia, estado in estados.items():
 
             cur.execute("""
                 SELECT Id_Asistencia
                 FROM Asistencia
-                WHERE Id_Socia=%s AND Fecha=%s
+                WHERE Id_Socia = %s AND Fecha = %s
             """, (id_socia, fecha))
 
             existe = cur.fetchone()
 
             if existe:
-                # update
                 cur.execute("""
                     UPDATE Asistencia
                     SET Estado_asistencia=%s
                     WHERE Id_Asistencia=%s
                 """, (estado, existe["Id_Asistencia"]))
             else:
-                # insert
                 cur.execute("""
-                    INSERT INTO Asistencia(Id_Socia, Fecha, Estado_asistencia, Id_Reunion)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO Asistencia(Id_Socia,Fecha,Estado_asistencia,Id_Reunion)
+                    VALUES(%s,%s,%s,%s)
                 """, (id_socia, fecha, estado, id_caja))
 
         con.commit()
-        st.success("✔ Asistencia registrada.")
+        st.success("Asistencia guardada correctamente.")
         st.rerun()
 
-    # Mostrar asistencia del día
     cur.execute("""
         SELECT S.Nombre, A.Estado_asistencia
         FROM Asistencia A
         JOIN Socia S ON S.Id_Socia = A.Id_Socia
-        WHERE A.Fecha=%s
+        WHERE A.Fecha = %s
     """, (fecha,))
     registros = cur.fetchall()
 
@@ -171,9 +155,62 @@ def pagina_asistencia():
         st.subheader("📋 Asistencia registrada")
         st.dataframe(pd.DataFrame(registros), use_container_width=True)
 
+    cur.execute("""
+        SELECT Estado_asistencia
+        FROM Asistencia
+        WHERE Fecha = %s
+    """, (fecha,))
+    registros_tot = cur.fetchall()
+
+    if registros_tot:
+        total_socias = len(registros_tot)
+        presentes = sum(1 for r in registros_tot if r["Estado_asistencia"] == "Presente")
+        ausentes = total_socias - presentes
+
+        st.subheader("📊 Resumen de asistencia")
+        st.info(
+            f"👩‍🦰 Total socias: **{total_socias}**\n"
+            f"🟢 Presentes: **{presentes}**\n"
+            f"🔴 Ausentes: **{ausentes}**"
+        )
+
+    st.markdown("---")
+
+    # INGRESOS EXTRAORDINARIOS
+    st.subheader("💵 Registrar ingreso extraordinario (rifas, donaciones, etc.)")
+
+    fecha_ing = st.date_input("📅 Fecha del ingreso:", date.today())
+    fecha_ingreso = fecha_ing.strftime("%Y-%m-%d")
+
+    cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
+    lista = cur.fetchall()
+    dict_socias = {f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] for s in lista}
+
+    socia_sel = st.selectbox("Socia que aporta el ingreso:", list(dict_socias.keys()))
+    id_socia_ing = dict_socias[socia_sel]
+
+    concepto = st.selectbox("Concepto:", ["Rifa", "Donación", "Otros"])
+    monto = st.number_input("Monto ($)", min_value=0.01, step=0.25)
+
+    if st.button("➕ Registrar ingreso extraordinario"):
+
+        id_caja = obtener_o_crear_reunion(fecha_ingreso)
+
+        registrar_movimiento(
+            id_caja=id_caja,
+            tipo="Ingreso",
+            categoria=f"Ingreso extraordinario — {concepto}",
+            monto=monto
+        )
+
+        st.success("Ingreso extraordinario registrado y agregado a caja.")
+        st.rerun()
+
+
+
 
 # ============================================================
-# 🧍 REGISTRO DE SOCIAS
+# REGISTRO DE NUEVAS SOCIAS — 🎯 MEJORA APLICADA
 # ============================================================
 def pagina_registro_socias():
 
@@ -186,6 +223,7 @@ def pagina_registro_socias():
     dui = st.text_input("Número de DUI (9 dígitos):", max_chars=9)
     telefono = st.text_input("Número de teléfono (8 dígitos):", max_chars=8)
 
+    # Validación
     if st.button("Registrar socia"):
 
         if nombre.strip() == "":
@@ -209,6 +247,7 @@ def pagina_registro_socias():
         st.success(f"Socia '{nombre}' registrada correctamente.")
         st.rerun()
 
+    # Mostrar lista
     cur.execute("SELECT Id_Socia, Nombre, DUI FROM Socia ORDER BY Id_Socia ASC")
     data = cur.fetchall()
 
@@ -218,8 +257,9 @@ def pagina_registro_socias():
         st.dataframe(df, use_container_width=True)
 
 
+
 # ============================================================
-# ⚠️ MULTAS
+# MULTAS
 # ============================================================
 def pagina_multas():
 
@@ -228,7 +268,9 @@ def pagina_multas():
     con = obtener_conexion()
     cur = con.cursor(dictionary=True)
 
-    # Listado de socias
+    # -----------------------------------------------------------
+    # SOCIAS
+    # -----------------------------------------------------------
     cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cur.fetchall()
     dict_socias = {s["Nombre"]: s["Id_Socia"] for s in socias}
@@ -236,6 +278,9 @@ def pagina_multas():
     socia_sel = st.selectbox("Socia:", dict_socias.keys())
     id_socia = dict_socias[socia_sel]
 
+    # -----------------------------------------------------------
+    # TIPOS DE MULTA
+    # -----------------------------------------------------------
     cur.execute("SELECT Id_Tipo_multa, `Tipo de multa` FROM `Tipo de multa`")
     tipos = cur.fetchall()
     dict_tipos = {t["Tipo de multa"]: t["Id_Tipo_multa"] for t in tipos}
@@ -257,11 +302,13 @@ def pagina_multas():
     fecha = fecha_raw.strftime("%Y-%m-%d")
     estado = st.selectbox("Estado:", ["A pagar", "Pagada"])
 
+    # -----------------------------------------------------------
+    # REGISTRAR MULTA
+    # -----------------------------------------------------------
     if st.button("💾 Registrar multa"):
 
         cur.execute("""
-            INSERT INTO Multa
-            (Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
+            INSERT INTO Multa (Monto, Fecha_aplicacion, Estado, Id_Tipo_multa, Id_Socia)
             VALUES (%s, %s, %s, %s, %s)
         """, (monto_def, fecha, estado, id_tipo, id_socia))
 
@@ -269,15 +316,20 @@ def pagina_multas():
         st.success("Multa registrada correctamente.")
         st.rerun()
 
-    # Mostrar listados de multas
     st.markdown("---")
     st.subheader("📋 Multas registradas")
 
+    # -----------------------------------------------------------
+    # FILTRO DE UNA SOLA FECHA
+    # -----------------------------------------------------------
     filtro_socia = st.selectbox("Filtrar por socia:", ["Todas"] + list(dict_socias.keys()))
     filtro_estado = st.selectbox("Estado:", ["Todos", "A pagar", "Pagada"])
     fecha_filtro = st.date_input("Fecha a consultar:", date.today())
     fecha_filtro_str = fecha_filtro.strftime("%Y-%m-%d")
 
+    # -----------------------------------------------------------
+    # QUERY CORRECTA
+    # -----------------------------------------------------------
     query = """
         SELECT 
             M.Id_Multa,
@@ -290,29 +342,87 @@ def pagina_multas():
         FROM Multa M
         JOIN Socia S ON S.Id_Socia = M.Id_Socia
         JOIN `Tipo de multa` T ON T.Id_Tipo_multa = M.Id_Tipo_multa
-        WHERE M.Fecha_aplicacion=%s
+        WHERE M.Fecha_aplicacion = %s
     """
 
     params = [fecha_filtro_str]
 
     if filtro_socia != "Todas":
-        query += " AND S.Nombre=%s"
+        query += " AND S.Nombre = %s"
         params.append(filtro_socia)
 
     if filtro_estado != "Todos":
-        query += " AND M.Estado=%s"
+        query += " AND M.Estado = %s"
         params.append(filtro_estado)
 
+    # ORDEN EXACTO QUE NECESITAS:
     query += " ORDER BY S.Id_Socia ASC, M.Id_Multa ASC"
 
     cur.execute(query, params)
     multas = cur.fetchall()
 
+    # -----------------------------------------------------------
+    # SI NO HAY MULTAS
+    # -----------------------------------------------------------
     if not multas:
         if filtro_socia != "Todas":
-            st.info(f"La socia **{filtro_socia}** no tiene multas ese día.")
+            st.info(f"✔ La socia **{filtro_socia}** no tiene multas registradas en esta fecha.")
         else:
             st.info("No existen multas en esta fecha.")
         return
 
-    st.dataframe(multas, use_container_width=True)
+    # -----------------------------------------------------------
+    # LISTADO INTERACTIVO
+    # -----------------------------------------------------------
+    for m in multas:
+
+        col1, col2, col3, col4, col5, col6, col7 = st.columns([1, 3, 3, 2, 2, 2, 2])
+
+        col1.write(m["Id_Multa"])
+        col2.write(m["Socia"])
+        col3.write(m["Tipo de multa"])
+
+        if "inasistencia" in m["Tipo de multa"].lower():
+            monto_f = 1.00
+        elif "mora" in m["Tipo de multa"].lower():
+            monto_f = 3.00
+        else:
+            monto_f = float(m["Monto"])
+
+        col4.write(f"${monto_f:.2f}")
+
+        nuevo_estado = col5.selectbox(
+            "", 
+            ["A pagar", "Pagada"],
+            index=0 if m["Estado"] == "A pagar" else 1,
+            key=f"multa_{m['Id_Multa']}"
+        )
+
+        col6.write(str(m["Fecha_aplicacion"]))
+
+        if col7.button("Actualizar", key=f"u_{m['Id_Multa']}"):
+
+            estado_anterior = m["Estado"]
+
+            if estado_anterior == "A pagar" and nuevo_estado == "Pagada":
+
+                cur.execute("SELECT id_caja FROM caja_reunion WHERE fecha = %s", (m["Fecha_aplicacion"],))
+                reunion = cur.fetchone()
+
+                if reunion:
+                    registrar_movimiento(
+                        id_caja=reunion["id_caja"],
+                        tipo="Ingreso",
+                        categoria=f"Pago multa ({m['Socia']})",
+                        monto=monto_f
+                    )
+
+            cur.execute("""
+                UPDATE Multa
+                SET Estado = %s, Monto = %s
+                WHERE Id_Multa = %s
+            """, (nuevo_estado, monto_f, m["Id_Multa"]))
+
+            con.commit()
+            st.success("Multa actualizada correctamente.")
+            st.rerun()
