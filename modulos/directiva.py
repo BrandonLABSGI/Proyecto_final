@@ -88,7 +88,7 @@ def interfaz_directiva():
 
 
 # ============================================================
-# 🎯 REGISTRO DE ASISTENCIA
+# 🎯 REGISTRO DE ASISTENCIA (CORREGIDO PARA BD VACÍA)
 # ============================================================
 def pagina_asistencia():
 
@@ -102,8 +102,13 @@ def pagina_asistencia():
 
     id_caja = obtener_o_crear_reunion(fecha)
 
+    # TRAER SOCIAS
     cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cur.fetchall()
+
+    if not socias:
+        st.warning("⚠ No hay socias registradas aún. Registre socias antes de marcar asistencia.")
+        return
 
     st.subheader("Lista de asistencia")
     estados = {}
@@ -117,6 +122,7 @@ def pagina_asistencia():
         estados[s["Id_Socia"]] = "Presente" if eleccion == "Sí" else "Ausente"
 
     if st.button("💾 Guardar asistencia"):
+
         for id_socia, estado in estados.items():
 
             cur.execute("""
@@ -143,6 +149,7 @@ def pagina_asistencia():
         st.success("Asistencia guardada correctamente.")
         st.rerun()
 
+    # MOSTRAR ASISTENCIA
     cur.execute("""
         SELECT S.Nombre, A.Estado_asistencia
         FROM Asistencia A
@@ -155,11 +162,8 @@ def pagina_asistencia():
         st.subheader("📋 Asistencia registrada")
         st.dataframe(pd.DataFrame(registros), use_container_width=True)
 
-    cur.execute("""
-        SELECT Estado_asistencia
-        FROM Asistencia
-        WHERE Fecha = %s
-    """, (fecha,))
+    # RESUMEN
+    cur.execute("""SELECT Estado_asistencia FROM Asistencia WHERE Fecha = %s""", (fecha,))
     registros_tot = cur.fetchall()
 
     if registros_tot:
@@ -176,14 +180,22 @@ def pagina_asistencia():
 
     st.markdown("---")
 
-    # INGRESOS EXTRAORDINARIOS
+    # ============================================================
+    # INGRESOS EXTRAORDINARIOS — CORREGIDO PARA BD VACÍA
+    # ============================================================
     st.subheader("💵 Registrar ingreso extraordinario (rifas, donaciones, etc.)")
 
     fecha_ing = st.date_input("📅 Fecha del ingreso:", date.today())
     fecha_ingreso = fecha_ing.strftime("%Y-%m-%d")
 
+    # LISTA DE SOCIAS
     cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     lista = cur.fetchall()
+
+    if not lista:
+        st.warning("⚠ No hay socias registradas. No puede registrar ingresos extraordinarios.")
+        return
+
     dict_socias = {f"{s['Id_Socia']} - {s['Nombre']}": s["Id_Socia"] for s in lista}
 
     socia_sel = st.selectbox("Socia que aporta el ingreso:", list(dict_socias.keys()))
@@ -208,9 +220,8 @@ def pagina_asistencia():
 
 
 
-
 # ============================================================
-# REGISTRO DE NUEVAS SOCIAS — 🎯 MEJORA APLICADA
+# REGISTRO DE NUEVAS SOCIAS
 # ============================================================
 def pagina_registro_socias():
 
@@ -273,6 +284,11 @@ def pagina_multas():
     # -----------------------------------------------------------
     cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cur.fetchall()
+
+    if not socias:
+        st.warning("⚠ Primero debe registrar al menos una socia.")
+        return
+
     dict_socias = {s["Nombre"]: s["Id_Socia"] for s in socias}
 
     socia_sel = st.selectbox("Socia:", dict_socias.keys())
