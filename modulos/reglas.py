@@ -1,5 +1,8 @@
 import streamlit as st
 from datetime import date
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
 
 from modulos.reglas_utils import obtener_reglas, guardar_reglas
 from modulos.conexion import obtener_conexion
@@ -14,20 +17,17 @@ def gestionar_reglas():
 
     seccion = st.radio(
         "Seleccione una sección:",
-        ["Editor de reglas internas", "Comité directivo", "Permisos válidos", "Exportar PDF"]
+        ["Editor de reglas internas", "Comité directivo", "Exportar PDF"]
     )
 
     if seccion == "Editor de reglas internas":
         editar_reglamento()
 
     elif seccion == "Comité directivo":
-        st.info("⚙️ Módulo pendiente.")
-
-    elif seccion == "Permisos válidos":
-        st.info("⚙️ Módulo pendiente.")
+        modulo_comite()
 
     elif seccion == "Exportar PDF":
-        st.info("⚙️ Exportación PDF será activada en la siguiente fase.")
+        exportar_pdf()
 
 
 # ============================================================
@@ -46,7 +46,7 @@ def editar_reglamento():
         st.success("✔ Reglas cargadas correctamente.")
 
     # ------------------------------------------------------------
-    # FORMULARIO — Valores por defecto si hay reglas existentes
+    # FORMULARIO — Valores por defecto
     # ------------------------------------------------------------
 
     nombre_grupo = st.text_input(
@@ -157,3 +157,91 @@ def editar_reglamento():
 
         st.success("✔ Reglas internas actualizadas correctamente.")
         st.rerun()
+
+
+# ============================================================
+# COMITÉ DIRECTIVO
+# ============================================================
+def modulo_comite():
+
+    st.subheader("🧑‍💼 Comité directivo del grupo")
+
+    reglas = obtener_reglas()
+    datos_previos = reglas["otras_reglas"] if reglas else ""
+
+    st.info("Complete la información del comité directivo.")
+
+    presidente = st.text_input("Presidente", "")
+    secretaria = st.text_input("Secretaria", "")
+    tesorera = st.text_input("Tesorera", "")
+    vocales = st.text_area("Vocales (opcional)")
+
+    if st.button("💾 Guardar comité"):
+
+        texto_comite = (
+            f"Presidente: {presidente}\n"
+            f"Secretaria: {secretaria}\n"
+            f"Tesorera: {tesorera}\n"
+            f"Vocales: {vocales}\n\n"
+            f"--- Reglas previas ---\n{datos_previos}"
+        )
+
+        guardar_reglas(
+            nombre_grupo=reglas["nombre_grupo"],
+            nombre_comunidad=reglas["nombre_comunidad"],
+            fecha_formacion=reglas["fecha_formacion"],
+            multa_inasistencia=reglas["multa_inasistencia"],
+            ahorro_minimo=reglas["ahorro_minimo"],
+            interes_por_10=reglas["interes_por_10"],
+            prestamo_maximo=reglas["prestamo_maximo"],
+            plazo_maximo=reglas["plazo_maximo"],
+            ciclo_inicio=reglas["ciclo_inicio"],
+            ciclo_fin=reglas["ciclo_fin"],
+            meta_social=reglas["meta_social"],
+            otras_reglas=texto_comite,
+            permisos_inasistencia=reglas["permisos_inasistencia"],
+            multa_mora=reglas["multa_mora"],
+            Id_Grupo=1
+        )
+
+        st.success("✔ Comité directivo guardado correctamente.")
+        st.rerun()
+
+
+# ============================================================
+# EXPORTAR PDF
+# ============================================================
+def exportar_pdf():
+
+    reglas = obtener_reglas()
+
+    if not reglas:
+        st.error("⚠ No hay reglas para exportar.")
+        return
+
+    st.subheader("📄 Exportar reglas en PDF")
+
+    if st.button("📥 Descargar PDF"):
+
+        styles = getSampleStyleSheet()
+        pdf_path = "reglas_cvx.pdf"
+
+        doc = SimpleDocTemplate(pdf_path, pagesize=letter)
+        story = []
+
+        story.append(Paragraph("<b>Reglamento del Grupo</b>", styles["Title"]))
+        story.append(Spacer(1, 20))
+
+        for k, v in reglas.items():
+            story.append(Paragraph(f"<b>{k}:</b> {v}", styles["Normal"]))
+            story.append(Spacer(1, 12))
+
+        doc.build(story)
+
+        with open(pdf_path, "rb") as f:
+            st.download_button(
+                label="📥 Descargar PDF",
+                data=f,
+                file_name="reglas_cvx.pdf",
+                mime="application/pdf"
+            )
