@@ -6,31 +6,31 @@ from reportlab.pdfgen import canvas
 from modulos.conexion import obtener_conexion
 
 
-# ============================================================
-# VALIDAR ACCESO SOLO PARA PROMOTORA
-# ============================================================
+# ==========================================
+# VALIDACIÓN (AHORA SOLO OCULTA ACCESO)
+# ==========================================
 def validar_promotora():
+    # La promotora no crea ni modifica nada, solo ve reportes
+    # Para directiva no bloqueamos esta vista
     rol = st.session_state.get("rol", "")
-    if rol != "Promotora":
+    if rol not in ["Promotora", "Director"]:
         st.title("Acceso denegado")
-        st.warning("Solo las Promotoras pueden acceder a esta sección.")
+        st.warning("Solo la Promotora o Directiva pueden ver esta sección.")
         st.stop()
 
 
-# ============================================================
-# INTERFAZ PRINCIPAL — MÓDULO DE PROMOTORA
-# ============================================================
+# ==========================================
+# INTERFAZ GENERAL
+# ==========================================
 def interfaz_promotora():
-  
+
     validar_promotora()
 
     st.title("👩‍💼 Panel de Promotora — Solidaridad CVX")
     st.write("Supervisión, validación financiera y reportes del distrito asignado.")
 
-    id_promotora = st.session_state.get("id_empleado", None)
-    if not id_promotora:
-        st.error("No se pudo obtener el ID de la promotora. Vuelva a iniciar sesión.")
-        st.stop()
+    # Como el sistema hoy solo usa un grupo, no dependemos de ID de promotora
+    id_promotora = 1
 
     if st.button("Cerrar sesión"):
         st.session_state.clear()
@@ -45,61 +45,55 @@ def interfaz_promotora():
     )
 
     if opcion == "🏠 Inicio":
-        dashboard_inicio(id_promotora)
+        dashboard_inicio()
 
     elif opcion == "👥 Grupos":
-        vista_grupos(id_promotora)
+        vista_grupos()
 
     elif opcion == "📑 Reportes":
-        reportes_consolidados(id_promotora)
+        reportes_consolidados()
 
     elif opcion == "✔ Validaciones":
-        validaciones_financieras(id_promotora)
+        validaciones_financieras()
 
     elif opcion == "🚨 Alertas":
-        alertas_criticas(id_promotora)
+        alertas_criticas()
 
 
-
-# ← PEGAR AQUÍ
-def reportes_consolidados(id_promotora):
+# ==========================================
+# REPORTES CONSOLIDADOS (placeholder)
+# ==========================================
+def reportes_consolidados():
     st.subheader("📑 Reportes Consolidados")
     st.info("Esta sección estará disponible próximamente.")
 
-  
 
-
-
-# ============================================================
-# SECCIÓN 2 — DASHBOARD (Inicio)
-# ============================================================
-def dashboard_inicio(id_promotora):
+# ==========================================
+# DASHBOARD — SOLO PARA GRUPO FOSFORITOS
+# ==========================================
+def dashboard_inicio():
 
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
+    # El grupo actual del sistema
     cursor.execute("""
         SELECT Id_Grupo, Nombre_grupo, Fecha_inicio, Id_Distrito
         FROM Grupo
-        WHERE Id_Promotora = %s
-    """, (id_promotora,))
+        WHERE Nombre_grupo = 'Fosforitos'
+    """)
     grupos = cursor.fetchall()
 
     if not grupos:
-        st.warning("No tienes grupos asignados todavía.")
+        st.warning("No existe el grupo principal en la base de datos.")
         return
 
     ids = [g["Id_Grupo"] for g in grupos]
-
-    if not ids:
-        st.warning("No existen grupos para este usuario.")
-        return
+    gid = ids[0]
 
     formato_ids = ",".join(["%s"] * len(ids))
 
-    # =====================
     # SOCIAS
-    # =====================
     cursor.execute(f"""
         SELECT Id_Grupo, COUNT(*) AS total
         FROM Socia
@@ -109,9 +103,7 @@ def dashboard_inicio(id_promotora):
     socias_data = cursor.fetchall()
     dict_socias = {r["Id_Grupo"]: r["total"] for r in socias_data}
 
-    # =====================
     # PRÉSTAMOS
-    # =====================
     cursor.execute(f"""
         SELECT Id_Grupo,
                SUM(CASE WHEN Estado_del_prestamo = 'Activo' THEN 1 ELSE 0 END) AS activos,
@@ -123,9 +115,7 @@ def dashboard_inicio(id_promotora):
     prest_data = cursor.fetchall()
     dict_prest = {r["Id_Grupo"]: r for r in prest_data}
 
-    # =====================
     # AHORROS
-    # =====================
     cursor.execute(f"""
         SELECT Id_Grupo, SUM(Monto_del_aporte) AS total
         FROM Ahorro
@@ -133,11 +123,9 @@ def dashboard_inicio(id_promotora):
         GROUP BY Id_Grupo
     """, ids)
     ahorro_rows = cursor.fetchall()
-    dict_ahorros = {r["Id_Grupo"]: float(r["total"]) for r in ahorro_rows}
+    dict_ahorros = {r["Id_Grupo"]: float(r["total"]) for r in ahorro_rows} if ahorro_rows else {gid: 0}
 
-    # =====================
     # CAJA
-    # =====================
     cursor.execute(f"""
         SELECT Id_Grupo, SUM(saldo_final) AS caja
         FROM caja_reunion
@@ -145,96 +133,76 @@ def dashboard_inicio(id_promotora):
         GROUP BY Id_Grupo
     """, ids)
     caja_rows = cursor.fetchall()
-    dict_caja = {r["Id_Grupo"]: float(r["caja"]) for r in caja_rows}
+    dict_caja = {r["Id_Grupo"]: float(r["caja"]) for r in caja_rows} if caja_rows else {gid: 0}
 
     cursor.close()
     con.close()
 
-    total_grupos = len(grupos)
-    total_socias = sum(dict_socias.values())
-    total_activos = sum(r.get("activos", 0) for r in dict_prest.values())
-    total_mora = sum(r.get("mora", 0) for r in dict_prest.values())
-    total_ahorro = sum(dict_ahorros.values())
-    total_caja = sum(dict_caja.values())
+    total_socias = dict_socias.get(gid, 0)
+    activos = dict_prest.get(gid, {}).get("activos", 0)
+    mora = dict_prest.get(gid, {}).get("mora", 0)
+    ahorro = dict_ahorros.get(gid, 0)
+    caja = dict_caja.get(gid, 0)
 
     col1, col2, col3 = st.columns(3)
     col4, col5, col6 = st.columns(3)
 
-    col1.metric("📌 Grupos Activos", total_grupos)
+    col1.metric("📌 Grupos Activos", 1)
     col2.metric("👥 Total de Socias", total_socias)
-    col3.metric("💰 Caja Consolidada", f"${total_caja:,.2f}")
+    col3.metric("💰 Caja Consolidada", f"${caja:,.2f}")
 
-    col4.metric("📘 Préstamos Activos", total_activos)
-    col5.metric("⚠ Préstamos en Mora", total_mora)
-    col6.metric("🏦 Total Ahorro", f"${total_ahorro:,.2f}")
+    col4.metric("📘 Préstamos Activos", activos)
+    col5.metric("⚠ Préstamos en Mora", mora)
+    col6.metric("🏦 Total Ahorro", f"${ahorro:,.2f}")
 
     st.markdown("---")
-    st.subheader("📋 Estado de los grupos")
+    st.subheader("📋 Estado del grupo")
 
-    tabla = []
-
-    for g in grupos:
-        gid = g["Id_Grupo"]
-
-        soc = dict_socias.get(gid, 0)
-        cah = dict_caja.get(gid, 0)
-        aho = dict_ahorros.get(gid, 0)
-        p = dict_prest.get(gid, {"activos": 0, "mora": 0})
-
-        act = p.get("activos", 0)
-        mor = p.get("mora", 0)
-
-        total_pres = act + mor
-        mora_pct = (mor / total_pres * 100) if total_pres > 0 else 0
-
-        estado = obtener_estado_grupo(mora_pct)
-
-        tabla.append({
-            "Grupo": g["Nombre_grupo"],
-            "Miembros": soc,
-            "Caja": f"${cah:,.2f}",
-            "Ahorro": f"${aho:,.2f}",
-            "Préstamos activos": act,
-            "Préstamos en mora": mor,
-            "Mora (%)": f"{mora_pct:.1f}%",
-            "Estado": estado
-        })
+    # Mostrar tabla resumen
+    tabla = [{
+        "Grupo": "Fosforitos",
+        "Miembros": total_socias,
+        "Caja": f"${caja:,.2f}",
+        "Ahorro": f"${ahorro:,.2f}",
+        "Préstamos activos": activos,
+        "Préstamos en mora": mora,
+        "Mora (%)": f"{(mora/activos*100 if activos else 0):.1f}%",
+        "Estado": obtener_estado_grupo(mora)
+    }]
 
     st.dataframe(tabla, hide_index=True)
 
 
-def obtener_estado_grupo(mora_pct):
-    if mora_pct >= 20:
+def obtener_estado_grupo(mora):
+    if mora >= 2:
         return "🔴 Alta mora"
-    elif mora_pct >= 10:
+    elif mora == 1:
         return "🟡 Mora moderada"
-    else:
-        return "🟢 Estable"
+    return "🟢 Estable"
 
 
-# ============================================================
-# SECCIÓN 3 — VISTA DE GRUPOS
-# ============================================================
-def vista_grupos(id_promotora):
+# ==========================================
+# VISTA DE GRUPOS
+# ==========================================
+def vista_grupos():
 
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
     cursor.execute("""
-        SELECT Id_Grupo, Nombre_grupo, Fecha_inicio, Id_Distrito
+        SELECT Id_Grupo, Nombre_grupo
         FROM Grupo
-        WHERE Id_Promotora = %s
-    """, (id_promotora,))
-    grupos = cursor.fetchall()
+        WHERE Nombre_grupo = 'Fosforitos'
+    """)
+    grupo = cursor.fetchone()
 
-    if not grupos:
-        st.warning("No tienes grupos asignados.")
+    if not grupo:
+        st.warning("No existe el grupo.")
         return
 
-    opciones = {g["Nombre_grupo"]: g["Id_Grupo"] for g in grupos}
-    sel = st.selectbox("Seleccione un grupo:", opciones.keys())
-    gid = opciones[sel]
+    gid = grupo["Id_Grupo"]
 
+    # Conteos
     cursor.execute("SELECT COUNT(*) AS total FROM Socia WHERE Id_Grupo = %s", (gid,))
     socias_total = cursor.fetchone()["total"]
 
@@ -287,9 +255,9 @@ def vista_grupos(id_promotora):
         mostrar_asistencias_grupo(gid)
 
 
-# ============================================================
-# FUNCIONES DE DETALLE
-# ============================================================
+# ==========================================
+# FUNCIONES DETALLE (100% compatibles)
+# ==========================================
 def mostrar_ahorros_grupo(id_grupo):
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
@@ -329,8 +297,6 @@ def mostrar_prestamos_grupo(id_grupo):
     cursor.close()
     con.close()
     st.dataframe(datos, hide_index=True)
-
-
 
 
 def mostrar_caja_grupo(id_grupo):
@@ -378,10 +344,6 @@ def mostrar_multas_grupo(id_grupo):
     st.dataframe(datos, hide_index=True)
 
 
-
-
-
-
 def mostrar_asistencias_grupo(id_grupo):
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
@@ -406,13 +368,10 @@ def mostrar_asistencias_grupo(id_grupo):
     st.dataframe(datos, hide_index=True)
 
 
-
-# ============================================================
+# ==========================================
 # VALIDACIONES
-# ============================================================
-def validaciones_financieras(id_promotora):
-
-    st.write("### ✔ Validación de Información Financiera")
+# ==========================================
+def validaciones_financieras():
 
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
@@ -420,17 +379,15 @@ def validaciones_financieras(id_promotora):
     cursor.execute("""
         SELECT Id_Grupo, Nombre_grupo
         FROM Grupo
-        WHERE Id_Promotora = %s
-    """, (id_promotora,))
-    grupos = cursor.fetchall()
+        WHERE Nombre_grupo = 'Fosforitos'
+    """)
+    grupo = cursor.fetchone()
 
-    if not grupos:
-        st.warning("No hay grupos asignados.")
+    if not grupo:
+        st.warning("No existe el grupo principal.")
         return
 
-    dict_g = {g["Nombre_grupo"]: g["Id_Grupo"] for g in grupos}
-    sel = st.selectbox("Seleccione un grupo:", dict_g.keys())
-    gid = dict_g[sel]
+    gid = grupo["Id_Grupo"]
 
     tipo = st.radio(
         "Seleccione el tipo de validación:",
@@ -439,19 +396,19 @@ def validaciones_financieras(id_promotora):
     )
 
     if tipo == "Caja":
-        validar_caja(gid, id_promotora)
+        validar_caja(gid)
 
     elif tipo == "Préstamos":
-        validar_prestamos(gid, id_promotora)
+        validar_prestamos(gid)
 
     elif tipo == "Multas":
-        validar_multas(gid, id_promotora)
+        validar_multas(gid)
 
     cursor.close()
     con.close()
 
 
-def validar_caja(id_grupo, id_promotora):
+def validar_caja(id_grupo):
 
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
@@ -471,8 +428,8 @@ def validar_caja(id_grupo, id_promotora):
     if st.button("Marcar como validado"):
         cursor.execute("""
             INSERT INTO Validaciones(Id_Grupo, Id_Promotora, Tipo, Fecha_validacion, Estado, Observaciones)
-            VALUES(%s, %s, 'Caja', NOW(), 'Validado', %s)
-        """, (id_grupo, id_promotora, obs))
+            VALUES(%s, 1, 'Caja', NOW(), 'Validado', %s)
+        """, (id_grupo, obs))
         con.commit()
         st.success("Validación registrada.")
 
@@ -480,7 +437,7 @@ def validar_caja(id_grupo, id_promotora):
     con.close()
 
 
-def validar_prestamos(id_grupo, id_promotora):
+def validar_prestamos(id_grupo):
 
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
@@ -505,8 +462,8 @@ def validar_prestamos(id_grupo, id_promotora):
     if st.button("Validar"):
         cursor.execute("""
             INSERT INTO Validaciones(Id_Grupo, Id_Promotora, Tipo, Fecha_validacion, Estado, Observaciones)
-            VALUES(%s,%s,'Prestamos',NOW(),'Validado',%s)
-        """, (id_grupo, id_promotora, obs))
+            VALUES(%s,1,'Prestamos',NOW(),'Validado',%s)
+        """, (id_grupo, obs))
         con.commit()
         st.success("Préstamos validados.")
 
@@ -514,8 +471,7 @@ def validar_prestamos(id_grupo, id_promotora):
     con.close()
 
 
-
-def validar_multas(id_grupo, id_promotora):
+def validar_multas(id_grupo):
 
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
@@ -544,8 +500,8 @@ def validar_multas(id_grupo, id_promotora):
     if st.button("Validar multas"):
         cursor.execute("""
             INSERT INTO Validaciones(Id_Grupo, Id_Promotora, Tipo, Fecha_validacion, Estado, Observaciones)
-            VALUES(%s,%s,'Multas',NOW(),'Validado',%s)
-        """, (id_grupo, id_promotora, obs))
+            VALUES(%s,1,'Multas',NOW(),'Validado',%s)
+        """, (id_grupo, obs))
         con.commit()
         st.success("Multas validadas.")
 
@@ -553,61 +509,45 @@ def validar_multas(id_grupo, id_promotora):
     con.close()
 
 
-
-
-# ============================================================
-# ALERTAS AUTOMÁTICAS
-# ============================================================
-def alertas_criticas(id_promotora):
-
-    st.write("### 🚨 Alertas automáticas")
+# ==========================================
+# ALERTAS
+# ==========================================
+def alertas_criticas():
 
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
     cursor.execute("""
-        SELECT Id_Grupo, Nombre_grupo
+        SELECT Id_Grupo
         FROM Grupo
-        WHERE Id_Promotora = %s
-    """, (id_promotora,))
-    grupos = cursor.fetchall()
+        WHERE Nombre_grupo = 'Fosforitos'
+    """)
+    g = cursor.fetchone()
 
-    if not grupos:
-        st.info("No tienes grupos asignados.")
+    if not g:
+        st.info("No existe el grupo.")
         return
 
-    ids = [g["Id_Grupo"] for g in grupos]
+    gid = g["Id_Grupo"]
 
-    if len(ids) == 0:
-        st.info("Sin grupos.")
-        return
-
-    formato_ids = ",".join(["%s"] * len(ids))
-
-    cursor.execute(f"""
-        SELECT Id_Grupo,
-               SUM(CASE WHEN Estado_del_prestamo='Mora' THEN 1 ELSE 0 END) AS mora,
-               COUNT(*) AS total
+    cursor.execute("""
+        SELECT 
+            SUM(CASE WHEN Estado_del_prestamo='Mora' THEN 1 ELSE 0 END) AS mora,
+            COUNT(*) AS total
         FROM Prestamo
-        WHERE Id_Grupo IN ({formato_ids})
-        GROUP BY Id_Grupo
-    """, ids)
-    prest = cursor.fetchall()
+        WHERE Id_Grupo = %s
+    """, (gid,))
+    prest = cursor.fetchone()
 
-    alerta_mora = []
-    for r in prest:
-        if r["total"] == 0:
-            continue
+    alerta = []
 
-        pct = r["mora"] / r["total"] * 100
+    if prest["total"] > 0:
+        pct = prest["mora"] / prest["total"] * 100
         if pct >= 10:
-            alerta_mora.append({
-                "Grupo": r["Id_Grupo"],
-                "Mora (%)": f"{pct:.1f}%"
-            })
+            alerta.append({"Grupo": "Fosforitos", "Mora (%)": f"{pct:.1f}%"})
 
     st.subheader("🔴 Mora elevada")
-    st.dataframe(alerta_mora, hide_index=True)
+    st.dataframe(alerta, hide_index=True)
 
     cursor.close()
     con.close()
