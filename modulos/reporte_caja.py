@@ -48,9 +48,13 @@ def reporte_caja():
         return
 
     saldo_inicial = Decimal(reunion["saldo_inicial"])
-    ingresos = Decimal(reunion["ingresos"])
+    ingresos = Decimal(reunion["inresos"])
     egresos = Decimal(reunion["egresos"])
-    saldo_final = Decimal(reunion["saldo_final"])
+
+    # ============================================================
+    # ⚠️ SALDO FINAL CALCULADO (NO BD)
+    # ============================================================
+    saldo_final = saldo_inicial + ingresos - egresos
 
     # ============================================================
     # MOSTRAR RESUMEN
@@ -91,7 +95,7 @@ def reporte_caja():
         st.dataframe(df, use_container_width=True)
 
         # ============================================================
-        # 🔵 GRÁFICAS RESTAURADAS (Versión Streamlit)
+        # 🔵 GRÁFICAS RESTAURADAS
         # ============================================================
         st.subheader("📊 Gráfica de Ingresos vs Egresos")
 
