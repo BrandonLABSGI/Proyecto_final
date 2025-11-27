@@ -44,7 +44,7 @@ def ahorro():
     id_socia = dict_socias[socia_sel]
 
     # ============================================================
-    # 3️⃣ HISTORIAL DE APORTES  — 🔥 CONSULTA CORREGIDA
+    # 3️⃣ HISTORIAL DE APORTES
     # ============================================================
     cursor.execute("""
         SELECT 
@@ -64,7 +64,6 @@ def ahorro():
 
     if aportes:
         import pandas as pd
-
         df = pd.DataFrame(aportes)
         st.dataframe(df, use_container_width=True)
 
@@ -114,7 +113,7 @@ def ahorro():
 
         try:
             # ------------------------------------------
-            # Sumar al saldo anterior
+            # Calcular nuevo saldo
             # ------------------------------------------
             saldo_anterior = Decimal(str(ultimo_saldo))
             monto_decimal = Decimal(str(monto))
@@ -126,7 +125,7 @@ def ahorro():
             nuevo_saldo = saldo_anterior + monto_decimal
 
             # ------------------------------------------
-            # Registrar aporte (🔥 campos corregidos)
+            # Registrar aporte en tabla Ahorro
             # ------------------------------------------
             cursor.execute("""
                 INSERT INTO Ahorro
@@ -143,7 +142,7 @@ def ahorro():
             ))
 
             # ------------------------------------------
-            # Registrar en caja única
+            # Registrar movimiento en CAJA ÚNICA
             # ------------------------------------------
             id_caja = obtener_o_crear_reunion(fecha_aporte)
 
