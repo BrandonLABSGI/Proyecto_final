@@ -1,13 +1,12 @@
 import streamlit as st
 from datetime import date
 from decimal import Decimal
-
 from modulos.conexion import obtener_conexion
-from modulos.caja import asegurar_reunion, registrar_movimiento
+from modulos.caja import obtener_o_crear_reunion, registrar_movimiento
 
 
 # ============================================================
-# 💸 REGISTRAR GASTOS DEL GRUPO
+# 💸 REGISTRAR GASTOS DEL GRUPO — VERSIÓN FINAL
 # ============================================================
 def gastos_grupo():
 
@@ -17,86 +16,70 @@ def gastos_grupo():
     cursor = con.cursor(dictionary=True)
 
     # --------------------------------------------------------
-    # FECHA
+    # Fecha del gasto
     # --------------------------------------------------------
-    fecha_raw = st.date_input("📅 Fecha del gasto:", date.today())
+    fecha_raw = st.date_input("Fecha del gasto:", date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
-    # Crear o reparar reunión de caja
-    id_caja = asegurar_reunion(fecha)
+    # --------------------------------------------------------
+    # Responsable
+    # --------------------------------------------------------
+    responsable = st.text_input("Nombre de la persona responsable:").strip()
 
     # --------------------------------------------------------
-    # RESPONSABLE
+    # DUI (solo números, 9 dígitos)
     # --------------------------------------------------------
-    responsable = st.text_input("Nombre de la persona responsable del gasto").strip()
+    dui_raw = st.text_input("DUI (9 dígitos):", value="", max_chars=9)
+    dui = "".join([c for c in dui_raw if c.isdigit()])  # eliminar letras
+
+    if len(dui) != 9:
+        st.warning("⚠ El DUI debe contener exactamente 9 números.")
 
     # --------------------------------------------------------
-    # DUI VALIDADO (solo 9 dígitos)
+    # Descripción
     # --------------------------------------------------------
-    dui_raw = st.text_input("DUI (9 dígitos):", max_chars=9).strip()
-
-    if dui_raw and (not dui_raw.isdigit() or len(dui_raw) != 9):
-        st.warning("⚠ El DUI debe tener exactamente 9 dígitos numéricos.")
-        return
+    descripcion = st.text_input("Descripción del gasto:").strip()
 
     # --------------------------------------------------------
-    # TIPO DE GASTO
+    # Monto
     # --------------------------------------------------------
-    categoria = st.text_input("Categoría del gasto (ejemplo: Materiales, Transporte)").strip()
+    monto = st.number_input("Monto del gasto ($):", min_value=0.00, step=0.25, format="%.2f")
 
-    # --------------------------------------------------------
-    # MONTO DEL GASTO
-    # --------------------------------------------------------
-    monto = st.number_input("Monto del gasto ($):", min_value=0.00, step=0.25)
-
-    if monto <= 0:
-        st.info("Ingrese un monto mayor a cero.")
-        return
-
-    # --------------------------------------------------------
-    # BOTÓN GUARDAR
-    # --------------------------------------------------------
     if st.button("💾 Registrar gasto"):
 
-        # Registrar movimiento en caja como EGRESO
+        # VALIDACIONES
+        if not responsable:
+            st.warning("⚠ Debe ingresar el nombre del responsable.")
+            return
+
+        if len(dui) != 9:
+            st.warning("⚠ Ingrese un DUI válido (9 dígitos).")
+            return
+
+        if not descripcion:
+            st.warning("⚠ Debe ingresar una descripción.")
+            return
+
+        if monto <= 0:
+            st.warning("⚠ El monto debe ser mayor a cero.")
+            return
+
+        # ============================================================
+        # 🔵 OBTENER O CREAR LA REUNIÓN DEL DÍA
+        # ============================================================
+        id_caja = obtener_o_crear_reunion(fecha)
+
+        # ============================================================
+        # 🔵 REGISTRAR GASTO EN TABLA Gastos_grupo
+        # ============================================================
+        cursor.execute("""
+            INSERT INTO Gastos_grupo (fecha, responsable, dui, descripcion, monto, Id_Grupo)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (fecha, responsable, dui, descripcion, monto, 1))  # Id_Grupo = 1 (tu sistema actual)
+
+        # ============================================================
+        # 🔵 REGISTRAR EGRESO EN CAJA
+        # ============================================================
         registrar_movimiento(
             id_caja=id_caja,
             tipo="Egreso",
-            categoria=f"Gasto – {categoria}",
-            monto=monto
-        )
-
-        # Registrar gasto en tabla Gasto
-        cursor.execute("""
-            INSERT INTO Gasto (Responsable, DUI, Categoria, Monto, Fecha)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (responsable, dui_raw, categoria, Decimal(str(monto)), fecha))
-
-        # Actualizar caja general
-        cursor.execute("""
-            UPDATE caja_general
-            SET saldo_actual = saldo_actual - %s
-            WHERE id = 1
-        """, (Decimal(str(monto)),))
-
-        con.commit()
-
-        st.success("Gasto registrado correctamente.")
-        st.rerun()
-
-    # --------------------------------------------------------
-    # LISTADO DE GASTOS DEL DÍA
-    # --------------------------------------------------------
-    cursor.execute("""
-        SELECT Id_Gasto, Responsable, Categoria, Monto
-        FROM Gasto
-        WHERE Fecha=%s
-        ORDER BY Id_Gasto ASC
-    """, (fecha,))
-
-    registros = cursor.fetchall()
-
-    if registros:
-        st.subheader("📋 Gastos registrados en esta fecha")
-        import pandas as pd
-        st.dataframe(pd.DataFrame(registros), use_container_width=True)
