@@ -112,7 +112,8 @@ def pago_prestamo():
     cuota_sel = st.selectbox("Seleccione la cuota a pagar:", opciones.keys())
     id_cuota = opciones[cuota_sel]
 
-    fecha_pago_str = st.date_input("📅 Fecha del pago:", date.today()).strftime("%Y-%m-%d")
+    # ❗ AHORA SÍ DEVUELVE UN OBJETO date REAL
+    fecha_pago_dt = st.date_input("📅 Fecha del pago:", date.today())
 
     # ============================================================
     # BOTÓN PRINCIPAL
@@ -126,25 +127,23 @@ def pago_prestamo():
         monto_cuota = Decimal(cuota["Monto_cuota"])
         fecha_programada = cuota["Fecha_programada"]
 
-        # NORMALIZAR FECHAS
+        # Normalizar fecha programada → convertir a date si llega como string
         if isinstance(fecha_programada, date):
             fecha_programada_dt = fecha_programada
         else:
             fecha_programada_dt = date.fromisoformat(str(fecha_programada))
 
-        fecha_pago_dt = date.fromisoformat(str(fecha_pago_str))
-
         # ============================================================
-        # 🚫 RESTRICCIÓN QUE PEDISTE: SOLO PERMITIR LA FECHA EXACTA
+        # 🚫 RESTRICCIÓN: SOLO PERMITIR LA FECHA EXACTA
         # ============================================================
         if fecha_pago_dt != fecha_programada_dt:
-            st.error(f"❌ Esta cuota solo puede pagarse el día exacto: {fecha_programada_dt}")
+            st.error(f"❌ Esta cuota solo puede pagarse en la fecha EXACTA: {fecha_programada_dt}")
             return
 
         # ============================================================
         # PAGO DE CUOTA → CAJA
         # ============================================================
-        id_caja = obtener_o_crear_reunion(fecha_pago_str)
+        id_caja = obtener_o_crear_reunion(str(fecha_pago_dt))
 
         registrar_movimiento(
             id_caja=id_caja,
@@ -160,7 +159,7 @@ def pago_prestamo():
             UPDATE Cuotas_prestamo
             SET Estado='pagada', Fecha_pago=%s, Id_Caja=%s
             WHERE Id_Cuota=%s
-        """, (fecha_pago_str, id_caja, id_cuota))
+        """, (str(fecha_pago_dt), id_caja, id_cuota))
 
         # ============================================================
         # ACTUALIZAR SALDO DEL PRÉSTAMO
