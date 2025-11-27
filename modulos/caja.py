@@ -31,13 +31,12 @@ def obtener_saldo_dia_anterior(fecha):
 
 
 # ================================================================
-# 🟢 2. OBTENER O CREAR REUNIÓN — *ARREGLO DEFINITIVO*
+# 🟢 2. OBTENER O CREAR REUNIÓN
 # ================================================================
 def obtener_o_crear_reunion(fecha):
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    # Ver si ya existe
     cursor.execute("SELECT id_caja FROM caja_reunion WHERE fecha = %s", (fecha,))
     reunion = cursor.fetchone()
 
@@ -46,18 +45,15 @@ def obtener_o_crear_reunion(fecha):
         con.close()
         return reunion["id_caja"]
 
-    # Buscar saldo del día anterior
     saldo_anterior = obtener_saldo_dia_anterior(fecha)
 
     if saldo_anterior is not None:
         saldo_inicial = saldo_anterior
     else:
-        # Primer día del sistema → usar saldo_actual de caja_general
         cursor.execute("SELECT saldo_actual FROM caja_general WHERE id = 1")
         row = cursor.fetchone()
         saldo_inicial = Decimal(str(row["saldo_actual"])) if row else Decimal("0.00")
 
-    # Crear nueva reunión
     cursor.execute("""
         INSERT INTO caja_reunion (fecha, saldo_inicial, ingresos, egresos, saldo_final)
         VALUES (%s, %s, 0, 0, %s)
@@ -93,14 +89,14 @@ def obtener_saldo_actual():
 
 
 # ================================================================
-# 🟢 4. REGISTRAR MOVIMIENTO — CORREGIDO DEFINITIVO
+# 🟢 4. REGISTRAR MOVIMIENTO — CORREGIDO
 # ================================================================
 def registrar_movimiento(id_caja, tipo, categoria, monto):
     con = obtener_conexion()
     cursor = con.cursor(dictionary=True)
 
-    # Normalizar tipo (CORRECCIÓN CLAVE)
-    tipo = tipo.strip().lower()
+    # 🔥 CORRECCIÓN CLAVE:
+    tipo_normalizado = tipo.strip().lower()
 
     monto = Decimal(str(monto))
 
@@ -108,15 +104,15 @@ def registrar_movimiento(id_caja, tipo, categoria, monto):
     cursor.execute("""
         INSERT INTO caja_movimientos (id_caja, tipo, categoria, monto)
         VALUES (%s, %s, %s, %s)
-    """, (id_caja, tipo.capitalize(), categoria, monto))
+    """, (id_caja, tipo_normalizado.capitalize(), categoria, monto))
 
-    # Obtener saldo actual general
+    # Obtener saldo_general
     cursor.execute("SELECT saldo_actual FROM caja_general WHERE id = 1")
     row = cursor.fetchone()
     saldo = Decimal(str(row["saldo_actual"]))
 
-    # Ajustar saldo real
-    if tipo == "ingreso":
+    # Ajuste de saldo_general
+    if tipo_normalizado == "ingreso":
         saldo += monto
     else:
         saldo -= monto
@@ -127,9 +123,7 @@ def registrar_movimiento(id_caja, tipo, categoria, monto):
         WHERE id = 1
     """, (saldo,))
 
-    # ========================================================
-    # CALCULAR SALDO REAL DE LA REUNIÓN (SIN CAMBIAR TU LÓGICA)
-    # ========================================================
+    # Obtener datos actuales de la reunión
     cursor.execute("""
         SELECT saldo_inicial, ingresos, egresos 
         FROM caja_reunion
@@ -141,10 +135,11 @@ def registrar_movimiento(id_caja, tipo, categoria, monto):
     ingresos_prev = Decimal(str(row["ingresos"]))
     egresos_prev = Decimal(str(row["egresos"]))
 
+    # Calcular saldo del día antes del movimiento
     saldo_actual_reunion = saldo_inicial + ingresos_prev - egresos_prev
 
-    # AJUSTAR POR EL NUEVO MOVIMIENTO
-    if tipo == "ingreso":
+    # 🔥 APLICAR EL MOVIMIENTO Y ACTUALIZAR saldo_final SIEMPRE
+    if tipo_normalizado == "ingreso":
         saldo_actual_reunion += monto
         cursor.execute("""
             UPDATE caja_reunion
@@ -152,6 +147,7 @@ def registrar_movimiento(id_caja, tipo, categoria, monto):
                 saldo_final = %s
             WHERE id_caja = %s
         """, (monto, saldo_actual_reunion, id_caja))
+
     else:
         saldo_actual_reunion -= monto
         cursor.execute("""
