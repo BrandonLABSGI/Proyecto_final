@@ -90,7 +90,8 @@ def interfaz_directiva():
 # ============================================================
 # 🎯 REGISTRO DE ASISTENCIA — CORREGIDO
 # ============================================================
-def pagina_asistencia():
+
+   def pagina_asistencia():
 
     st.header("📝 Registro de asistencia")
 
@@ -100,23 +101,21 @@ def pagina_asistencia():
     fecha_raw = st.date_input("📅 Fecha de reunión:", date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
-    # 🔥 ASEGURAR QUE SIEMPRE EXISTA id_caja
-    cur.execute("SELECT id_caja FROM caja_reunion WHERE fecha = %s", (fecha,))
+    # ==========================================================
+    # 🔥 USAR TABLA Reunion (CORRECTO CON TU BD)
+    # ==========================================================
+    cur.execute("SELECT Id_Reunion FROM Reunion WHERE Fecha_reunion = %s", (fecha,))
     row = cur.fetchone()
 
     if row:
-        id_caja = row["id_caja"]
+        id_reunion = row["Id_Reunion"]
     else:
         cur.execute("""
-            INSERT INTO caja_reunion 
-            (fecha, saldo_inicial, ingresos, egresos, saldo_final, dia_cerrado)
-            VALUES (%s, 0, 0, 0, 0, 0)
+            INSERT INTO Reunion (Fecha_reunion, observaciones, Acuerdos, Tema_central)
+            VALUES (%s, '', '', '')
         """, (fecha,))
         con.commit()
-        id_caja = cur.lastrowid
-
-    # 🔍 DEBUG (puedes quitar después)
-    st.write("ID CAJA USADO:", id_caja)
+        id_reunion = cur.lastrowid
 
     # ==========================================================
     # SOCIOS
@@ -147,7 +146,6 @@ def pagina_asistencia():
         try:
             for id_socia, estado in estados.items():
 
-                # Validar existencia previa
                 cur.execute("""
                     SELECT Id_Asistencia
                     FROM Asistencia
@@ -166,7 +164,7 @@ def pagina_asistencia():
                     cur.execute("""
                         INSERT INTO Asistencia(Id_Socia, Fecha, Estado_asistencia, id_caja)
                         VALUES(%s, %s, %s, %s)
-                    """, (id_socia, fecha, estado, id_caja))
+                    """, (id_socia, fecha, estado, id_reunion))
 
             con.commit()
             st.success("Asistencia guardada correctamente.")
@@ -209,9 +207,9 @@ def pagina_asistencia():
             f"🔴 Ausentes: **{ausentes}**"
         )
 
-    # ============================================================
-    # INGRESOS EXTRAORDINARIOS
-    # ============================================================
+    # ==========================================================
+    # INGRESOS EXTRAORDINARIOS (NO TOCADO)
+    # ==========================================================
     st.subheader("💵 Registrar ingreso extraordinario")
 
     fecha_ing = st.date_input("📅 Fecha del ingreso:", date.today())
@@ -234,6 +232,7 @@ def pagina_asistencia():
 
     if st.button("➕ Registrar ingreso extraordinario"):
 
+        # ESTE SÍ SE QUEDA CON caja_reunion (NO LO TOCAMOS)
         id_caja = obtener_o_crear_reunion(fecha_ingreso)
 
         registrar_movimiento(
@@ -245,7 +244,6 @@ def pagina_asistencia():
 
         st.success("Ingreso extraordinario registrado.")
         st.rerun()
-
 
 
 # ============================================================
