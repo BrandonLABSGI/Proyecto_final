@@ -221,46 +221,58 @@ def pagina_asistencia():
 # ============================================================
 def pagina_registro_socias():
 
-    st.header("👩‍🦰 Registrar nuevas socias")
+    st.header("👥 Registrar nuevos socios/as")
 
     con = obtener_conexion()
     cur = con.cursor(dictionary=True)
 
-    nombre = st.text_input("Nombre completo de la socia:")
-    dui = st.text_input("Número de DUI (9 dígitos):", max_chars=9)
+    nombre = st.text_input("Nombre completo del socio/a:")
+    dui = st.text_input("Número de DUI (9 dígitos):", max_chars=10)
     telefono = st.text_input("Número de teléfono (8 dígitos):", max_chars=8)
+    sexo = st.selectbox("Sexo:", ["Femenino", "Masculino"])
 
-    if st.button("Registrar socia"):
+    if st.button("Registrar socio/a"):
 
+        # VALIDACIÓN NOMBRE
         if nombre.strip() == "":
             st.warning("Debe ingresar un nombre.")
             return
 
-        if not dui.isdigit() or len(dui) != 9:
+        # VALIDACIÓN DUI (permite guion)
+        dui_limpio = dui.replace("-", "")
+
+        if not dui_limpio.isdigit() or len(dui_limpio) != 9:
             st.warning("El DUI debe contener 9 dígitos.")
             return
 
+        # VALIDACIÓN TELÉFONO
         if not telefono.isdigit() or len(telefono) != 8:
             st.warning("El teléfono debe contener 8 dígitos.")
             return
 
+        # INSERTAR EN BASE DE DATOS
         cur.execute("""
-            INSERT INTO Socia(Nombre, DUI, Telefono)
-            VALUES(%s, %s, %s)
-        """, (nombre, dui, telefono))
+            INSERT INTO Socia(Nombre, DUI, Telefono, Sexo)
+            VALUES(%s, %s, %s, %s)
+        """, (nombre.strip(), dui_limpio, telefono, sexo))
+
         con.commit()
 
-        st.success(f"Socia '{nombre}' registrada.")
+        st.success(f"Socio/a '{nombre}' registrado correctamente.")
         st.rerun()
 
-    cur.execute("SELECT Id_Socia, Nombre, DUI FROM Socia ORDER BY Id_Socia ASC")
+    # MOSTRAR DATOS
+    cur.execute("""
+        SELECT Id_Socia, Nombre, DUI, Telefono, Sexo 
+        FROM Socia 
+        ORDER BY Id_Socia ASC
+    """)
     data = cur.fetchall()
 
     if data:
         df = pd.DataFrame(data)
-        st.subheader("📋 Lista de socias")
+        st.subheader("📋 Lista de socios/as")
         st.dataframe(df, use_container_width=True)
-
 
 
 # ============================================================
