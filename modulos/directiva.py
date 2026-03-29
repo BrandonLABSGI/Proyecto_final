@@ -100,14 +100,32 @@ def pagina_asistencia():
     fecha_raw = st.date_input("📅 Fecha de reunión:", date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
-    id_caja = obtener_o_crear_reunion(fecha)
-    st.write("ID CAJA GENERADO:", id_caja)
+    # 🔥 ASEGURAR QUE SIEMPRE EXISTA id_caja
+    cur.execute("SELECT id_caja FROM caja_reunion WHERE fecha = %s", (fecha,))
+    row = cur.fetchone()
 
+    if row:
+        id_caja = row["id_caja"]
+    else:
+        cur.execute("""
+            INSERT INTO caja_reunion 
+            (fecha, saldo_inicial, ingresos, egresos, saldo_final, dia_cerrado)
+            VALUES (%s, 0, 0, 0, 0, 0)
+        """, (fecha,))
+        con.commit()
+        id_caja = cur.lastrowid
+
+    # 🔍 DEBUG (puedes quitar después)
+    st.write("ID CAJA USADO:", id_caja)
+
+    # ==========================================================
+    # SOCIOS
+    # ==========================================================
     cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cur.fetchall()
 
     if not socias:
-        st.warning("⚠ No hay socias registradas. Registre socias primero.")
+        st.warning("⚠ No hay socios/as registrados.")
         return
 
     st.subheader("Lista de asistencia")
@@ -121,34 +139,46 @@ def pagina_asistencia():
         )
         estados[s["Id_Socia"]] = "Presente" if eleccion == "Sí" else "Ausente"
 
+    # ==========================================================
+    # GUARDAR
+    # ==========================================================
     if st.button("💾 Guardar asistencia"):
-        for id_socia, estado in estados.items():
 
-            cur.execute("""
-                SELECT Id_Asistencia
-                FROM Asistencia
-                WHERE Id_Socia = %s AND Fecha = %s
-            """, (id_socia, fecha))
+        try:
+            for id_socia, estado in estados.items():
 
-            existe = cur.fetchone()
-
-            if existe:
+                # Validar existencia previa
                 cur.execute("""
-                    UPDATE Asistencia
-                    SET Estado_asistencia=%s
-                    WHERE Id_Asistencia=%s
-                """, (estado, existe["Id_Asistencia"]))
-            else:
-                # 🔥🔥 CORRECCIÓN AQUI — id_caja ES LA COLUMNA REAL 🔥🔥
-                cur.execute("""
-                    INSERT INTO Asistencia(Id_Socia, Fecha, Estado_asistencia, id_caja)
-                    VALUES(%s, %s, %s, %s)
-                """, (id_socia, fecha, estado, id_caja))
+                    SELECT Id_Asistencia
+                    FROM Asistencia
+                    WHERE Id_Socia = %s AND Fecha = %s
+                """, (id_socia, fecha))
 
-        con.commit()
-        st.success("Asistencia guardada correctamente.")
-        st.rerun()
+                existe = cur.fetchone()
 
+                if existe:
+                    cur.execute("""
+                        UPDATE Asistencia
+                        SET Estado_asistencia=%s
+                        WHERE Id_Asistencia=%s
+                    """, (estado, existe["Id_Asistencia"]))
+                else:
+                    cur.execute("""
+                        INSERT INTO Asistencia(Id_Socia, Fecha, Estado_asistencia, id_caja)
+                        VALUES(%s, %s, %s, %s)
+                    """, (id_socia, fecha, estado, id_caja))
+
+            con.commit()
+            st.success("Asistencia guardada correctamente.")
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"Error al guardar asistencia: {e}")
+            return
+
+    # ==========================================================
+    # MOSTRAR REGISTROS
+    # ==========================================================
     cur.execute("""
         SELECT S.Nombre, A.Estado_asistencia
         FROM Asistencia A
@@ -161,22 +191,23 @@ def pagina_asistencia():
         st.subheader("📋 Asistencia registrada")
         st.dataframe(pd.DataFrame(registros), use_container_width=True)
 
+    # ==========================================================
+    # RESUMEN
+    # ==========================================================
     cur.execute("SELECT Estado_asistencia FROM Asistencia WHERE Fecha = %s", (fecha,))
     registros_tot = cur.fetchall()
 
     if registros_tot:
-        total_socias = len(registros_tot)
+        total = len(registros_tot)
         presentes = sum(1 for r in registros_tot if r["Estado_asistencia"] == "Presente")
-        ausentes = total_socias - presentes
+        ausentes = total - presentes
 
         st.subheader("📊 Resumen de asistencia")
         st.info(
-            f"👩‍🦰 Total socias: **{total_socias}**\n"
+            f"👥 Total socios/as: **{total}**\n"
             f"🟢 Presentes: **{presentes}**\n"
             f"🔴 Ausentes: **{ausentes}**"
         )
-
-    st.markdown("---")
 
     # ============================================================
     # INGRESOS EXTRAORDINARIOS
