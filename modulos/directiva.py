@@ -101,6 +101,7 @@ def pagina_asistencia():
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
     id_caja = obtener_o_crear_reunion(fecha)
+    st.write("ID CAJA GENERADO:", id_caja)
 
     cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cur.fetchall()
