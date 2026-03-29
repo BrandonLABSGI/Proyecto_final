@@ -219,21 +219,19 @@ def pagina_asistencia():
     concepto = st.selectbox("Concepto:", ["Rifa", "Donación", "Otros"])
     monto = st.number_input("Monto ($)", min_value=0.01, step=0.25)
 # ==========================================================
-# 🔥 INGRESO EXTRAORDINARIO — COMPLETO Y CORREGIDO
+# 🔥 INGRESO EXTRAORDINARIO — CORRECTO
 # ==========================================================
 
-# 🔥 Inicializar bandera
+# 🔥 Inicializar mensaje
 if "msg_ingreso" not in st.session_state:
     st.session_state.msg_ingreso = None
 
-# 🔘 BOTÓN (BIEN INDENTADO)
+# 🔘 BOTÓN (MISMA INDENTACIÓN)
 if st.button("➕ Registrar ingreso extraordinario"):
 
     try:
-        # 🔥 Obtener o crear caja del día
         id_caja = obtener_o_crear_reunion(fecha_ingreso)
 
-        # 🔥 Registrar movimiento (esto ya suma automáticamente)
         registrar_movimiento(
             id_caja=id_caja,
             tipo="Ingreso",
@@ -241,21 +239,18 @@ if st.button("➕ Registrar ingreso extraordinario"):
             monto=monto
         )
 
-        # 🔥 Guardar mensaje para mostrar después del rerun
         st.session_state.msg_ingreso = f"💰 Monto ${monto:.2f} registrado correctamente."
 
-        # 🔄 Recargar para actualizar datos
         st.rerun()
 
     except Exception as e:
         st.error(f"Error al registrar ingreso: {e}")
 
-# ==========================================================
-# 🔥 MOSTRAR MENSAJE DESPUÉS DEL RERUN
-# ==========================================================
+# 🔥 Mostrar mensaje
 if st.session_state.msg_ingreso:
     st.success(st.session_state.msg_ingreso)
     st.session_state.msg_ingreso = None
+
    
 # ============================================================
 # REGISTRO DE NUEVAS SOCIAS
