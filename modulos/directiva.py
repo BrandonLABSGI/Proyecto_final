@@ -219,26 +219,23 @@ def pagina_asistencia():
     concepto = st.selectbox("Concepto:", ["Rifa", "Donación", "Otros"])
     monto = st.number_input("Monto ($)", min_value=0.01, step=0.25)
 
- if st.button("➕ Registrar ingreso extraordinario"):
+    if st.button("➕ Registrar ingreso extraordinario"):
 
-    try:
-        id_caja = obtener_o_crear_reunion(fecha_ingreso)
+        try:
+            id_caja = obtener_o_crear_reunion(fecha_ingreso)
 
-        registrar_movimiento(
-            id_caja=id_caja,
-            tipo="Ingreso",
-            categoria=f"Ingreso extraordinario — {concepto}",
-            monto=monto
-        )
+            registrar_movimiento(
+                id_caja=id_caja,
+                tipo="Ingreso",
+                categoria=f"Ingreso extraordinario — {concepto}",
+                monto=monto
+            )
 
-        # 🔥 MENSAJE VISIBLE Y BONITO
-        st.success(f"💰 Monto ${monto:.2f} registrado correctamente.")
+            st.success(f"💰 Monto ${monto:.2f} registrado correctamente.")
+            st.toast(f"✔ ${monto:.2f} agregado a caja")
 
-        # 🔥 OPCIONAL: NOTIFICACIÓN MODERNA
-        st.toast(f"✔ ${monto:.2f} agregado a caja")
-
-    except Exception as e:
-        st.error(f"Error al registrar ingreso: {e}")
+        except Exception as e:
+            st.error(f"Error al registrar ingreso: {e}")
 
 # ============================================================
 # REGISTRO DE NUEVAS SOCIAS
