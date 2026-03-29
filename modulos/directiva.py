@@ -90,8 +90,7 @@ def interfaz_directiva():
 # ============================================================
 # 🎯 REGISTRO DE ASISTENCIA — CORREGIDO
 # ============================================================
-
-   def pagina_asistencia():
+def pagina_asistencia():
 
     st.header("📝 Registro de asistencia")
 
@@ -101,9 +100,7 @@ def interfaz_directiva():
     fecha_raw = st.date_input("📅 Fecha de reunión:", date.today())
     fecha = fecha_raw.strftime("%Y-%m-%d")
 
-    # ==========================================================
-    # 🔥 USAR TABLA Reunion (CORRECTO CON TU BD)
-    # ==========================================================
+    # ===== REUNION =====
     cur.execute("SELECT Id_Reunion FROM Reunion WHERE Fecha_reunion = %s", (fecha,))
     row = cur.fetchone()
 
@@ -117,9 +114,7 @@ def interfaz_directiva():
         con.commit()
         id_reunion = cur.lastrowid
 
-    # ==========================================================
-    # SOCIOS
-    # ==========================================================
+    # ===== SOCIOS =====
     cur.execute("SELECT Id_Socia, Nombre FROM Socia ORDER BY Id_Socia ASC")
     socias = cur.fetchall()
 
@@ -138,11 +133,8 @@ def interfaz_directiva():
         )
         estados[s["Id_Socia"]] = "Presente" if eleccion == "Sí" else "Ausente"
 
-    # ==========================================================
-    # GUARDAR
-    # ==========================================================
+    # ===== GUARDAR =====
     if st.button("💾 Guardar asistencia"):
-
         try:
             for id_socia, estado in estados.items():
 
@@ -174,9 +166,7 @@ def interfaz_directiva():
             st.error(f"Error al guardar asistencia: {e}")
             return
 
-    # ==========================================================
-    # MOSTRAR REGISTROS
-    # ==========================================================
+    # ===== MOSTRAR =====
     cur.execute("""
         SELECT S.Nombre, A.Estado_asistencia
         FROM Asistencia A
@@ -189,9 +179,7 @@ def interfaz_directiva():
         st.subheader("📋 Asistencia registrada")
         st.dataframe(pd.DataFrame(registros), use_container_width=True)
 
-    # ==========================================================
-    # RESUMEN
-    # ==========================================================
+    # ===== RESUMEN =====
     cur.execute("SELECT Estado_asistencia FROM Asistencia WHERE Fecha = %s", (fecha,))
     registros_tot = cur.fetchall()
 
@@ -206,7 +194,8 @@ def interfaz_directiva():
             f"🟢 Presentes: **{presentes}**\n"
             f"🔴 Ausentes: **{ausentes}**"
         )
-
+   
+   
     # ==========================================================
     # INGRESOS EXTRAORDINARIOS (NO TOCADO)
     # ==========================================================
