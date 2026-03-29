@@ -219,37 +219,37 @@ def pagina_asistencia():
     concepto = st.selectbox("Concepto:", ["Rifa", "Donación", "Otros"])
     monto = st.number_input("Monto ($)", min_value=0.01, step=0.25)
 
-# ==========================================================
-# 🔥 INGRESO EXTRAORDINARIO — CORREGIDO TOTAL
-# ==========================================================
+    # ==========================================================
+    # 🔥 INGRESO EXTRAORDINARIO — CORREGIDO
+    # ==========================================================
 
-# Inicializar mensaje
-if "msg_ingreso" not in st.session_state:
-    st.session_state.msg_ingreso = None
+    # Inicializar mensaje
+    if "msg_ingreso" not in st.session_state:
+        st.session_state.msg_ingreso = None
 
-# BOTÓN (MISMA INDENTACIÓN)
-if st.button("➕ Registrar ingreso extraordinario", use_container_width=True):
+    # BOTÓN (DENTRO DE LA FUNCIÓN)
+    if st.button("➕ Registrar ingreso extraordinario", use_container_width=True):
 
-    try:
-        id_caja = obtener_o_crear_reunion(fecha_ingreso)
+        try:
+            id_caja = obtener_o_crear_reunion(fecha_ingreso)
 
-        registrar_movimiento(
-            id_caja=id_caja,
-            tipo="Ingreso",
-            categoria=f"Ingreso extraordinario — {concepto}",
-            monto=monto
-        )
+            registrar_movimiento(
+                id_caja=id_caja,
+                tipo="Ingreso",
+                categoria=f"Ingreso extraordinario — {concepto}",
+                monto=monto
+            )
 
-        st.session_state.msg_ingreso = f"💰 Monto ${monto:.2f} registrado correctamente."
-        st.rerun()
+            st.session_state.msg_ingreso = f"💰 Monto ${monto:.2f} registrado correctamente."
+            st.rerun()
 
-    except Exception as e:
-        st.error(f"Error al registrar ingreso: {e}")
+        except Exception as e:
+            st.error(f"Error al registrar ingreso: {e}")
 
-# Mostrar mensaje
-if st.session_state.msg_ingreso:
-    st.success(st.session_state.msg_ingreso)
-    st.session_state.msg_ingreso = None
+    # Mostrar mensaje
+    if st.session_state.msg_ingreso:
+        st.success(st.session_state.msg_ingreso)
+        st.session_state.msg_ingreso = None
 
    
 # ============================================================
