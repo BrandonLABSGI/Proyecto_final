@@ -218,16 +218,17 @@ def pagina_asistencia():
 
     concepto = st.selectbox("Concepto:", ["Rifa", "Donación", "Otros"])
     monto = st.number_input("Monto ($)", min_value=0.01, step=0.25)
+
 # ==========================================================
-# 🔥 INGRESO EXTRAORDINARIO — CORRECTO
+# 🔥 INGRESO EXTRAORDINARIO — CORREGIDO TOTAL
 # ==========================================================
 
-# 🔥 Inicializar mensaje
+# Inicializar mensaje
 if "msg_ingreso" not in st.session_state:
     st.session_state.msg_ingreso = None
 
-# 🔘 BOTÓN (MISMA INDENTACIÓN)
-if st.button("➕ Registrar ingreso extraordinario"):
+# BOTÓN (MISMA INDENTACIÓN)
+if st.button("➕ Registrar ingreso extraordinario", use_container_width=True):
 
     try:
         id_caja = obtener_o_crear_reunion(fecha_ingreso)
@@ -240,13 +241,12 @@ if st.button("➕ Registrar ingreso extraordinario"):
         )
 
         st.session_state.msg_ingreso = f"💰 Monto ${monto:.2f} registrado correctamente."
-
         st.rerun()
 
     except Exception as e:
         st.error(f"Error al registrar ingreso: {e}")
 
-# 🔥 Mostrar mensaje
+# Mostrar mensaje
 if st.session_state.msg_ingreso:
     st.success(st.session_state.msg_ingreso)
     st.session_state.msg_ingreso = None
